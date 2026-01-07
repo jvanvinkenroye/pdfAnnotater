@@ -9,7 +9,8 @@
       "Bash(source .venv/bin/activate)",
       "Bash(uv pip install:*)",
       "Bash(ruff check:*)",
-      "Bash(ruff format:*)"
+      "Bash(ruff format:*)",
+      "Bash(python:*)"
     ]
   },
   "sandbox": {
