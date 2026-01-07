@@ -231,7 +231,8 @@ class DatabaseManager:
             cursor = conn.cursor()
             cursor.execute(
                 """
-                SELECT id, original_filename, file_path, page_count, upload_timestamp
+                SELECT id, original_filename, file_path, page_count, upload_timestamp,
+                       first_name, last_name, title, year, subject
                 FROM documents
                 WHERE id = ?
             """,
@@ -241,6 +242,49 @@ class DatabaseManager:
             if row:
                 return dict(row)
         return None
+
+    def update_document_metadata(
+        self,
+        doc_id: str,
+        first_name: str,
+        last_name: str,
+        title: str,
+        year: str,
+        subject: str,
+    ) -> bool:
+        """
+        Update metadata fields for a document.
+
+        Args:
+            doc_id: UUID of document
+            first_name: First name
+            last_name: Last name
+            title: Document title
+            year: Year
+            subject: Subject/theme
+
+        Returns:
+            bool: True if successful, False otherwise
+
+        Example:
+            success = db.update_document_metadata(
+                "abc-123", "Max", "Mustermann", "Projektbericht", "2026", "IT"
+            )
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    UPDATE documents
+                    SET first_name = ?, last_name = ?, title = ?, year = ?, subject = ?
+                    WHERE id = ?
+                """,
+                    (first_name, last_name, title, year, subject, doc_id),
+                )
+                return cursor.rowcount > 0
+        except Exception:
+            return False
 
     def upsert_annotation(self, doc_id: str, page_number: int, note_text: str) -> None:
         """

@@ -21,6 +21,13 @@
     const saveProgressButton = document.getElementById('save-progress');
     const saveStatus = document.getElementById('save-status');
 
+    // Metadata elements
+    const editMetadataBtn = document.getElementById('edit-metadata-btn');
+    const saveMetadataBtn = document.getElementById('save-metadata-btn');
+    const cancelMetadataBtn = document.getElementById('cancel-metadata-btn');
+    const metadataDisplay = document.getElementById('metadata-display');
+    const metadataForm = document.getElementById('metadata-form');
+
     // State
     let currentPage = 1;
     let isSaving = false;
@@ -192,6 +199,82 @@
         }, 1000);
     }
 
+    /**
+     * Show metadata edit form
+     */
+    function showMetadataForm() {
+        metadataDisplay.style.display = 'none';
+        metadataForm.style.display = 'block';
+        editMetadataBtn.style.display = 'none';
+    }
+
+    /**
+     * Hide metadata edit form
+     */
+    function hideMetadataForm() {
+        metadataDisplay.style.display = 'flex';
+        metadataForm.style.display = 'none';
+        editMetadataBtn.style.display = 'inline-block';
+    }
+
+    /**
+     * Save metadata
+     */
+    function saveMetadata() {
+        const firstName = document.getElementById('edit-first-name').value.trim();
+        const lastName = document.getElementById('edit-last-name').value.trim();
+        const title = document.getElementById('edit-title').value.trim();
+        const year = document.getElementById('edit-year').value.trim();
+        const subject = document.getElementById('edit-subject').value.trim();
+
+        // Disable button
+        saveMetadataBtn.disabled = true;
+        saveMetadataBtn.textContent = 'Wird gespeichert...';
+
+        const metadataUrl = `/viewer/api/metadata/${docId}`;
+
+        fetch(metadataUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                first_name: firstName,
+                last_name: lastName,
+                title: title,
+                year: year,
+                subject: subject
+            })
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Save failed');
+                }
+                return response.json();
+            })
+            .then(data => {
+                // Update display
+                document.getElementById('display-first-name').textContent = firstName || '-';
+                document.getElementById('display-last-name').textContent = lastName || '-';
+                document.getElementById('display-title').textContent = title || '-';
+                document.getElementById('display-year').textContent = year || '-';
+                document.getElementById('display-subject').textContent = subject || '-';
+
+                // Hide form
+                hideMetadataForm();
+
+                // Reset button
+                saveMetadataBtn.disabled = false;
+                saveMetadataBtn.textContent = 'Speichern';
+            })
+            .catch(error => {
+                console.error('Error saving metadata:', error);
+                alert('Fehler beim Speichern der Metadaten');
+                saveMetadataBtn.disabled = false;
+                saveMetadataBtn.textContent = 'Speichern';
+            });
+    }
+
     // Event Listeners
 
     // Navigation buttons
@@ -205,6 +288,11 @@
 
     // Save progress button
     saveProgressButton.addEventListener('click', saveProgress);
+
+    // Metadata buttons
+    editMetadataBtn.addEventListener('click', showMetadataForm);
+    saveMetadataBtn.addEventListener('click', saveMetadata);
+    cancelMetadataBtn.addEventListener('click', hideMetadataForm);
 
     // Note field auto-save
     noteField.addEventListener('input', function() {

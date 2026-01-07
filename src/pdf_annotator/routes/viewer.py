@@ -50,6 +50,11 @@ def view_document(doc_id: str) -> any:
             doc_id=doc_id,
             original_filename=doc_info["original_filename"],
             page_count=doc_info["page_count"],
+            first_name=doc_info.get("first_name", ""),
+            last_name=doc_info.get("last_name", ""),
+            title=doc_info.get("title", ""),
+            year=doc_info.get("year", ""),
+            subject=doc_info.get("subject", ""),
         )
 
     except Exception as e:
@@ -234,6 +239,66 @@ def save_annotation(doc_id: str, page_number: int) -> any:
     except Exception as e:
         logger.error(
             f"Error saving annotation for page {page_number} of {doc_id}: {e}",
+            exc_info=True,
+        )
+        return jsonify({"error": "Interner Serverfehler"}), 500
+
+
+@viewer_bp.route("/api/metadata/<doc_id>", methods=["POST"])
+def update_metadata(doc_id: str) -> any:
+    """
+    Update document metadata.
+
+    Args:
+        doc_id: UUID of document
+
+    Returns:
+        JSON response with success status
+
+    Example:
+        POST /viewer/api/metadata/abc-123
+        Body: {"first_name": "Max", "last_name": "Mustermann", ...}
+    """
+    try:
+        db = DatabaseManager()
+        doc_info = db.get_document(doc_id)
+
+        if not doc_info:
+            logger.warning(f"Document not found: {doc_id}")
+            return jsonify({"error": "Dokument nicht gefunden"}), 404
+
+        # Get metadata from request
+        data = request.get_json()
+        if not data:
+            logger.warning("No JSON data in request")
+            return jsonify({"error": "Keine Daten gesendet"}), 400
+
+        # Extract metadata fields
+        first_name = data.get("first_name", "").strip()
+        last_name = data.get("last_name", "").strip()
+        title = data.get("title", "").strip()
+        year = data.get("year", "").strip()
+        subject = data.get("subject", "").strip()
+
+        # Update metadata in database
+        success = db.update_document_metadata(
+            doc_id, first_name, last_name, title, year, subject
+        )
+
+        if not success:
+            logger.error(f"Failed to update metadata for document {doc_id}")
+            return (
+                jsonify({"error": "Fehler beim Aktualisieren der Metadaten"}),
+                500,
+            )
+
+        logger.info(f"Updated metadata for document {doc_id}")
+
+        return jsonify({"success": True})
+
+    except Exception as e:
+        logger.error(
+            f"Error updating metadata for document {doc_id}: {e}",
             exc_info=True,
         )
         return jsonify({"error": "Interner Serverfehler"}), 500

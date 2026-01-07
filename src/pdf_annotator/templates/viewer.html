@@ -7,6 +7,68 @@
 {% endblock %}
 
 {% block content %}
+<!-- Metadata Section -->
+<div class="metadata-section">
+    <div class="container">
+        <div class="metadata-header">
+            <h3>Metadaten</h3>
+            <button id="edit-metadata-btn" class="btn btn-secondary btn-sm">Bearbeiten</button>
+        </div>
+        <div id="metadata-display" class="metadata-display">
+            <div class="metadata-item">
+                <span class="metadata-label">Vorname:</span>
+                <span class="metadata-value" id="display-first-name">{{ first_name or '-' }}</span>
+            </div>
+            <div class="metadata-item">
+                <span class="metadata-label">Nachname:</span>
+                <span class="metadata-value" id="display-last-name">{{ last_name or '-' }}</span>
+            </div>
+            <div class="metadata-item">
+                <span class="metadata-label">Titel:</span>
+                <span class="metadata-value" id="display-title">{{ title or '-' }}</span>
+            </div>
+            <div class="metadata-item">
+                <span class="metadata-label">Jahr:</span>
+                <span class="metadata-value" id="display-year">{{ year or '-' }}</span>
+            </div>
+            <div class="metadata-item">
+                <span class="metadata-label">Thema:</span>
+                <span class="metadata-value" id="display-subject">{{ subject or '-' }}</span>
+            </div>
+        </div>
+        <div id="metadata-form" class="metadata-form" style="display: none;">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="edit-first-name">Vorname</label>
+                    <input type="text" id="edit-first-name" class="form-input" value="{{ first_name }}">
+                </div>
+                <div class="form-group">
+                    <label for="edit-last-name">Nachname</label>
+                    <input type="text" id="edit-last-name" class="form-input" value="{{ last_name }}">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="edit-title">Titel</label>
+                <input type="text" id="edit-title" class="form-input" value="{{ title }}">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="edit-year">Jahr</label>
+                    <input type="text" id="edit-year" class="form-input" value="{{ year }}" maxlength="4">
+                </div>
+                <div class="form-group">
+                    <label for="edit-subject">Thema</label>
+                    <input type="text" id="edit-subject" class="form-input" value="{{ subject }}">
+                </div>
+            </div>
+            <div class="form-actions">
+                <button id="save-metadata-btn" class="btn btn-primary">Speichern</button>
+                <button id="cancel-metadata-btn" class="btn btn-secondary">Abbrechen</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="viewer-controls">
     <div class="container">
         <div class="controls-left">

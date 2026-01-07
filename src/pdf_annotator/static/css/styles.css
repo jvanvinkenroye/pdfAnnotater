@@ -322,6 +322,59 @@ body {
     margin-top: 1rem;
 }
 
+/* Metadata Section */
+.metadata-section {
+    background-color: white;
+    border-bottom: 1px solid var(--border-color);
+    padding: 1rem 0;
+}
+
+.metadata-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.metadata-header h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.metadata-display {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+}
+
+.metadata-item {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.metadata-label {
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.metadata-value {
+    color: var(--text-primary);
+    font-size: 0.9rem;
+}
+
+.metadata-form {
+    margin-top: 1rem;
+}
+
+.form-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+
 /* Viewer Controls */
 .viewer-controls {
     background-color: white;
