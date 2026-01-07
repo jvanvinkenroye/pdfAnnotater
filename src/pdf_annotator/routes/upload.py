@@ -40,6 +40,24 @@ def index() -> str:
     return render_template("index.html")
 
 
+@upload_bp.route("/documents", methods=["GET"])
+def list_documents() -> str:
+    """
+    Render document list page.
+
+    Shows all uploaded documents with metadata.
+
+    Returns:
+        str: Rendered HTML template
+    """
+    db = DatabaseManager()
+    documents = db.get_all_documents()
+
+    logger.info(f"Listing {len(documents)} documents")
+
+    return render_template("documents.html", documents=documents)
+
+
 @upload_bp.route("/upload", methods=["POST"])
 def upload_file() -> any:
     """
@@ -122,9 +140,25 @@ def upload_file() -> any:
                 400,
             )
 
+        # Get metadata from form
+        first_name = request.form.get("first_name", "").strip()
+        last_name = request.form.get("last_name", "").strip()
+        title = request.form.get("title", "").strip()
+        year = request.form.get("year", "").strip()
+        subject = request.form.get("subject", "").strip()
+
         # Create database entry
         db = DatabaseManager()
-        doc_id = db.create_document(original_filename, str(storage_path), page_count)
+        doc_id = db.create_document(
+            original_filename,
+            str(storage_path),
+            page_count,
+            first_name,
+            last_name,
+            title,
+            year,
+            subject,
+        )
 
         # Initialize empty annotations for all pages
         for page_num in range(1, page_count + 1):

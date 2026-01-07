@@ -84,10 +84,41 @@ class DatabaseManager:
                     original_filename TEXT NOT NULL,
                     file_path TEXT NOT NULL,
                     page_count INTEGER NOT NULL,
+                    first_name TEXT DEFAULT '',
+                    last_name TEXT DEFAULT '',
+                    title TEXT DEFAULT '',
+                    year TEXT DEFAULT '',
+                    subject TEXT DEFAULT '',
                     upload_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """
             )
+
+            # Migrate existing database (add new columns if they don't exist)
+            try:
+                cursor.execute("ALTER TABLE documents ADD COLUMN first_name TEXT DEFAULT ''")
+            except Exception:
+                pass  # Column already exists
+
+            try:
+                cursor.execute("ALTER TABLE documents ADD COLUMN last_name TEXT DEFAULT ''")
+            except Exception:
+                pass  # Column already exists
+
+            try:
+                cursor.execute("ALTER TABLE documents ADD COLUMN title TEXT DEFAULT ''")
+            except Exception:
+                pass  # Column already exists
+
+            try:
+                cursor.execute("ALTER TABLE documents ADD COLUMN year TEXT DEFAULT ''")
+            except Exception:
+                pass  # Column already exists
+
+            try:
+                cursor.execute("ALTER TABLE documents ADD COLUMN subject TEXT DEFAULT ''")
+            except Exception:
+                pass  # Column already exists
 
             # Create annotations table
             cursor.execute(
@@ -136,7 +167,17 @@ class DatabaseManager:
 
             conn.commit()
 
-    def create_document(self, filename: str, file_path: str, page_count: int) -> str:
+    def create_document(
+        self,
+        filename: str,
+        file_path: str,
+        page_count: int,
+        first_name: str = "",
+        last_name: str = "",
+        title: str = "",
+        year: str = "",
+        subject: str = "",
+    ) -> str:
         """
         Create a new document entry.
 
@@ -144,22 +185,31 @@ class DatabaseManager:
             filename: Original filename of uploaded PDF
             file_path: Path where PDF is stored
             page_count: Number of pages in PDF
+            first_name: First name of annotator (optional)
+            last_name: Last name of annotator (optional)
+            title: Document title (optional)
+            year: Year (optional)
+            subject: Subject/Theme (optional)
 
         Returns:
             str: UUID of created document
 
         Example:
-            doc_id = db.create_document("report.pdf", "/data/uploads/abc.pdf", 10)
+            doc_id = db.create_document(
+                "report.pdf", "/data/uploads/abc.pdf", 10,
+                "Max", "Mustermann", "Projektbericht", "2026", "IT-Sicherheit"
+            )
         """
         doc_id = str(uuid4())
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
-                INSERT INTO documents (id, original_filename, file_path, page_count)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO documents (id, original_filename, file_path, page_count,
+                                       first_name, last_name, title, year, subject)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-                (doc_id, filename, file_path, page_count),
+                (doc_id, filename, file_path, page_count, first_name, last_name, title, year, subject),
             )
         return doc_id
 

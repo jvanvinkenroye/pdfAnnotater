@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}Dokumente - PDF Annotator{% endblock %}
+
+{% block nav %}
+<a href="{{ url_for('upload.index') }}" class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.9rem;">
+    Neues PDF hochladen
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="documents-container">
+    <h1>Ihre PDF-Dokumente</h1>
+    <p class="subtitle">Wählen Sie ein Dokument aus, um es zu bearbeiten oder fortzufahren.</p>
+
+    {% if documents %}
+    <div class="documents-grid">
+        {% for doc in documents %}
+        <div class="document-card">
+            <div class="document-header">
+                <h3 class="document-filename">{{ doc.original_filename }}</h3>
+                <span class="document-pages">{{ doc.page_count }} Seiten</span>
+            </div>
+
+            <div class="document-meta">
+                {% if doc.first_name or doc.last_name %}
+                <div class="meta-item">
+                    <span class="meta-label">Bearbeiter:</span>
+                    <span class="meta-value">{{ doc.first_name }} {{ doc.last_name }}</span>
+                </div>
+                {% endif %}
+
+                {% if doc.title %}
+                <div class="meta-item">
+                    <span class="meta-label">Titel:</span>
+                    <span class="meta-value">{{ doc.title }}</span>
+                </div>
+                {% endif %}
+
+                {% if doc.year %}
+                <div class="meta-item">
+                    <span class="meta-label">Jahr:</span>
+                    <span class="meta-value">{{ doc.year }}</span>
+                </div>
+                {% endif %}
+
+                {% if doc.subject %}
+                <div class="meta-item">
+                    <span class="meta-label">Thema:</span>
+                    <span class="meta-value">{{ doc.subject }}</span>
+                </div>
+                {% endif %}
+
+                <div class="meta-item">
+                    <span class="meta-label">Hochgeladen:</span>
+                    <span class="meta-value">{{ doc.upload_timestamp[:16] }}</span>
+                </div>
+            </div>
+
+            <div class="document-actions">
+                <a href="{{ url_for('viewer.view_document', doc_id=doc.id) }}" class="btn btn-primary">
+                    Öffnen & Bearbeiten
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+        </svg>
+        <h2>Noch keine Dokumente</h2>
+        <p>Laden Sie Ihr erstes PDF hoch, um zu beginnen.</p>
+        <a href="{{ url_for('upload.index') }}" class="btn btn-primary">
+            Jetzt PDF hochladen
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
