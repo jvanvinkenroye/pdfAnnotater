@@ -1,0 +1,257 @@
+# PDF Side-by-Side Annotator
+
+Eine Flask-basierte Web-Applikation zum Annotieren von PDF-Dokumenten mit Side-by-Side-View. Zeigt PDFs seitenweise an und ermöglicht es, pro Seite Notizen zu erfassen, die dann mit Zeitstempeln in grüner Courier-Schrift in das PDF integriert werden.
+
+## Features
+
+- **Split-Screen View:** PDF-Anzeige links, Notizen-Editor rechts
+- **Seitenweise Navigation:** Vor/Zurück-Buttons und Tastatur-Shortcuts (Pfeiltasten)
+- **Auto-Save:** Notizen werden automatisch gespeichert (debounced, 500ms)
+- **Export-Funktionen:**
+  - **Annotiertes PDF:** Original-PDF mit Notizen in grüner Courier-Schrift + Zeitstempel
+  - **Markdown-Export:** Alle Notizen als strukturiertes Markdown-Dokument
+- **Single-User:** Lokale Applikation ohne Session-Management
+- **Persistente Speicherung:** Dokumente bleiben bis zur manuellen Löschung erhalten
+- **Max. 50 MB:** Upload-Limit für PDF-Dateien
+
+## Screenshots
+
+### Upload-Seite
+Drag & Drop oder Datei-Auswahl für PDF-Upload mit Client-seitiger Validierung.
+
+### Viewer
+Split-Screen mit PDF-Rendering links und Notizen-Editor rechts. Auto-Save und Keyboard-Navigation.
+
+## Installation
+
+### Voraussetzungen
+
+- Python 3.10 oder höher
+- [uv](https://github.com/astral-sh/uv) Package Manager
+- macOS oder Linux
+
+### Setup
+
+1. **Repository klonen**
+   ```bash
+   cd /path/to/project
+   ```
+
+2. **Virtual Environment erstellen**
+   ```bash
+   uv venv --seed
+   source .venv/bin/activate
+   ```
+
+3. **Dependencies installieren**
+   ```bash
+   uv pip install flask pymupdf pillow
+   ```
+
+4. **Dev-Dependencies installieren (optional)**
+   ```bash
+   uv pip install ruff pytest pytest-flask mypy
+   ```
+
+## Verwendung
+
+### Applikation starten
+
+```bash
+source .venv/bin/activate
+python src/pdf_annotator/app.py
+```
+
+Die Applikation läuft dann auf `http://127.0.0.1:5000`
+
+### Workflow
+
+1. **PDF hochladen:** Öffne `http://127.0.0.1:5000` und lade eine PDF-Datei hoch (max. 50 MB)
+2. **Notizen hinzufügen:** Navigiere durch die Seiten und füge Notizen im rechten Editor hinzu
+3. **Auto-Save:** Notizen werden automatisch gespeichert beim Tippen oder Seitenwechsel
+4. **Exportieren:**
+   - **PDF generieren:** Erstellt annotiertes PDF mit Notizen in grüner Courier-Schrift + Zeitstempel
+   - **Markdown exportieren:** Erstellt Markdown-Datei mit allen Notizen
+
+### Tastatur-Shortcuts
+
+- **←/↑:** Vorherige Seite
+- **→/↓:** Nächste Seite
+
+## Projektstruktur
+
+```
+pdfAnnotater/
+├── src/pdf_annotator/
+│   ├── app.py                  # Flask Entry Point
+│   ├── config.py               # Konfiguration (Dev/Prod/Test)
+│   │
+│   ├── models/
+│   │   └── database.py         # SQLite Schema & CRUD
+│   │
+│   ├── services/
+│   │   ├── pdf_processor.py    # PDF → PNG Rendering
+│   │   ├── pdf_generator.py    # Annotiertes PDF erstellen
+│   │   └── markdown_exporter.py # Markdown-Export
+│   │
+│   ├── routes/
+│   │   ├── upload.py           # PDF-Upload
+│   │   ├── viewer.py           # Viewer & API
+│   │   └── export.py           # PDF/Markdown-Download
+│   │
+│   ├── utils/
+│   │   ├── validators.py       # Input-Validierung
+│   │   └── logger.py           # Logging-Setup
+│   │
+│   ├── static/
+│   │   ├── css/styles.css
+│   │   └── js/{upload,viewer}.js
+│   │
+│   └── templates/
+│       ├── base.html
+│       ├── index.html          # Upload-Seite
+│       ├── viewer.html         # Viewer
+│       └── error.html
+│
+├── data/                       # Runtime (nicht in Git)
+│   ├── uploads/                # Hochgeladene PDFs
+│   ├── exports/                # Generierte PDFs
+│   └── annotations.db          # SQLite-DB
+│
+├── tests/                      # Pytest Tests
+├── pyproject.toml              # Projekt-Config
+└── ruff.toml                   # Linting-Config
+```
+
+## Datenbank-Schema
+
+```sql
+-- Dokumente
+CREATE TABLE documents (
+    id TEXT PRIMARY KEY,                    -- UUID4
+    original_filename TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    page_count INTEGER NOT NULL,
+    upload_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Notizen
+CREATE TABLE annotations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    doc_id TEXT NOT NULL,
+    page_number INTEGER NOT NULL,
+    note_text TEXT DEFAULT '',
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE,
+    UNIQUE(doc_id, page_number)
+);
+```
+
+## API-Endpunkte
+
+### Upload
+- `POST /upload` - PDF-Upload mit Validierung
+
+### Viewer
+- `GET /viewer/<doc_id>` - Viewer-Seite laden
+- `GET /viewer/api/page/<doc_id>/<page>` - PDF-Seite als PNG
+- `GET /viewer/api/annotation/<doc_id>/<page>` - Notiz laden
+- `POST /viewer/api/annotation/<doc_id>/<page>` - Notiz speichern
+
+### Export
+- `POST /export/pdf/<doc_id>` - Annotiertes PDF herunterladen
+- `POST /export/markdown/<doc_id>` - Markdown-Datei herunterladen
+
+## Entwicklung
+
+### Code-Qualität prüfen
+
+```bash
+# Linting
+ruff check src/
+
+# Automatische Fixes
+ruff check --fix src/
+
+# Formatierung
+ruff format src/
+```
+
+### Tests ausführen
+
+```bash
+pytest tests/
+```
+
+### Type-Checking
+
+```bash
+mypy src/
+```
+
+## Konfiguration
+
+Die Applikation kann über Umgebungsvariablen konfiguriert werden:
+
+- `FLASK_ENV`: `development`, `production`, oder `testing` (Standard: `development`)
+- `SECRET_KEY`: Flask Secret Key (in Produktion setzen!)
+
+Weitere Konfigurationsoptionen in `src/pdf_annotator/config.py`:
+
+- `MAX_CONTENT_LENGTH`: Max. Upload-Größe (Standard: 50 MB)
+- `PDF_RENDER_DPI`: DPI für PDF-Rendering (Standard: 300)
+- `PDF_ANNOTATION_FONTSIZE`: Schriftgröße für Notizen (Standard: 9)
+- `PDF_ANNOTATION_COLOR`: Farbe für Notizen (Standard: Grün `(0, 0.5, 0)`)
+
+## Technologie-Stack
+
+- **Backend:** Python 3.10+ mit Flask 3.0+
+- **PDF-Handling:** PyMuPDF (fitz) 1.23+ für Rendering und Text-Injektion
+- **Frontend:** HTML5, CSS3 (Flexbox), Vanilla JavaScript (Fetch API)
+- **Datenbank:** SQLite (persistente Speicherung)
+- **Code Quality:** Ruff (Linting & Formatting), MyPy (Type Checking)
+
+## Lizenz
+
+Dieses Projekt wurde als Lernprojekt erstellt.
+
+## Bekannte Limitierungen
+
+- **Single-User:** Keine Multi-User-Unterstützung oder Session-Management
+- **Lokale Speicherung:** Alle Daten werden lokal gespeichert
+- **PDF-Rendering:** Sehr große PDFs (100+ Seiten) können Performance-Einbußen haben
+- **Text-Positionierung:** Notizen werden im Footer-Bereich (80px) platziert und können bei sehr langen Notizen überlappen
+
+## Zukünftige Erweiterungen
+
+- Multi-User-Support mit Session-Management
+- Rich-Text-Editor für Notizen
+- Highlighting direkt im PDF
+- Volltext-Suche in Notizen
+- Export als DOCX/HTML
+- Kollaboration (mehrere User, gleiches PDF)
+
+## Troubleshooting
+
+### Fehler beim PDF-Upload
+
+- Prüfe, dass die Datei ein gültiges PDF ist (nicht beschädigt)
+- Prüfe die Dateigröße (max. 50 MB)
+- Prüfe die Logs in `data/app.log`
+
+### Fehler beim Rendering
+
+- PyMuPDF erfordert bestimmte System-Libraries
+- Bei macOS: `brew install mupdf`
+- Bei Ubuntu: `apt-get install mupdf-tools`
+
+### Datenbank-Fehler
+
+- Prüfe, dass `data/` Ordner existiert und beschreibbar ist
+- Lösche `data/annotations.db` für einen Neustart
+
+## Kontakt & Support
+
+Bei Fragen oder Problemen:
+- Siehe Logs in `data/app.log`
+- Prüfe die [CLAUDE.md](CLAUDE.md) für technische Spezifikationen
