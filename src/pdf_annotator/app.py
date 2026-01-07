@@ -115,9 +115,12 @@ if __name__ == "__main__":
     # Create app
     app = create_app()
 
+    # Get port from environment variable or use default
+    port = int(os.environ.get("FLASK_RUN_PORT", 5000))
+
     # Run development server
     app.run(
         host="127.0.0.1",
-        port=5000,
+        port=port,
         debug=app.config["DEBUG"],
     )

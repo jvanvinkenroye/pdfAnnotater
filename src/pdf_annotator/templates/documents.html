@@ -41,8 +41,17 @@
                     <td class="center">{{ doc.page_count }}</td>
                     <td>{{ doc.upload_timestamp.strftime('%Y-%m-%d %H:%M') if doc.upload_timestamp else '-' }}</td>
                     <td class="actions-cell">
-                        <a href="{{ url_for('viewer.view_document', doc_id=doc.id) }}" class="btn btn-primary btn-sm">
+                        <a href="{{ url_for('viewer.view_document', doc_id=doc.id) }}" class="btn btn-primary btn-sm" title="Dokument bearbeiten">
                             Öffnen
+                        </a>
+                        <a href="{{ url_for('export.download_original_pdf', doc_id=doc.id) }}" class="btn btn-secondary btn-sm btn-download" title="Original-PDF herunterladen">
+                            PDF
+                        </a>
+                        <a href="{{ url_for('export.export_pdf', doc_id=doc.id) }}" class="btn btn-secondary btn-sm btn-download" title="Annotiertes PDF herunterladen" onclick="return downloadAnnotatedPdf(event, '{{ doc.id }}')">
+                            Annotiert
+                        </a>
+                        <a href="{{ url_for('export.export_markdown', doc_id=doc.id) }}" class="btn btn-secondary btn-sm btn-download" title="Markdown-Notizen herunterladen" onclick="return downloadMarkdown(event, '{{ doc.id }}')">
+                            MD
                         </a>
                     </td>
                 </tr>
@@ -137,6 +146,49 @@
         // Add hover effect
         header.style.cursor = 'pointer';
     });
+
+    // Download functions for POST requests
+    window.downloadAnnotatedPdf = function(event, docId) {
+        event.preventDefault();
+        downloadFile(`/export/pdf/${docId}`, 'POST');
+        return false;
+    };
+
+    window.downloadMarkdown = function(event, docId) {
+        event.preventDefault();
+        downloadFile(`/export/markdown/${docId}`, 'POST');
+        return false;
+    };
+
+    function downloadFile(url, method) {
+        fetch(url, {
+            method: method,
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Download failed');
+                }
+                return response.blob();
+            })
+            .then(blob => {
+                // Create download link
+                const downloadUrl = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = downloadUrl;
+                a.download = ''; // Filename from Content-Disposition
+                document.body.appendChild(a);
+                a.click();
+
+                // Cleanup
+                window.URL.revokeObjectURL(downloadUrl);
+                document.body.removeChild(a);
+            })
+            .catch(error => {
+                console.error('Error downloading file:', error);
+                alert('Fehler beim Herunterladen der Datei');
+            });
+    }
 })();
 </script>
 {% endblock %}

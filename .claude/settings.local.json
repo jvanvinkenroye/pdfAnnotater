@@ -12,7 +12,12 @@
       "Bash(ruff format:*)",
       "Bash(python:*)",
       "Bash(sqlite3:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(PYTHONPATH=/Users/java/src_own/pdfAnnotater/src python:*)",
+      "Bash(FLASK_RUN_PORT=6767 python:*)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill:*)",
+      "Bash(curl:*)"
     ]
   },
   "sandbox": {

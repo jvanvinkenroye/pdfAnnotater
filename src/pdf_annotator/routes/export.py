@@ -26,6 +26,59 @@ logger = get_logger(__name__)
 export_bp = Blueprint("export", __name__, url_prefix="/export")
 
 
+@export_bp.route("/original/<doc_id>", methods=["GET"])
+def download_original_pdf(doc_id: str) -> any:
+    """
+    Download original PDF file.
+
+    Sends the original uploaded PDF file as download.
+
+    Args:
+        doc_id: UUID of document
+
+    Returns:
+        PDF file download or error response
+
+    Example:
+        GET /export/original/abc-123
+
+        Response: Original PDF file download
+    """
+    try:
+        db = DatabaseManager()
+        doc_info = db.get_document(doc_id)
+
+        if not doc_info:
+            logger.warning(f"Document not found: {doc_id}")
+            return jsonify({"error": "Dokument nicht gefunden"}), 404
+
+        logger.info(f"Downloading original PDF for document {doc_id}")
+
+        # Get file path
+        file_path = Path(doc_info["file_path"])
+
+        if not file_path.exists():
+            logger.error(f"PDF file not found: {file_path}")
+            return jsonify({"error": "PDF-Datei nicht gefunden"}), 404
+
+        # Send file
+        original_filename = doc_info["original_filename"]
+        logger.info(f"Sending original PDF: {original_filename}")
+        return send_file(
+            file_path,
+            as_attachment=True,
+            download_name=original_filename,
+            mimetype="application/pdf",
+        )
+
+    except Exception as e:
+        logger.error(
+            f"Error downloading original PDF for document {doc_id}: {e}",
+            exc_info=True,
+        )
+        return jsonify({"error": "Interner Serverfehler beim Download"}), 500
+
+
 @export_bp.route("/pdf/<doc_id>", methods=["POST"])
 def export_pdf(doc_id: str) -> any:
     """

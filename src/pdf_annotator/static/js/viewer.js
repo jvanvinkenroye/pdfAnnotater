@@ -18,8 +18,7 @@
     const currentPageSpan = document.getElementById('current-page');
     const prevButton = document.getElementById('prev-page');
     const nextButton = document.getElementById('next-page');
-    const exportPdfButton = document.getElementById('export-pdf');
-    const exportMarkdownButton = document.getElementById('export-markdown');
+    const saveProgressButton = document.getElementById('save-progress');
     const saveStatus = document.getElementById('save-status');
 
     // State
@@ -178,107 +177,19 @@
     }
 
     /**
-     * Export annotated PDF
+     * Manually save progress
      */
-    function exportPdf() {
-        // Save current note before export
-        saveNote(true);
+    function saveProgress() {
+        saveNote(true); // Immediate save
 
-        // Wait for save to complete
+        // Show feedback
+        saveProgressButton.disabled = true;
+        saveProgressButton.textContent = 'Wird gespeichert...';
+
         setTimeout(() => {
-            exportPdfButton.disabled = true;
-            exportPdfButton.textContent = 'PDF wird generiert...';
-
-            const exportUrl = `/export/pdf/${docId}`;
-
-            fetch(exportUrl, {
-                method: 'POST'
-            })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('Export failed');
-                    }
-                    return response.blob();
-                })
-                .then(blob => {
-                    // Get filename from Content-Disposition header or use default
-                    const filename = `annotated_${docId}.pdf`;
-
-                    // Create download link
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.style.display = 'none';
-                    a.href = url;
-                    a.download = filename;
-                    document.body.appendChild(a);
-                    a.click();
-
-                    // Cleanup
-                    window.URL.revokeObjectURL(url);
-                    document.body.removeChild(a);
-
-                    exportPdfButton.disabled = false;
-                    exportPdfButton.textContent = 'PDF generieren';
-                })
-                .catch(error => {
-                    console.error('Error exporting PDF:', error);
-                    alert('Fehler beim Exportieren des PDFs');
-                    exportPdfButton.disabled = false;
-                    exportPdfButton.textContent = 'PDF generieren';
-                });
-        }, 200);
-    }
-
-    /**
-     * Export Markdown
-     */
-    function exportMarkdown() {
-        // Save current note before export
-        saveNote(true);
-
-        // Wait for save to complete
-        setTimeout(() => {
-            exportMarkdownButton.disabled = true;
-            exportMarkdownButton.textContent = 'Wird exportiert...';
-
-            const exportUrl = `/export/markdown/${docId}`;
-
-            fetch(exportUrl, {
-                method: 'POST'
-            })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('Export failed');
-                    }
-                    return response.blob();
-                })
-                .then(blob => {
-                    // Get filename from Content-Disposition header or use default
-                    const filename = `notes_${docId}.md`;
-
-                    // Create download link
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.style.display = 'none';
-                    a.href = url;
-                    a.download = filename;
-                    document.body.appendChild(a);
-                    a.click();
-
-                    // Cleanup
-                    window.URL.revokeObjectURL(url);
-                    document.body.removeChild(a);
-
-                    exportMarkdownButton.disabled = false;
-                    exportMarkdownButton.textContent = 'Markdown exportieren';
-                })
-                .catch(error => {
-                    console.error('Error exporting Markdown:', error);
-                    alert('Fehler beim Exportieren der Markdown-Datei');
-                    exportMarkdownButton.disabled = false;
-                    exportMarkdownButton.textContent = 'Markdown exportieren';
-                });
-        }, 200);
+            saveProgressButton.disabled = false;
+            saveProgressButton.textContent = 'Fortschritt speichern';
+        }, 1000);
     }
 
     // Event Listeners
@@ -292,9 +203,8 @@
         navigateToPage(currentPage + 1);
     });
 
-    // Export buttons
-    exportPdfButton.addEventListener('click', exportPdf);
-    exportMarkdownButton.addEventListener('click', exportMarkdown);
+    // Save progress button
+    saveProgressButton.addEventListener('click', saveProgress);
 
     // Note field auto-save
     noteField.addEventListener('input', function() {
@@ -313,10 +223,10 @@
         }
     });
 
-    // Keyboard navigation
+    // Keyboard navigation with Ctrl/Cmd + Arrow keys
     document.addEventListener('keydown', function(e) {
-        // Ignore if typing in textarea
-        if (document.activeElement === noteField) {
+        // Only navigate with Ctrl (Windows/Linux) or Cmd (Mac) + Arrow keys
+        if (!(e.ctrlKey || e.metaKey)) {
             return;
         }
 
