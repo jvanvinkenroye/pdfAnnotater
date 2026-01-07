@@ -6,7 +6,6 @@ Handles PDF rendering and validation using PyMuPDF (fitz).
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Optional, Tuple
 
 import fitz  # PyMuPDF
 
@@ -64,10 +63,10 @@ def get_page_count(file_path: Path) -> int:
         return page_count
     except Exception as e:
         logger.error(f"Failed to get page count for {file_path}: {e}")
-        raise ValueError(f"Invalid PDF file: {e}")
+        raise ValueError(f"Invalid PDF file: {e}") from e
 
 
-def get_page_dimensions(file_path: Path, page_num: int) -> Tuple[float, float]:
+def get_page_dimensions(file_path: Path, page_num: int) -> tuple[float, float]:
     """
     Get dimensions (width, height) of a PDF page in points.
 
@@ -88,9 +87,7 @@ def get_page_dimensions(file_path: Path, page_num: int) -> Tuple[float, float]:
     try:
         doc = fitz.open(str(file_path))
         if page_num < 1 or page_num > len(doc):
-            raise ValueError(
-                f"Page number {page_num} out of range (1-{len(doc)})"
-            )
+            raise ValueError(f"Page number {page_num} out of range (1-{len(doc)})")
 
         page = doc[page_num - 1]  # Convert to 0-indexed
         rect = page.rect
@@ -105,9 +102,7 @@ def get_page_dimensions(file_path: Path, page_num: int) -> Tuple[float, float]:
 
 
 @lru_cache(maxsize=50)
-def render_page_to_image(
-    file_path: str, page_num: int, dpi: int = 300
-) -> Optional[bytes]:
+def render_page_to_image(file_path: str, page_num: int, dpi: int = 300) -> bytes | None:
     """
     Render PDF page to PNG image.
 
@@ -133,9 +128,7 @@ def render_page_to_image(
         doc = fitz.open(file_path)
 
         if page_num < 1 or page_num > len(doc):
-            logger.error(
-                f"Page {page_num} out of range (1-{len(doc)}) for {file_path}"
-            )
+            logger.error(f"Page {page_num} out of range (1-{len(doc)}) for {file_path}")
             doc.close()
             return None
 
@@ -155,8 +148,7 @@ def render_page_to_image(
 
         doc.close()
         logger.debug(
-            f"Successfully rendered page {page_num} "
-            f"({pix.width}x{pix.height} pixels)"
+            f"Successfully rendered page {page_num} ({pix.width}x{pix.height} pixels)"
         )
         return png_bytes
 

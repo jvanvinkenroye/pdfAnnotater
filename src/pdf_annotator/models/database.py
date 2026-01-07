@@ -7,7 +7,6 @@ for documents and annotations.
 
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 from uuid import uuid4
@@ -22,9 +21,9 @@ class DatabaseManager:
     """
 
     _instance: Optional["DatabaseManager"] = None
-    _db_path: Optional[Path] = None
+    _db_path: Path | None = None
 
-    def __new__(cls, db_path: Optional[Path] = None) -> "DatabaseManager":
+    def __new__(cls, db_path: Path | None = None) -> "DatabaseManager":
         """
         Create or return singleton instance.
 
@@ -56,9 +55,7 @@ class DatabaseManager:
                 cursor = conn.cursor()
                 cursor.execute("SELECT * FROM documents")
         """
-        conn = sqlite3.connect(
-            str(self._db_path), detect_types=sqlite3.PARSE_DECLTYPES
-        )
+        conn = sqlite3.connect(str(self._db_path), detect_types=sqlite3.PARSE_DECLTYPES)
         conn.row_factory = sqlite3.Row  # Enable column access by name
         try:
             yield conn
@@ -139,9 +136,7 @@ class DatabaseManager:
 
             conn.commit()
 
-    def create_document(
-        self, filename: str, file_path: str, page_count: int
-    ) -> str:
+    def create_document(self, filename: str, file_path: str, page_count: int) -> str:
         """
         Create a new document entry.
 
@@ -168,7 +163,7 @@ class DatabaseManager:
             )
         return doc_id
 
-    def get_document(self, doc_id: str) -> Optional[dict[str, Any]]:
+    def get_document(self, doc_id: str) -> dict[str, Any] | None:
         """
         Retrieve document by ID.
 
@@ -197,9 +192,7 @@ class DatabaseManager:
                 return dict(row)
         return None
 
-    def upsert_annotation(
-        self, doc_id: str, page_number: int, note_text: str
-    ) -> None:
+    def upsert_annotation(self, doc_id: str, page_number: int, note_text: str) -> None:
         """
         Insert or update annotation for a specific page.
 
@@ -245,9 +238,7 @@ class DatabaseManager:
                     (doc_id, page_number, note_text),
                 )
 
-    def get_annotation(
-        self, doc_id: str, page_number: int
-    ) -> Optional[dict[str, Any]]:
+    def get_annotation(self, doc_id: str, page_number: int) -> dict[str, Any] | None:
         """
         Retrieve annotation for a specific page.
 

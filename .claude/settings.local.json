@@ -7,7 +7,9 @@
       "Bash(git commit:*)",
       "Bash(uv venv:*)",
       "Bash(source .venv/bin/activate)",
-      "Bash(uv pip install:*)"
+      "Bash(uv pip install:*)",
+      "Bash(ruff check:*)",
+      "Bash(ruff format:*)"
     ]
   },
   "sandbox": {

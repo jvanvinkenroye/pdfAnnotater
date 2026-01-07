@@ -7,13 +7,12 @@ Provides structured logging setup with console and file output.
 import logging
 import sys
 from pathlib import Path
-from typing import Optional
 
 
 def setup_logger(
     name: str = "pdf_annotator",
     log_level: str = "INFO",
-    log_file: Optional[Path] = None,
+    log_file: Path | None = None,
 ) -> logging.Logger:
     """
     Set up logger with console and optional file output.

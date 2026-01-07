@@ -5,7 +5,6 @@ Provides file and input validation functions.
 """
 
 from pathlib import Path
-from typing import Optional, Tuple
 
 from werkzeug.datastructures import FileStorage
 
@@ -29,15 +28,12 @@ def allowed_file(filename: str, allowed_extensions: set) -> bool:
         if allowed_file("document.pdf", {"pdf"}):
             print("Valid file type")
     """
-    return (
-        "." in filename
-        and filename.rsplit(".", 1)[1].lower() in allowed_extensions
-    )
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in allowed_extensions
 
 
 def validate_uploaded_file(
     file: FileStorage, max_size: int, allowed_extensions: set
-) -> Tuple[bool, Optional[str]]:
+) -> tuple[bool, str | None]:
     """
     Validate uploaded file.
 
@@ -119,7 +115,7 @@ def sanitize_filename(filename: str) -> str:
     return filename
 
 
-def validate_page_number(page_number: int, max_pages: int) -> Tuple[bool, Optional[str]]:
+def validate_page_number(page_number: int, max_pages: int) -> tuple[bool, str | None]:
     """
     Validate page number is within valid range.
 
@@ -144,7 +140,9 @@ def validate_page_number(page_number: int, max_pages: int) -> Tuple[bool, Option
     return True, None
 
 
-def validate_note_text(note_text: str, max_length: int = 5000) -> Tuple[bool, Optional[str]]:
+def validate_note_text(
+    note_text: str, max_length: int = 5000
+) -> tuple[bool, str | None]:
     """
     Validate annotation note text.
 

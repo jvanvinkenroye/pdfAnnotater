@@ -61,8 +61,7 @@ def export_pdf(doc_id: str) -> any:
         # Create unique temporary file path
         export_id = str(uuid4())
         export_path = (
-            Path(current_app.config["EXPORT_FOLDER"])
-            / f"{export_id}_{export_filename}"
+            Path(current_app.config["EXPORT_FOLDER"]) / f"{export_id}_{export_filename}"
         )
 
         # Ensure export directory exists
@@ -73,13 +72,9 @@ def export_pdf(doc_id: str) -> any:
             doc_id,
             export_path,
             db,
-            font_name=current_app.config.get(
-                "PDF_ANNOTATION_FONT", "courier"
-            ),
+            font_name=current_app.config.get("PDF_ANNOTATION_FONT", "courier"),
             font_size=current_app.config.get("PDF_ANNOTATION_FONTSIZE", 9),
-            font_color=current_app.config.get(
-                "PDF_ANNOTATION_COLOR", (0, 0.5, 0)
-            ),
+            font_color=current_app.config.get("PDF_ANNOTATION_COLOR", (0, 0.5, 0)),
         )
 
         if not success:
@@ -99,9 +94,7 @@ def export_pdf(doc_id: str) -> any:
         )
 
     except Exception as e:
-        logger.error(
-            f"Error exporting PDF for document {doc_id}: {e}", exc_info=True
-        )
+        logger.error(f"Error exporting PDF for document {doc_id}: {e}", exc_info=True)
         return jsonify({"error": "Interner Serverfehler beim Export"}), 500
 
 
@@ -140,8 +133,7 @@ def export_markdown(doc_id: str) -> any:
         # Create unique temporary file path
         export_id = str(uuid4())
         export_path = (
-            Path(current_app.config["EXPORT_FOLDER"])
-            / f"{export_id}_{export_filename}"
+            Path(current_app.config["EXPORT_FOLDER"]) / f"{export_id}_{export_filename}"
         )
 
         # Ensure export directory exists

@@ -17,7 +17,6 @@ from flask import (
     request,
     url_for,
 )
-from werkzeug.utils import secure_filename
 
 from pdf_annotator.models.database import DatabaseManager
 from pdf_annotator.services.pdf_processor import get_page_count, validate_pdf
@@ -85,9 +84,7 @@ def upload_file() -> any:
         doc_id = str(uuid4())
         file_extension = Path(original_filename).suffix
         storage_filename = f"{doc_id}{file_extension}"
-        storage_path = (
-            Path(current_app.config["UPLOAD_FOLDER"]) / storage_filename
-        )
+        storage_path = Path(current_app.config["UPLOAD_FOLDER"]) / storage_filename
 
         # Save file
         storage_path.parent.mkdir(parents=True, exist_ok=True)
@@ -127,17 +124,13 @@ def upload_file() -> any:
 
         # Create database entry
         db = DatabaseManager()
-        doc_id = db.create_document(
-            original_filename, str(storage_path), page_count
-        )
+        doc_id = db.create_document(original_filename, str(storage_path), page_count)
 
         # Initialize empty annotations for all pages
         for page_num in range(1, page_count + 1):
             db.upsert_annotation(doc_id, page_num, "")
 
-        logger.info(
-            f"Document created: {doc_id} with {page_count} pages"
-        )
+        logger.info(f"Document created: {doc_id} with {page_count} pages")
 
         # Return success response with redirect URL
         # For AJAX requests, return JSON

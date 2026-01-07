@@ -43,9 +43,7 @@ def view_document(doc_id: str) -> any:
                 error_message=f"Das Dokument mit ID {doc_id} wurde nicht gefunden.",
             ), 404
 
-        logger.info(
-            f"Viewing document: {doc_id} ({doc_info['original_filename']})"
-        )
+        logger.info(f"Viewing document: {doc_id} ({doc_info['original_filename']})")
 
         return render_template(
             "viewer.html",
@@ -87,25 +85,17 @@ def get_page_image(doc_id: str, page_number: int) -> Response:
             return jsonify({"error": "Dokument nicht gefunden"}), 404
 
         # Validate page number
-        is_valid, error_msg = validate_page_number(
-            page_number, doc_info["page_count"]
-        )
+        is_valid, error_msg = validate_page_number(page_number, doc_info["page_count"])
         if not is_valid:
-            logger.warning(
-                f"Invalid page number {page_number} for document {doc_id}"
-            )
+            logger.warning(f"Invalid page number {page_number} for document {doc_id}")
             return jsonify({"error": error_msg}), 400
 
         # Render page
         dpi = current_app.config.get("PDF_RENDER_DPI", 300)
-        image_bytes = render_page_to_image(
-            doc_info["file_path"], page_number, dpi=dpi
-        )
+        image_bytes = render_page_to_image(doc_info["file_path"], page_number, dpi=dpi)
 
         if image_bytes is None:
-            logger.error(
-                f"Failed to render page {page_number} of document {doc_id}"
-            )
+            logger.error(f"Failed to render page {page_number} of document {doc_id}")
             return jsonify({"error": "Fehler beim Rendern der Seite"}), 500
 
         # Return PNG image
@@ -119,9 +109,7 @@ def get_page_image(doc_id: str, page_number: int) -> Response:
         return jsonify({"error": "Interner Serverfehler"}), 500
 
 
-@viewer_bp.route(
-    "/api/annotation/<doc_id>/<int:page_number>", methods=["GET"]
-)
+@viewer_bp.route("/api/annotation/<doc_id>/<int:page_number>", methods=["GET"])
 def get_annotation(doc_id: str, page_number: int) -> any:
     """
     Get annotation for specific page.
@@ -151,13 +139,9 @@ def get_annotation(doc_id: str, page_number: int) -> any:
             return jsonify({"error": "Dokument nicht gefunden"}), 404
 
         # Validate page number
-        is_valid, error_msg = validate_page_number(
-            page_number, doc_info["page_count"]
-        )
+        is_valid, error_msg = validate_page_number(page_number, doc_info["page_count"])
         if not is_valid:
-            logger.warning(
-                f"Invalid page number {page_number} for document {doc_id}"
-            )
+            logger.warning(f"Invalid page number {page_number} for document {doc_id}")
             return jsonify({"error": error_msg}), 400
 
         # Get annotation
@@ -182,9 +166,7 @@ def get_annotation(doc_id: str, page_number: int) -> any:
         return jsonify({"error": "Interner Serverfehler"}), 500
 
 
-@viewer_bp.route(
-    "/api/annotation/<doc_id>/<int:page_number>", methods=["POST"]
-)
+@viewer_bp.route("/api/annotation/<doc_id>/<int:page_number>", methods=["POST"])
 def save_annotation(doc_id: str, page_number: int) -> any:
     """
     Save or update annotation for specific page.
@@ -220,13 +202,9 @@ def save_annotation(doc_id: str, page_number: int) -> any:
             return jsonify({"error": "Dokument nicht gefunden"}), 404
 
         # Validate page number
-        is_valid, error_msg = validate_page_number(
-            page_number, doc_info["page_count"]
-        )
+        is_valid, error_msg = validate_page_number(page_number, doc_info["page_count"])
         if not is_valid:
-            logger.warning(
-                f"Invalid page number {page_number} for document {doc_id}"
-            )
+            logger.warning(f"Invalid page number {page_number} for document {doc_id}")
             return jsonify({"error": error_msg}), 400
 
         # Get note text from request
@@ -249,13 +227,9 @@ def save_annotation(doc_id: str, page_number: int) -> any:
         # Get updated annotation to return timestamp
         annotation = db.get_annotation(doc_id, page_number)
 
-        logger.info(
-            f"Saved annotation for page {page_number} of document {doc_id}"
-        )
+        logger.info(f"Saved annotation for page {page_number} of document {doc_id}")
 
-        return jsonify(
-            {"success": True, "updated_at": str(annotation["updated_at"])}
-        )
+        return jsonify({"success": True, "updated_at": str(annotation["updated_at"])})
 
     except Exception as e:
         logger.error(

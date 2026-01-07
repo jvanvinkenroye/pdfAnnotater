@@ -6,7 +6,6 @@ Creates annotated PDFs with timestamps and formatted notes.
 
 from datetime import datetime
 from pathlib import Path
-from typing import List, Tuple
 
 import fitz  # PyMuPDF
 
@@ -63,8 +62,8 @@ def add_annotation_to_page(
     timestamp: str,
     font_name: str = "courier",
     font_size: float = 9,
-    font_color: Tuple[float, float, float] = (0, 0.5, 0),
-    background_color: Tuple[float, float, float] = (1, 1, 0.9),
+    font_color: tuple[float, float, float] = (0, 0.5, 0),
+    background_color: tuple[float, float, float] = (1, 1, 0.9),
 ) -> bool:
     """
     Add annotation text to PDF page footer.
@@ -127,7 +126,7 @@ def create_annotated_pdf(
     db: DatabaseManager,
     font_name: str = "courier",
     font_size: float = 9,
-    font_color: Tuple[float, float, float] = (0, 0.5, 0),
+    font_color: tuple[float, float, float] = (0, 0.5, 0),
 ) -> bool:
     """
     Create annotated PDF with all notes from database.
@@ -189,9 +188,7 @@ def create_annotated_pdf(
             # Convert to datetime and format timestamp
             if isinstance(updated_at, str):
                 # Parse string timestamp from database
-                updated_dt = datetime.strptime(
-                    updated_at, "%Y-%m-%d %H:%M:%S"
-                )
+                updated_dt = datetime.strptime(updated_at, "%Y-%m-%d %H:%M:%S")
             else:
                 updated_dt = updated_at
 
@@ -199,9 +196,7 @@ def create_annotated_pdf(
 
             # Get page (0-indexed)
             if page_number < 1 or page_number > len(pdf_doc):
-                logger.warning(
-                    f"Page {page_number} out of range, skipping annotation"
-                )
+                logger.warning(f"Page {page_number} out of range, skipping annotation")
                 continue
 
             page = pdf_doc[page_number - 1]

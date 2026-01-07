@@ -30,9 +30,7 @@ def format_timestamp(dt: datetime) -> str:
     return dt.strftime("[%Y-%m-%d %H:%M]")
 
 
-def export_to_markdown(
-    doc_id: str, output_path: Path, db: DatabaseManager
-) -> bool:
+def export_to_markdown(doc_id: str, output_path: Path, db: DatabaseManager) -> bool:
     """
     Export all annotations to Markdown file.
 
@@ -81,9 +79,7 @@ def export_to_markdown(
         # Filter out empty annotations
         annotations = [ann for ann in annotations if ann["note_text"].strip()]
 
-        logger.info(
-            f"Exporting {len(annotations)} non-empty annotations to Markdown"
-        )
+        logger.info(f"Exporting {len(annotations)} non-empty annotations to Markdown")
 
         # Build Markdown content
         lines = []
@@ -105,9 +101,7 @@ def export_to_markdown(
                 # Convert to datetime and format timestamp
                 if isinstance(updated_at, str):
                     # Parse string timestamp from database
-                    updated_dt = datetime.strptime(
-                        updated_at, "%Y-%m-%d %H:%M:%S"
-                    )
+                    updated_dt = datetime.strptime(updated_at, "%Y-%m-%d %H:%M:%S")
                 else:
                     updated_dt = updated_at
 
