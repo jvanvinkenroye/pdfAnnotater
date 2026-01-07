@@ -11,7 +11,8 @@
       "Bash(ruff check:*)",
       "Bash(ruff format:*)",
       "Bash(python:*)",
-      "Bash(sqlite3:*)"
+      "Bash(sqlite3:*)",
+      "Bash(cat:*)"
     ]
   },
   "sandbox": {
