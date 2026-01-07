@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}{{ original_filename }} - PDF Annotator{% endblock %}
+
+{% block nav %}
+<span class="doc-title">{{ original_filename }}</span>
+{% endblock %}
+
+{% block content %}
+<div class="viewer-controls">
+    <div class="container">
+        <div class="controls-left">
+            <button id="prev-page" class="btn btn-secondary" disabled>
+                <span class="btn-icon">◀</span> Zurück
+            </button>
+            <span class="page-indicator">
+                Seite <span id="current-page">1</span> von <span id="total-pages">{{ page_count }}</span>
+            </span>
+            <button id="next-page" class="btn btn-secondary">
+                Weiter <span class="btn-icon">▶</span>
+            </button>
+        </div>
+        <div class="controls-right">
+            <button id="export-pdf" class="btn btn-primary">
+                PDF generieren
+            </button>
+            <button id="export-markdown" class="btn btn-secondary">
+                Markdown exportieren
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="viewer-container">
+    <div class="pdf-viewer">
+        <div class="pdf-page-wrapper">
+            <img id="pdf-page" src="" alt="PDF Seite" class="pdf-page-image">
+            <div id="page-loading" class="loading-spinner">
+                <div class="spinner"></div>
+                <p>Seite wird geladen...</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="note-editor">
+        <div class="editor-header">
+            <h2>Notizen</h2>
+            <span id="save-status" class="save-status">Gespeichert</span>
+        </div>
+        <textarea
+            id="note-field"
+            class="note-textarea"
+            placeholder="Fügen Sie hier Ihre Notizen für diese Seite hinzu..."
+        ></textarea>
+        <div class="editor-footer">
+            <p class="editor-hint">
+                Notizen werden automatisch gespeichert.
+                Verwenden Sie ←/→ Pfeiltasten für Navigation.
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- Hidden data for JavaScript -->
+<div id="viewer-data"
+     data-doc-id="{{ doc_id }}"
+     data-page-count="{{ page_count }}"
+     style="display: none;">
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/viewer.js') }}"></script>
+{% endblock %}

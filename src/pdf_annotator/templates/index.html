@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Upload - PDF Annotator{% endblock %}
+
+{% block content %}
+<div class="upload-container">
+    <div class="upload-content">
+        <h1>PDF hochladen und annotieren</h1>
+        <p class="subtitle">Laden Sie eine PDF-Datei hoch, um sie Seite für Seite mit Notizen zu versehen.</p>
+
+        <form id="upload-form" method="POST" action="{{ url_for('upload.upload_file') }}" enctype="multipart/form-data">
+            <div class="upload-area" id="upload-area">
+                <div class="upload-icon">
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                </div>
+                <p class="upload-text">
+                    <span class="upload-highlight">Klicken Sie hier</span> oder ziehen Sie eine PDF-Datei hierher
+                </p>
+                <p class="upload-hint">Maximale Dateigröße: 50 MB</p>
+                <input type="file" id="file-input" name="file" accept=".pdf" required>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-upload" id="upload-button">
+                PDF hochladen
+            </button>
+        </form>
+
+        <div id="upload-progress" class="upload-progress" style="display: none;">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-fill"></div>
+            </div>
+            <p class="progress-text" id="progress-text">Wird hochgeladen...</p>
+        </div>
+
+        <div id="error-message" class="error-box" style="display: none;"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/upload.js') }}"></script>
+{% endblock %}
