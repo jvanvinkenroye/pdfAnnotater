@@ -1,0 +1,38 @@
+[project]
+name = "pdf-annotator"
+version = "0.1.0"
+description = "Flask-based PDF annotation tool with side-by-side view"
+authors = [{name = "Java", email = "java@local.dev"}]
+requires-python = ">=3.10"
+dependencies = [
+    "flask>=3.0.0",
+    "pymupdf>=1.23.0",
+    "pillow>=10.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.1.0",
+    "pytest>=7.4.0",
+    "pytest-flask>=1.3.0",
+    "mypy>=1.7.0",
+    "types-flask",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "B", "UP"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
