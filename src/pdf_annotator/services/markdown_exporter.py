@@ -156,9 +156,13 @@ def generate_markdown_filename(doc_info: dict, last_edited: str | None = None) -
     date_str = ""
     if last_edited:
         try:
-            # Extract date part (YYYY-MM-DD)
-            date_str = last_edited[:10]
-        except (IndexError, AttributeError):
+            # Convert to string if it's a datetime object
+            if isinstance(last_edited, datetime):
+                date_str = last_edited.strftime("%Y-%m-%d")
+            else:
+                # It's already a string, extract date part
+                date_str = str(last_edited)[:10]
+        except (ValueError, AttributeError, TypeError):
             date_str = ""
 
     # Build filename parts
