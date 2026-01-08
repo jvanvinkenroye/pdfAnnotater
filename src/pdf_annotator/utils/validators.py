@@ -165,3 +165,50 @@ def validate_note_text(
         return False, f"Notiz zu lang (max. {max_length} Zeichen)"
 
     return True, None
+
+
+def validate_file_type(filename: str) -> tuple[bool, str | None]:
+    """
+    Validate that file is a PDF.
+
+    Args:
+        filename: Name of file to validate
+
+    Returns:
+        Tuple of (is_valid, error_message)
+
+    Example:
+        is_valid, error = validate_file_type("document.pdf")
+        if not is_valid:
+            return jsonify({"error": error}), 400
+    """
+    if not allowed_file(filename, {"pdf"}):
+        return False, "Nur PDF-Dateien erlaubt"
+
+    return True, None
+
+
+def validate_file_size(file_size: int, max_size: int) -> tuple[bool, str | None]:
+    """
+    Validate file size is within limit.
+
+    Args:
+        file_size: Size of file in bytes
+        max_size: Maximum allowed size in bytes
+
+    Returns:
+        Tuple of (is_valid, error_message)
+
+    Example:
+        is_valid, error = validate_file_size(file_size, 50*1024*1024)
+        if not is_valid:
+            return jsonify({"error": error}), 400
+    """
+    if file_size == 0:
+        return False, "Datei ist leer"
+
+    if file_size > max_size:
+        max_size_mb = max_size / (1024 * 1024)
+        return False, f"Datei zu groß (max. {max_size_mb:.0f} MB)"
+
+    return True, None
