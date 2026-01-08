@@ -276,4 +276,10 @@ def generate_annotated_filename(doc_info: dict, last_edited: str | None = None) 
 
     # Combine parts
     filename = "".join(parts) + "_annotiert.pdf"
+
+    # Sanitize filename - remove invalid characters
+    invalid_chars = ['<', '>', ':', '"', '/', '\\', '|', '?', '*']
+    for char in invalid_chars:
+        filename = filename.replace(char, '_')
+
     return filename
