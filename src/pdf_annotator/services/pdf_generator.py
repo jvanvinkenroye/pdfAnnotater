@@ -225,20 +225,51 @@ def create_annotated_pdf(
         return False
 
 
-def generate_annotated_filename(original_filename: str) -> str:
+def generate_annotated_filename(doc_info: dict, last_edited: str | None = None) -> str:
     """
-    Generate filename for annotated PDF.
+    Generate filename for annotated PDF based on metadata.
+
+    Format: NachnameVornameZuletztbearbeitet_annotiert.pdf
 
     Args:
-        original_filename: Original PDF filename
+        doc_info: Document info dict with metadata (last_name, first_name)
+        last_edited: Last edited timestamp (YYYY-MM-DD HH:MM:SS format)
 
     Returns:
-        str: New filename with "_annotiert" suffix
+        str: New filename with metadata and "_annotiert" suffix
 
     Example:
-        new_name = generate_annotated_filename("report.pdf")
-        # Returns: "report_annotiert.pdf"
+        doc_info = {"last_name": "Mustermann", "first_name": "Max", ...}
+        new_name = generate_annotated_filename(doc_info, "2026-01-08 00:05:00")
+        # Returns: "MustermannMax2026-01-08_annotiert.pdf"
     """
-    stem = Path(original_filename).stem
-    suffix = Path(original_filename).suffix
-    return f"{stem}_annotiert{suffix}"
+    # Extract metadata
+    last_name = doc_info.get("last_name", "").strip()
+    first_name = doc_info.get("first_name", "").strip()
+
+    # Format last edited date (YYYY-MM-DD)
+    date_str = ""
+    if last_edited:
+        try:
+            # Extract date part (YYYY-MM-DD)
+            date_str = last_edited[:10]
+        except (IndexError, AttributeError):
+            date_str = ""
+
+    # Build filename parts
+    parts = []
+    if last_name:
+        parts.append(last_name)
+    if first_name:
+        parts.append(first_name)
+    if date_str:
+        parts.append(date_str)
+
+    # If no metadata, fall back to original filename
+    if not parts:
+        stem = Path(doc_info.get("original_filename", "document")).stem
+        return f"{stem}_annotiert.pdf"
+
+    # Combine parts
+    filename = "".join(parts) + "_annotiert.pdf"
+    return filename

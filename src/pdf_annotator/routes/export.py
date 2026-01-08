@@ -107,9 +107,15 @@ def export_pdf(doc_id: str) -> any:
 
         logger.info(f"Exporting annotated PDF for document {doc_id}")
 
-        # Generate output filename
-        original_filename = doc_info["original_filename"]
-        export_filename = generate_annotated_filename(original_filename)
+        # Get last edited timestamp from annotations
+        annotations = db.get_all_annotations(doc_id)
+        last_edited = None
+        if annotations:
+            # Find the most recent updated_at timestamp
+            last_edited = max(ann["updated_at"] for ann in annotations)
+
+        # Generate output filename with metadata
+        export_filename = generate_annotated_filename(doc_info, last_edited)
 
         # Create unique temporary file path
         export_id = str(uuid4())
@@ -179,9 +185,15 @@ def export_markdown(doc_id: str) -> any:
 
         logger.info(f"Exporting Markdown for document {doc_id}")
 
-        # Generate output filename
-        original_filename = doc_info["original_filename"]
-        export_filename = generate_markdown_filename(original_filename)
+        # Get last edited timestamp from annotations
+        annotations = db.get_all_annotations(doc_id)
+        last_edited = None
+        if annotations:
+            # Find the most recent updated_at timestamp
+            last_edited = max(ann["updated_at"] for ann in annotations)
+
+        # Generate output filename with metadata
+        export_filename = generate_markdown_filename(doc_info, last_edited)
 
         # Create unique temporary file path
         export_id = str(uuid4())

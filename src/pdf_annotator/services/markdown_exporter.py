@@ -130,19 +130,51 @@ def export_to_markdown(doc_id: str, output_path: Path, db: DatabaseManager) -> b
         return False
 
 
-def generate_markdown_filename(original_filename: str) -> str:
+def generate_markdown_filename(doc_info: dict, last_edited: str | None = None) -> str:
     """
-    Generate filename for Markdown export.
+    Generate filename for Markdown export based on metadata.
+
+    Format: NachnameVornameZuletztbearbeitet_notizen.md
 
     Args:
-        original_filename: Original PDF filename
+        doc_info: Document info dict with metadata (last_name, first_name)
+        last_edited: Last edited timestamp (YYYY-MM-DD HH:MM:SS format)
 
     Returns:
-        str: New filename with "_notizen.md" suffix
+        str: New filename with metadata and "_notizen.md" suffix
 
     Example:
-        new_name = generate_markdown_filename("report.pdf")
-        # Returns: "report_notizen.md"
+        doc_info = {"last_name": "Mustermann", "first_name": "Max", ...}
+        new_name = generate_markdown_filename(doc_info, "2026-01-08 00:05:00")
+        # Returns: "MustermannMax2026-01-08_notizen.md"
     """
-    stem = Path(original_filename).stem
-    return f"{stem}_notizen.md"
+    # Extract metadata
+    last_name = doc_info.get("last_name", "").strip()
+    first_name = doc_info.get("first_name", "").strip()
+
+    # Format last edited date (YYYY-MM-DD)
+    date_str = ""
+    if last_edited:
+        try:
+            # Extract date part (YYYY-MM-DD)
+            date_str = last_edited[:10]
+        except (IndexError, AttributeError):
+            date_str = ""
+
+    # Build filename parts
+    parts = []
+    if last_name:
+        parts.append(last_name)
+    if first_name:
+        parts.append(first_name)
+    if date_str:
+        parts.append(date_str)
+
+    # If no metadata, fall back to original filename
+    if not parts:
+        stem = Path(doc_info.get("original_filename", "document")).stem
+        return f"{stem}_notizen.md"
+
+    # Combine parts
+    filename = "".join(parts) + "_notizen.md"
+    return filename
