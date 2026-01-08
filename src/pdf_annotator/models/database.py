@@ -427,7 +427,8 @@ class DatabaseManager:
             cursor = conn.cursor()
             cursor.execute(
                 """
-                SELECT id, original_filename, file_path, page_count, upload_timestamp
+                SELECT id, original_filename, file_path, page_count, upload_timestamp,
+                       first_name, last_name, title, year, subject
                 FROM documents
                 ORDER BY upload_timestamp DESC
             """
