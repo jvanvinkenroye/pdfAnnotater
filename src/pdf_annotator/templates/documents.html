@@ -26,6 +26,7 @@
                     <th class="sortable" data-column="5">Thema <span class="sort-icon">⇅</span></th>
                     <th class="sortable" data-column="6">Seiten <span class="sort-icon">⇅</span></th>
                     <th class="sortable" data-column="7">Hochgeladen <span class="sort-icon">⇅</span></th>
+                    <th class="sortable" data-column="8">Zuletzt bearbeitet <span class="sort-icon">⇅</span></th>
                     <th>Aktionen</th>
                 </tr>
             </thead>
@@ -40,6 +41,7 @@
                     <td>{{ doc.subject or '-' }}</td>
                     <td class="center">{{ doc.page_count }}</td>
                     <td>{{ doc.upload_timestamp.strftime('%Y-%m-%d %H:%M') if doc.upload_timestamp else '-' }}</td>
+                    <td>{{ doc.last_edited[:16] if doc.last_edited else '-' }}</td>
                     <td class="actions-cell">
                         <a href="{{ url_for('viewer.view_document', doc_id=doc.id) }}" class="btn btn-primary btn-sm" title="Dokument bearbeiten">
                             Öffnen
@@ -127,8 +129,8 @@
                     return sortDirection[columnIndex] === 'asc' ? numA - numB : numB - numA;
                 }
 
-                // Handle date columns (Hochgeladen)
-                if (columnIndex === 7) {
+                // Handle date columns (Hochgeladen, Zuletzt bearbeitet)
+                if (columnIndex === 7 || columnIndex === 8) {
                     const dateA = new Date(cellA);
                     const dateB = new Date(cellB);
                     return sortDirection[columnIndex] === 'asc' ? dateA - dateB : dateB - dateA;

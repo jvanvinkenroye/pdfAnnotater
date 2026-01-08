@@ -427,10 +427,14 @@ class DatabaseManager:
             cursor = conn.cursor()
             cursor.execute(
                 """
-                SELECT id, original_filename, file_path, page_count, upload_timestamp,
-                       first_name, last_name, title, year, subject
-                FROM documents
-                ORDER BY upload_timestamp DESC
+                SELECT d.id, d.original_filename, d.file_path, d.page_count,
+                       d.upload_timestamp, d.first_name, d.last_name, d.title,
+                       d.year, d.subject,
+                       MAX(a.updated_at) as last_edited
+                FROM documents d
+                LEFT JOIN annotations a ON d.id = a.doc_id
+                GROUP BY d.id
+                ORDER BY d.upload_timestamp DESC
             """
             )
             rows = cursor.fetchall()
