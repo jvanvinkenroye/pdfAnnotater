@@ -590,14 +590,18 @@ body {
     background: white;
     border-radius: 12px;
     box-shadow: var(--shadow);
-    overflow: hidden;
+    overflow-x: auto;
+    overflow-y: visible;
     margin-bottom: 2rem;
+    -webkit-overflow-scrolling: touch;
 }
 
 .documents-table {
     width: 100%;
     border-collapse: collapse;
     font-size: 0.95rem;
+    table-layout: auto;
+    min-width: 1400px;
 }
 
 .documents-table thead {
@@ -663,6 +667,7 @@ body {
 .actions-cell {
     text-align: center;
     white-space: nowrap;
+    min-width: 380px;
 }
 
 .actions-cell .btn {
