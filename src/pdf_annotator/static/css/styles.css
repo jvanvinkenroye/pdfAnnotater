@@ -725,6 +725,21 @@ body {
     .note-editor {
         min-height: 400px;
     }
+
+    /* Responsive table on tablets */
+    .documents-table {
+        font-size: 0.85rem;
+    }
+
+    .documents-table th,
+    .documents-table td {
+        padding: 0.75rem;
+    }
+
+    .btn-sm {
+        padding: 0.4rem 0.75rem;
+        font-size: 0.85rem;
+    }
 }
 
 @media (max-width: 768px) {
@@ -741,5 +756,52 @@ body {
 
     .controls-right {
         flex-wrap: wrap;
+    }
+
+    /* Responsive table on mobile */
+    .table-container {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .documents-table {
+        min-width: 900px;
+        font-size: 0.8rem;
+    }
+
+    .documents-table th,
+    .documents-table td {
+        padding: 0.5rem;
+        white-space: nowrap;
+    }
+
+    .filename-cell {
+        max-width: 200px;
+    }
+
+    .btn-sm {
+        padding: 0.35rem 0.6rem;
+        font-size: 0.8rem;
+    }
+
+    .btn-download {
+        padding: 0.3rem 0.5rem;
+        font-size: 0.75rem;
+    }
+
+    .actions-cell .btn {
+        margin: 0 0.15rem;
+    }
+
+    /* Stack buttons on very small screens */
+    @media (max-width: 480px) {
+        .actions-cell {
+            white-space: normal;
+        }
+
+        .actions-cell .btn {
+            display: inline-block;
+            margin: 0.15rem;
+        }
     }
 }

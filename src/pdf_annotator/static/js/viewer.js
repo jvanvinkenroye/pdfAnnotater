@@ -28,6 +28,10 @@
     const metadataDisplay = document.getElementById('metadata-display');
     const metadataForm = document.getElementById('metadata-form');
 
+    // PDF replacement elements
+    const replacePdfBtn = document.getElementById('replace-pdf-btn');
+    const replacePdfInput = document.getElementById('replace-pdf-input');
+
     // State
     let currentPage = 1;
     let isSaving = false;
@@ -275,6 +279,72 @@
             });
     }
 
+    /**
+     * Handle PDF replacement file selection
+     */
+    function handlePdfReplace(event) {
+        const file = event.target.files[0];
+        if (!file) {
+            return;
+        }
+
+        // Validate file type
+        if (!file.name.toLowerCase().endsWith('.pdf')) {
+            alert('Bitte wählen Sie eine PDF-Datei aus.');
+            replacePdfInput.value = '';
+            return;
+        }
+
+        // Validate file size (50 MB)
+        const maxSize = 50 * 1024 * 1024;
+        if (file.size > maxSize) {
+            alert('Die Datei ist zu groß. Maximum: 50 MB');
+            replacePdfInput.value = '';
+            return;
+        }
+
+        // Confirm replacement
+        if (!confirm('Möchten Sie wirklich das PDF ersetzen? Alle Notizen bleiben erhalten.')) {
+            replacePdfInput.value = '';
+            return;
+        }
+
+        // Disable button and show feedback
+        replacePdfBtn.disabled = true;
+        replacePdfBtn.textContent = 'PDF wird ersetzt...';
+
+        // Create FormData and upload
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const replaceUrl = `/viewer/api/replace/${docId}`;
+
+        fetch(replaceUrl, {
+            method: 'POST',
+            body: formData
+        })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(data => {
+                        throw new Error(data.error || 'Fehler beim Ersetzen');
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                alert(`PDF erfolgreich ersetzt! Neue Seitenanzahl: ${data.page_count}`);
+                // Reload page to reflect new page count
+                window.location.reload();
+            })
+            .catch(error => {
+                console.error('Error replacing PDF:', error);
+                alert(`Fehler beim Ersetzen des PDFs: ${error.message}`);
+                replacePdfBtn.disabled = false;
+                replacePdfBtn.textContent = 'PDF ersetzen';
+                replacePdfInput.value = '';
+            });
+    }
+
     // Event Listeners
 
     // Navigation buttons
@@ -293,6 +363,12 @@
     editMetadataBtn.addEventListener('click', showMetadataForm);
     saveMetadataBtn.addEventListener('click', saveMetadata);
     cancelMetadataBtn.addEventListener('click', hideMetadataForm);
+
+    // PDF replacement
+    replacePdfBtn.addEventListener('click', function() {
+        replacePdfInput.click();
+    });
+    replacePdfInput.addEventListener('change', handlePdfReplace);
 
     // Note field auto-save
     noteField.addEventListener('input', function() {

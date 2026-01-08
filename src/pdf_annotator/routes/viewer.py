@@ -4,12 +4,20 @@ Viewer route for PDF Annotator.
 Handles viewer page and API endpoints for PDF rendering and annotations.
 """
 
+from pathlib import Path
+
 from flask import Blueprint, Response, current_app, jsonify, render_template, request
+from werkzeug.utils import secure_filename
 
 from pdf_annotator.models.database import DatabaseManager
-from pdf_annotator.services.pdf_processor import render_page_to_image
+from pdf_annotator.services.pdf_processor import get_page_count, render_page_to_image
 from pdf_annotator.utils.logger import get_logger
-from pdf_annotator.utils.validators import validate_note_text, validate_page_number
+from pdf_annotator.utils.validators import (
+    validate_file_size,
+    validate_file_type,
+    validate_note_text,
+    validate_page_number,
+)
 
 logger = get_logger(__name__)
 
@@ -299,6 +307,93 @@ def update_metadata(doc_id: str) -> any:
     except Exception as e:
         logger.error(
             f"Error updating metadata for document {doc_id}: {e}",
+            exc_info=True,
+        )
+        return jsonify({"error": "Interner Serverfehler"}), 500
+
+
+@viewer_bp.route("/api/replace/<doc_id>", methods=["POST"])
+def replace_pdf(doc_id: str) -> any:
+    """
+    Replace existing PDF with a new version.
+
+    Keeps all annotations and metadata, updates page count.
+
+    Args:
+        doc_id: UUID of document
+
+    Returns:
+        JSON response with success status and new page count
+
+    Example:
+        POST /viewer/api/replace/abc-123
+        File: new_version.pdf
+    """
+    try:
+        db = DatabaseManager()
+        doc_info = db.get_document(doc_id)
+
+        if not doc_info:
+            logger.warning(f"Document not found: {doc_id}")
+            return jsonify({"error": "Dokument nicht gefunden"}), 404
+
+        # Check if file was uploaded
+        if "file" not in request.files:
+            logger.warning("No file in request")
+            return jsonify({"error": "Keine Datei hochgeladen"}), 400
+
+        file = request.files["file"]
+
+        if file.filename == "":
+            logger.warning("Empty filename")
+            return jsonify({"error": "Kein Dateiname"}), 400
+
+        # Validate file type
+        is_valid, error_msg = validate_file_type(file.filename)
+        if not is_valid:
+            logger.warning(f"Invalid file type: {file.filename}")
+            return jsonify({"error": error_msg}), 400
+
+        # Validate file size
+        file.seek(0, 2)  # Seek to end
+        file_size = file.tell()
+        file.seek(0)  # Reset to beginning
+
+        is_valid, error_msg = validate_file_size(
+            file_size, current_app.config["MAX_CONTENT_LENGTH"]
+        )
+        if not is_valid:
+            logger.warning(f"File too large: {file_size} bytes")
+            return jsonify({"error": error_msg}), 400
+
+        logger.info(f"Replacing PDF for document {doc_id}")
+
+        # Get file path
+        file_path = Path(doc_info["file_path"])
+
+        # Save new file (overwrites old one)
+        file.save(file_path)
+        logger.info(f"Saved new PDF to: {file_path}")
+
+        # Get new page count
+        new_page_count = get_page_count(str(file_path))
+        logger.info(f"New PDF has {new_page_count} pages")
+
+        # Update page count in database
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE documents SET page_count = ? WHERE id = ?",
+                (new_page_count, doc_id),
+            )
+
+        logger.info(f"Successfully replaced PDF for document {doc_id}")
+
+        return jsonify({"success": True, "page_count": new_page_count})
+
+    except Exception as e:
+        logger.error(
+            f"Error replacing PDF for document {doc_id}: {e}",
             exc_info=True,
         )
         return jsonify({"error": "Interner Serverfehler"}), 500
