@@ -19,7 +19,13 @@
       "Bash(xargs kill:*)",
       "Bash(curl:*)",
       "Bash(ls:*)",
-      "Bash(git merge:*)"
+      "Bash(find:*)",
+      "Bash(python3 -m mypy:*)",
+      "Bash(xargs -I {} sh -c 'echo \"\"=== {} ===\"\" && grep -c \"\"^def \\\\|^class \"\" {}')",
+      "Bash(git checkout:*)",
+      "Bash(git merge:*)",
+      "Bash(uv run pytest:*)",
+      "Bash(uv add:*)"
     ]
   },
   "sandbox": {

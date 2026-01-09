@@ -8,9 +8,11 @@ from datetime import datetime
 from pathlib import Path
 
 import fitz  # PyMuPDF
+from flask import current_app
 
 from pdf_annotator.models.database import DatabaseManager
 from pdf_annotator.utils.logger import get_logger
+from pdf_annotator.utils.validators import validate_file_path
 
 logger = get_logger(__name__)
 
@@ -168,6 +170,14 @@ def create_annotated_pdf(
 
         # Open original PDF
         original_path = Path(doc_info["file_path"])
+
+        # Validate path to prevent path traversal attacks
+        upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
+        is_valid, error_msg = validate_file_path(original_path, upload_folder)
+        if not is_valid:
+            logger.error(f"Path traversal attempt blocked: {original_path}")
+            return False
+
         if not original_path.exists():
             logger.error(f"Original PDF not found: {original_path}")
             return False

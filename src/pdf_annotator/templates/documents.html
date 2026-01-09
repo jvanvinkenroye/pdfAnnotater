@@ -33,12 +33,12 @@
             <tbody>
                 {% for doc in documents %}
                 <tr>
-                    <td class="filename-cell">{{ doc.original_filename }}</td>
-                    <td>{{ doc.first_name or '-' }}</td>
-                    <td>{{ doc.last_name or '-' }}</td>
-                    <td>{{ doc.title or '-' }}</td>
-                    <td>{{ doc.year or '-' }}</td>
-                    <td>{{ doc.subject or '-' }}</td>
+                    <td class="filename-cell">{{ doc.original_filename | e }}</td>
+                    <td>{{ doc.first_name | e if doc.first_name else '-' }}</td>
+                    <td>{{ doc.last_name | e if doc.last_name else '-' }}</td>
+                    <td>{{ doc.title | e if doc.title else '-' }}</td>
+                    <td>{{ doc.year | e if doc.year else '-' }}</td>
+                    <td>{{ doc.subject | e if doc.subject else '-' }}</td>
                     <td class="center">{{ doc.page_count }}</td>
                     <td>{{ doc.upload_timestamp.strftime('%Y-%m-%d %H:%M') if doc.upload_timestamp else '-' }}</td>
                     <td>{{ doc.last_edited[:16] if doc.last_edited else '-' }}</td>
@@ -46,19 +46,19 @@
                         <a href="{{ url_for('viewer.view_document', doc_id=doc.id) }}" class="btn btn-primary btn-sm" title="Dokument bearbeiten">
                             Öffnen
                         </a>
-                        <button class="btn btn-secondary btn-sm btn-download" title="PDF ersetzen" onclick="replacePdfInList('{{ doc.id }}')">
+                        <button class="btn btn-secondary btn-sm btn-download btn-replace" title="PDF ersetzen" data-doc-id="{{ doc.id }}">
                             Ersetzen
                         </button>
                         <a href="{{ url_for('export.download_original_pdf', doc_id=doc.id) }}" class="btn btn-secondary btn-sm btn-download" title="Original-PDF herunterladen">
                             PDF
                         </a>
-                        <a href="{{ url_for('export.export_pdf', doc_id=doc.id) }}" class="btn btn-secondary btn-sm btn-download" title="Annotiertes PDF herunterladen" onclick="return downloadAnnotatedPdf(event, '{{ doc.id }}')">
+                        <a href="{{ url_for('export.export_pdf', doc_id=doc.id) }}" class="btn btn-secondary btn-sm btn-download btn-export-pdf" title="Annotiertes PDF herunterladen" data-doc-id="{{ doc.id }}">
                             Annotiert
                         </a>
-                        <a href="{{ url_for('export.export_markdown', doc_id=doc.id) }}" class="btn btn-secondary btn-sm btn-download" title="Markdown-Notizen herunterladen" onclick="return downloadMarkdown(event, '{{ doc.id }}')">
+                        <a href="{{ url_for('export.export_markdown', doc_id=doc.id) }}" class="btn btn-secondary btn-sm btn-download btn-export-md" title="Markdown-Notizen herunterladen" data-doc-id="{{ doc.id }}">
                             MD
                         </a>
-                        <button class="btn btn-danger btn-sm" title="Dokument löschen" onclick="deleteDocument('{{ doc.id }}', '{{ doc.original_filename }}')">
+                        <button class="btn btn-danger btn-sm btn-delete" title="Dokument löschen" data-doc-id="{{ doc.id }}" data-filename="{{ doc.original_filename | e }}">
                             Löschen
                         </button>
                     </td>
@@ -162,18 +162,22 @@
         header.style.cursor = 'pointer';
     });
 
-    // Download functions for POST requests
-    window.downloadAnnotatedPdf = function(event, docId) {
-        event.preventDefault();
-        downloadFile(`/export/pdf/${docId}`, 'POST');
-        return false;
-    };
+    // Download functions for POST requests - using event delegation
+    document.querySelectorAll('.btn-export-pdf').forEach(btn => {
+        btn.addEventListener('click', function(event) {
+            event.preventDefault();
+            const docId = this.dataset.docId;
+            downloadFile(`/export/pdf/${docId}`, 'POST');
+        });
+    });
 
-    window.downloadMarkdown = function(event, docId) {
-        event.preventDefault();
-        downloadFile(`/export/markdown/${docId}`, 'POST');
-        return false;
-    };
+    document.querySelectorAll('.btn-export-md').forEach(btn => {
+        btn.addEventListener('click', function(event) {
+            event.preventDefault();
+            const docId = this.dataset.docId;
+            downloadFile(`/export/markdown/${docId}`, 'POST');
+        });
+    });
 
     function downloadFile(url, method) {
         fetch(url, {
@@ -216,11 +220,13 @@
             });
     }
 
-    // PDF replacement function
-    window.replacePdfInList = function(docId) {
-        currentReplacingDocId = docId;
-        replacePdfFileInput.click();
-    };
+    // PDF replacement function - using event delegation
+    document.querySelectorAll('.btn-replace').forEach(btn => {
+        btn.addEventListener('click', function() {
+            currentReplacingDocId = this.dataset.docId;
+            replacePdfFileInput.click();
+        });
+    });
 
     // Handle file selection for replacement
     replacePdfFileInput.addEventListener('change', function(event) {
@@ -286,35 +292,40 @@
             });
     });
 
-    // Delete document function
-    window.deleteDocument = function(docId, filename) {
-        // Confirm deletion
-        if (!confirm(`Möchten Sie wirklich "${filename}" und alle zugehörigen Notizen löschen?\n\nDiese Aktion kann nicht rückgängig gemacht werden.`)) {
-            return;
-        }
+    // Delete document function - using event delegation
+    document.querySelectorAll('.btn-delete').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const docId = this.dataset.docId;
+            const filename = this.dataset.filename;
 
-        // Send DELETE request
-        fetch(`/delete/${docId}`, {
-            method: 'DELETE',
-        })
-            .then(response => {
-                if (!response.ok) {
-                    return response.json().then(data => {
-                        throw new Error(data.error || 'Fehler beim Löschen');
-                    });
-                }
-                return response.json();
+            // Confirm deletion
+            if (!confirm(`Möchten Sie wirklich "${filename}" und alle zugehörigen Notizen löschen?\n\nDiese Aktion kann nicht rückgängig gemacht werden.`)) {
+                return;
+            }
+
+            // Send DELETE request
+            fetch(`/delete/${docId}`, {
+                method: 'DELETE',
             })
-            .then(data => {
-                // Show success message and reload page
-                alert(data.message || 'Dokument erfolgreich gelöscht');
-                window.location.reload();
-            })
-            .catch(error => {
-                console.error('Error deleting document:', error);
-                alert(`Fehler beim Löschen: ${error.message}`);
-            });
-    };
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(data => {
+                            throw new Error(data.error || 'Fehler beim Löschen');
+                        });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Show success message and reload page
+                    alert(data.message || 'Dokument erfolgreich gelöscht');
+                    window.location.reload();
+                })
+                .catch(error => {
+                    console.error('Error deleting document:', error);
+                    alert(`Fehler beim Löschen: ${error.message}`);
+                });
+        });
+    });
 })();
 </script>
 {% endblock %}

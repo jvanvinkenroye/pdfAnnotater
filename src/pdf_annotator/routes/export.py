@@ -19,6 +19,7 @@ from pdf_annotator.services.pdf_generator import (
     generate_annotated_filename,
 )
 from pdf_annotator.utils.logger import get_logger
+from pdf_annotator.utils.validators import validate_file_path
 
 logger = get_logger(__name__)
 
@@ -56,6 +57,13 @@ def download_original_pdf(doc_id: str) -> any:
 
         # Get file path
         file_path = Path(doc_info["file_path"])
+
+        # Validate path to prevent path traversal attacks
+        upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
+        is_valid, error_msg = validate_file_path(file_path, upload_folder)
+        if not is_valid:
+            logger.error(f"Path traversal attempt blocked: {file_path}")
+            return jsonify({"error": "Ungültiger Dateipfad"}), 400
 
         if not file_path.exists():
             logger.error(f"PDF file not found: {file_path}")

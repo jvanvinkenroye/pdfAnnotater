@@ -5,6 +5,7 @@ Provides configuration classes for different environments (development, producti
 """
 
 import os
+import secrets
 from pathlib import Path
 
 
@@ -19,7 +20,8 @@ class Config:
     BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
     # Flask settings
-    SECRET_KEY = os.environ.get("SECRET_KEY") or "dev-secret-key-change-in-production"
+    # Generate random secret key for development if not set
+    SECRET_KEY = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
     DEBUG = False
     TESTING = False
 
@@ -28,6 +30,14 @@ class Config:
     UPLOAD_FOLDER = BASE_DIR / "data" / "uploads"
     EXPORT_FOLDER = BASE_DIR / "data" / "exports"
     ALLOWED_EXTENSIONS = {"pdf"}
+
+    # Input validation limits
+    MAX_FILENAME_LENGTH = 255
+    MAX_NAME_LENGTH = 100  # For first/last name
+    MAX_TITLE_LENGTH = 200
+    MAX_YEAR_LENGTH = 4
+    MAX_SUBJECT_LENGTH = 200
+    MAX_NOTE_LENGTH = 5000
 
     # Database settings
     DATABASE_PATH = BASE_DIR / "data" / "annotations.db"
