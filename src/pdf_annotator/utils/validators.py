@@ -212,3 +212,46 @@ def validate_file_size(file_size: int, max_size: int) -> tuple[bool, str | None]
         return False, f"Datei zu groß (max. {max_size_mb:.0f} MB)"
 
     return True, None
+
+
+def validate_file_path(file_path: Path, base_dir: Path) -> tuple[bool, str | None]:
+    """
+    Validate that file path is within the allowed base directory.
+
+    Prevents path traversal attacks by ensuring the resolved path
+    is a subdirectory of the base directory.
+
+    Args:
+        file_path: Path to validate
+        base_dir: Base directory that file must be within
+
+    Returns:
+        Tuple of (is_valid, error_message)
+
+    Example:
+        is_valid, error = validate_file_path(
+            Path("uploads/file.pdf"),
+            Path("/app/data/uploads")
+        )
+        if not is_valid:
+            logger.error(f"Path traversal attempt: {error}")
+            return jsonify({"error": "Ungültiger Dateipfad"}), 400
+    """
+    try:
+        # Resolve both paths to absolute paths
+        resolved_file = file_path.resolve()
+        resolved_base = base_dir.resolve()
+
+        # Check if file path is relative to base directory
+        # is_relative_to() raises ValueError if not relative
+        if not resolved_file.is_relative_to(resolved_base):
+            logger.warning(
+                f"Path traversal attempt: {file_path} is not within {base_dir}"
+            )
+            return False, "Dateipfad liegt außerhalb des erlaubten Verzeichnisses"
+
+        return True, None
+
+    except (ValueError, RuntimeError, OSError) as e:
+        logger.error(f"Error validating file path: {e}")
+        return False, "Ungültiger Dateipfad"

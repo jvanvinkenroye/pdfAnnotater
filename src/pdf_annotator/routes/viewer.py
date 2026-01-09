@@ -288,6 +288,53 @@ def update_metadata(doc_id: str) -> any:
         year = data.get("year", "").strip()
         subject = data.get("subject", "").strip()
 
+        # Validate input lengths
+        if len(first_name) > current_app.config["MAX_NAME_LENGTH"]:
+            return (
+                jsonify(
+                    {
+                        "error": f"Vorname zu lang (max. {current_app.config['MAX_NAME_LENGTH']} Zeichen)"
+                    }
+                ),
+                400,
+            )
+        if len(last_name) > current_app.config["MAX_NAME_LENGTH"]:
+            return (
+                jsonify(
+                    {
+                        "error": f"Nachname zu lang (max. {current_app.config['MAX_NAME_LENGTH']} Zeichen)"
+                    }
+                ),
+                400,
+            )
+        if len(title) > current_app.config["MAX_TITLE_LENGTH"]:
+            return (
+                jsonify(
+                    {
+                        "error": f"Titel zu lang (max. {current_app.config['MAX_TITLE_LENGTH']} Zeichen)"
+                    }
+                ),
+                400,
+            )
+        if len(year) > current_app.config["MAX_YEAR_LENGTH"]:
+            return (
+                jsonify(
+                    {
+                        "error": f"Jahr zu lang (max. {current_app.config['MAX_YEAR_LENGTH']} Zeichen)"
+                    }
+                ),
+                400,
+            )
+        if len(subject) > current_app.config["MAX_SUBJECT_LENGTH"]:
+            return (
+                jsonify(
+                    {
+                        "error": f"Thema zu lang (max. {current_app.config['MAX_SUBJECT_LENGTH']} Zeichen)"
+                    }
+                ),
+                400,
+            )
+
         # Update metadata in database
         success = db.update_document_metadata(
             doc_id, first_name, last_name, title, year, subject

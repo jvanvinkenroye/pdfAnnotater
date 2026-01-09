@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 
-{% block title %}{{ original_filename }} - PDF Annotator{% endblock %}
+{% block title %}{{ original_filename | e }} - PDF Annotator{% endblock %}
 
 {% block nav %}
-<span class="doc-title">{{ original_filename }}</span>
+<span class="doc-title">{{ original_filename | e }}</span>
 {% endblock %}
 
 {% block content %}
@@ -17,48 +17,48 @@
         <div id="metadata-display" class="metadata-display">
             <div class="metadata-item">
                 <span class="metadata-label">Vorname:</span>
-                <span class="metadata-value" id="display-first-name">{{ first_name or '-' }}</span>
+                <span class="metadata-value" id="display-first-name">{{ first_name | e if first_name else '-' }}</span>
             </div>
             <div class="metadata-item">
                 <span class="metadata-label">Nachname:</span>
-                <span class="metadata-value" id="display-last-name">{{ last_name or '-' }}</span>
+                <span class="metadata-value" id="display-last-name">{{ last_name | e if last_name else '-' }}</span>
             </div>
             <div class="metadata-item">
                 <span class="metadata-label">Titel:</span>
-                <span class="metadata-value" id="display-title">{{ title or '-' }}</span>
+                <span class="metadata-value" id="display-title">{{ title | e if title else '-' }}</span>
             </div>
             <div class="metadata-item">
                 <span class="metadata-label">Jahr:</span>
-                <span class="metadata-value" id="display-year">{{ year or '-' }}</span>
+                <span class="metadata-value" id="display-year">{{ year | e if year else '-' }}</span>
             </div>
             <div class="metadata-item">
                 <span class="metadata-label">Thema:</span>
-                <span class="metadata-value" id="display-subject">{{ subject or '-' }}</span>
+                <span class="metadata-value" id="display-subject">{{ subject | e if subject else '-' }}</span>
             </div>
         </div>
         <div id="metadata-form" class="metadata-form" style="display: none;">
             <div class="form-row">
                 <div class="form-group">
                     <label for="edit-first-name">Vorname</label>
-                    <input type="text" id="edit-first-name" class="form-input" value="{{ first_name }}">
+                    <input type="text" id="edit-first-name" class="form-input" value="{{ first_name | e if first_name else '' }}">
                 </div>
                 <div class="form-group">
                     <label for="edit-last-name">Nachname</label>
-                    <input type="text" id="edit-last-name" class="form-input" value="{{ last_name }}">
+                    <input type="text" id="edit-last-name" class="form-input" value="{{ last_name | e if last_name else '' }}">
                 </div>
             </div>
             <div class="form-group">
                 <label for="edit-title">Titel</label>
-                <input type="text" id="edit-title" class="form-input" value="{{ title }}">
+                <input type="text" id="edit-title" class="form-input" value="{{ title | e if title else '' }}">
             </div>
             <div class="form-row">
                 <div class="form-group">
                     <label for="edit-year">Jahr</label>
-                    <input type="text" id="edit-year" class="form-input" value="{{ year }}" maxlength="4">
+                    <input type="text" id="edit-year" class="form-input" value="{{ year | e if year else '' }}" maxlength="4">
                 </div>
                 <div class="form-group">
                     <label for="edit-subject">Thema</label>
-                    <input type="text" id="edit-subject" class="form-input" value="{{ subject }}">
+                    <input type="text" id="edit-subject" class="form-input" value="{{ subject | e if subject else '' }}">
                 </div>
             </div>
             <div class="form-actions">

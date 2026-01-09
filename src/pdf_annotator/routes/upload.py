@@ -212,23 +212,28 @@ def delete_document(doc_id: str) -> any:
             logger.warning(f"Delete attempt for non-existent document: {doc_id}")
             return jsonify({"error": "Dokument nicht gefunden"}), 404
 
-        # Delete file from disk
+        # Delete from database first (CASCADE deletes annotations)
+        # This prevents data loss if database deletion fails
+        success = db.delete_document(doc_id)
+
+        if not success:
+            logger.error(f"Failed to delete document from database: {doc_id}")
+            return jsonify({"error": "Fehler beim Löschen aus der Datenbank"}), 500
+
+        # Only delete file after successful database deletion
         file_path = Path(doc_info["file_path"])
         if file_path.exists():
-            file_path.unlink()
-            logger.info(f"Deleted file: {file_path}")
+            try:
+                file_path.unlink()
+                logger.info(f"Deleted file: {file_path}")
+            except OSError as e:
+                logger.warning(f"File deletion failed but DB entry removed: {file_path}, {e}")
+                # Continue - file can be cleaned up later
         else:
             logger.warning(f"File not found during deletion: {file_path}")
 
-        # Delete from database (CASCADE deletes annotations)
-        success = db.delete_document(doc_id)
-
-        if success:
-            logger.info(f"Document deleted: {doc_id}")
-            return jsonify({"success": True, "message": "Dokument erfolgreich gelöscht"})
-        else:
-            logger.error(f"Failed to delete document from database: {doc_id}")
-            return jsonify({"error": "Fehler beim Löschen aus der Datenbank"}), 500
+        logger.info(f"Document deleted: {doc_id}")
+        return jsonify({"success": True, "message": "Dokument erfolgreich gelöscht"})
 
     except Exception as e:
         logger.error(f"Error deleting document {doc_id}: {e}", exc_info=True)
