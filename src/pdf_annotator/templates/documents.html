@@ -58,6 +58,9 @@
                         <a href="{{ url_for('export.export_markdown', doc_id=doc.id) }}" class="btn btn-secondary btn-sm btn-download" title="Markdown-Notizen herunterladen" onclick="return downloadMarkdown(event, '{{ doc.id }}')">
                             MD
                         </a>
+                        <button class="btn btn-danger btn-sm" title="Dokument löschen" onclick="deleteDocument('{{ doc.id }}', '{{ doc.original_filename }}')">
+                            Löschen
+                        </button>
                     </td>
                 </tr>
                 {% endfor %}
@@ -282,6 +285,36 @@
                 currentReplacingDocId = null;
             });
     });
+
+    // Delete document function
+    window.deleteDocument = function(docId, filename) {
+        // Confirm deletion
+        if (!confirm(`Möchten Sie wirklich "${filename}" und alle zugehörigen Notizen löschen?\n\nDiese Aktion kann nicht rückgängig gemacht werden.`)) {
+            return;
+        }
+
+        // Send DELETE request
+        fetch(`/delete/${docId}`, {
+            method: 'DELETE',
+        })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(data => {
+                        throw new Error(data.error || 'Fehler beim Löschen');
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                // Show success message and reload page
+                alert(data.message || 'Dokument erfolgreich gelöscht');
+                window.location.reload();
+            })
+            .catch(error => {
+                console.error('Error deleting document:', error);
+                alert(`Fehler beim Löschen: ${error.message}`);
+            });
+    };
 })();
 </script>
 {% endblock %}

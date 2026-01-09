@@ -185,3 +185,51 @@ def upload_file() -> any:
     except Exception as e:
         logger.error(f"Upload failed: {e}", exc_info=True)
         return jsonify({"error": "Interner Serverfehler beim Upload"}), 500
+
+
+@upload_bp.route("/delete/<doc_id>", methods=["DELETE"])
+def delete_document(doc_id: str) -> any:
+    """
+    Delete document, annotations, and PDF file.
+
+    Args:
+        doc_id: UUID of document to delete
+
+    Returns:
+        JSON response with success/error message
+
+    Example:
+        DELETE /delete/abc-123
+        Response: {"success": true}
+    """
+    try:
+        db = DatabaseManager()
+
+        # Get document info to access file path
+        doc_info = db.get_document(doc_id)
+
+        if not doc_info:
+            logger.warning(f"Delete attempt for non-existent document: {doc_id}")
+            return jsonify({"error": "Dokument nicht gefunden"}), 404
+
+        # Delete file from disk
+        file_path = Path(doc_info["file_path"])
+        if file_path.exists():
+            file_path.unlink()
+            logger.info(f"Deleted file: {file_path}")
+        else:
+            logger.warning(f"File not found during deletion: {file_path}")
+
+        # Delete from database (CASCADE deletes annotations)
+        success = db.delete_document(doc_id)
+
+        if success:
+            logger.info(f"Document deleted: {doc_id}")
+            return jsonify({"success": True, "message": "Dokument erfolgreich gelöscht"})
+        else:
+            logger.error(f"Failed to delete document from database: {doc_id}")
+            return jsonify({"error": "Fehler beim Löschen aus der Datenbank"}), 500
+
+    except Exception as e:
+        logger.error(f"Error deleting document {doc_id}: {e}", exc_info=True)
+        return jsonify({"error": "Interner Serverfehler beim Löschen"}), 500
