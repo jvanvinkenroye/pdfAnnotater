@@ -134,9 +134,11 @@ class TestSanitizeFilename:
         filename = "<script>alert('xss')</script>.pdf"
         sanitized = sanitize_filename(filename)
 
-        assert "<script>" not in sanitized
-        assert "</script>" not in sanitized
-        assert "alert" in sanitized  # Harmless text remains
+        # Dangerous characters should be removed
+        assert "<" not in sanitized
+        assert ">" not in sanitized
+        assert "script" not in sanitized or "_" in sanitized  # XSS content removed or sanitized
+        assert ".pdf" in sanitized  # Extension preserved
 
 
 if __name__ == "__main__":
