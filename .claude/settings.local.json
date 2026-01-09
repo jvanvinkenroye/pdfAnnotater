@@ -18,7 +18,8 @@
       "Bash(lsof:*)",
       "Bash(xargs kill:*)",
       "Bash(curl:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(git merge:*)"
     ]
   },
   "sandbox": {
