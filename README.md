@@ -27,42 +27,95 @@ Split-Screen mit PDF-Rendering links und Notizen-Editor rechts. Auto-Save und Ke
 ### Voraussetzungen
 
 - Python 3.10 oder höher
-- [uv](https://github.com/astral-sh/uv) Package Manager
 - macOS oder Linux
 
-### Setup
+### Schnell-Installation (Empfohlen)
 
-1. **Repository klonen**
-   ```bash
-   cd /path/to/project
-   ```
+```bash
+# Repository klonen
+git clone https://github.com/yourusername/pdfAnnotater.git
+cd pdfAnnotater
 
-2. **Virtual Environment erstellen**
-   ```bash
-   uv venv --seed
-   source .venv/bin/activate
-   ```
+# Installieren
+./install.sh
+```
 
-3. **Dependencies installieren**
-   ```bash
-   uv pip install flask pymupdf pillow
-   ```
+Nach der Installation: `pdf-annotator` in Terminal eingeben.
 
-4. **Dev-Dependencies installieren (optional)**
-   ```bash
-   uv pip install ruff pytest pytest-flask mypy
-   ```
+### Installation mit pipx (Isoliert)
+
+```bash
+# pipx installieren (falls nicht vorhanden)
+brew install pipx
+pipx ensurepath
+
+# PDF Annotator installieren
+pipx install /path/to/pdfAnnotater
+```
+
+### Manuelle Installation (Entwickler)
+
+```bash
+# Repository klonen
+cd /path/to/pdfAnnotater
+
+# Virtual Environment erstellen
+uv venv --seed
+source .venv/bin/activate
+
+# Dependencies installieren
+uv pip install -e .
+
+# Dev-Dependencies installieren (optional)
+uv pip install -e ".[dev]"
+```
+
+### Homebrew (macOS)
+
+Eine Homebrew-Formel liegt unter `homebrew/pdf-annotator.rb`. Nach Veröffentlichung:
+
+```bash
+brew tap yourusername/pdf-annotator
+brew install pdf-annotator
+```
 
 ## Verwendung
 
-### Applikation starten
+### Desktop-App starten
+
+Nach der Installation einfach im Terminal:
+
+```bash
+pdf-annotator
+```
+
+Die App startet in einem eigenen Fenster (1400x900 Pixel) ohne Browser-Chrome.
+
+### Datenspeicherung
+
+Die App speichert alle Daten platform-konform:
+
+| Plattform | Speicherort |
+|-----------|-------------|
+| **macOS** | `~/Library/Application Support/PDF-Annotator/` |
+| **Linux** | `~/.local/share/pdf-annotator/` |
+
+Unterordner:
+- `uploads/` - Hochgeladene PDF-Dateien
+- `exports/` - Generierte annotierte PDFs
+- `annotations.db` - Datenbank mit Notizen
+
+### Entwicklungsmodus
+
+Für Entwicklung (Daten im Projektordner):
 
 ```bash
 source .venv/bin/activate
+FLASK_ENV=development python run_desktop.py
+
+# Oder als Web-Server:
 python src/pdf_annotator/app.py
 ```
-
-Die Applikation läuft dann auf `http://127.0.0.1:5000`
 
 ### Workflow
 
@@ -82,8 +135,10 @@ Die Applikation läuft dann auf `http://127.0.0.1:5000`
 
 ```
 pdfAnnotater/
+├── run_desktop.py              # Desktop-App Launcher
 ├── src/pdf_annotator/
 │   ├── app.py                  # Flask Entry Point
+│   ├── desktop.py              # Desktop-App Wrapper (flaskwebgui)
 │   ├── config.py               # Konfiguration (Dev/Prod/Test)
 │   │
 │   ├── models/
@@ -206,6 +261,7 @@ Weitere Konfigurationsoptionen in `src/pdf_annotator/config.py`:
 ## Technologie-Stack
 
 - **Backend:** Python 3.10+ mit Flask 3.0+
+- **Desktop-Wrapper:** flaskwebgui (natives Fenster ohne Browser-Chrome)
 - **PDF-Handling:** PyMuPDF (fitz) 1.23+ für Rendering und Text-Injektion
 - **Frontend:** HTML5, CSS3 (Flexbox), Vanilla JavaScript (Fetch API)
 - **Datenbank:** SQLite (persistente Speicherung)

@@ -7,7 +7,6 @@ Handles viewer page and API endpoints for PDF rendering and annotations.
 from pathlib import Path
 
 from flask import Blueprint, Response, current_app, jsonify, render_template, request
-from werkzeug.utils import secure_filename
 
 from pdf_annotator.models.database import DatabaseManager
 from pdf_annotator.services.pdf_processor import get_page_count, render_page_to_image

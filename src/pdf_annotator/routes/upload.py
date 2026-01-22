@@ -227,7 +227,9 @@ def delete_document(doc_id: str) -> any:
                 file_path.unlink()
                 logger.info(f"Deleted file: {file_path}")
             except OSError as e:
-                logger.warning(f"File deletion failed but DB entry removed: {file_path}, {e}")
+                logger.warning(
+                    f"File deletion failed but DB entry removed: {file_path}, {e}"
+                )
                 # Continue - file can be cleaned up later
         else:
             logger.warning(f"File not found during deletion: {file_path}")

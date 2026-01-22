@@ -8,7 +8,11 @@ dependencies = [
     "flask>=3.0.0",
     "pymupdf>=1.23.0",
     "pillow>=10.0.0",
+    "flaskwebgui>=1.1.8",
 ]
+
+[project.scripts]
+pdf-annotator = "pdf_annotator.desktop:main"
 
 [project.optional-dependencies]
 dev = [

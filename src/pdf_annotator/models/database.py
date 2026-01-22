@@ -96,12 +96,16 @@ class DatabaseManager:
 
             # Migrate existing database (add new columns if they don't exist)
             try:
-                cursor.execute("ALTER TABLE documents ADD COLUMN first_name TEXT DEFAULT ''")
+                cursor.execute(
+                    "ALTER TABLE documents ADD COLUMN first_name TEXT DEFAULT ''"
+                )
             except Exception:
                 pass  # Column already exists
 
             try:
-                cursor.execute("ALTER TABLE documents ADD COLUMN last_name TEXT DEFAULT ''")
+                cursor.execute(
+                    "ALTER TABLE documents ADD COLUMN last_name TEXT DEFAULT ''"
+                )
             except Exception:
                 pass  # Column already exists
 
@@ -116,7 +120,9 @@ class DatabaseManager:
                 pass  # Column already exists
 
             try:
-                cursor.execute("ALTER TABLE documents ADD COLUMN subject TEXT DEFAULT ''")
+                cursor.execute(
+                    "ALTER TABLE documents ADD COLUMN subject TEXT DEFAULT ''"
+                )
             except Exception:
                 pass  # Column already exists
 
@@ -209,7 +215,17 @@ class DatabaseManager:
                                        first_name, last_name, title, year, subject)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-                (doc_id, filename, file_path, page_count, first_name, last_name, title, year, subject),
+                (
+                    doc_id,
+                    filename,
+                    file_path,
+                    page_count,
+                    first_name,
+                    last_name,
+                    title,
+                    year,
+                    subject,
+                ),
             )
         return doc_id
 

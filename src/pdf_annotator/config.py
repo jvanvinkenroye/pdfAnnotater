@@ -6,7 +6,31 @@ Provides configuration classes for different environments (development, producti
 
 import os
 import secrets
+import sys
 from pathlib import Path
+
+
+def get_data_dir() -> Path:
+    """
+    Get platform-specific data directory following OS conventions.
+
+    Returns:
+        Path to application data directory:
+        - macOS: ~/Library/Application Support/PDF-Annotator/
+        - Linux: ~/.local/share/pdf-annotator/
+        - Windows: %APPDATA%/PDF-Annotator/
+    """
+    app_name = "PDF-Annotator"
+
+    if sys.platform == "darwin":  # macOS
+        base = Path.home() / "Library" / "Application Support"
+    elif sys.platform == "win32":  # Windows
+        base = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
+    else:  # Linux and others (XDG spec)
+        xdg_data = os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")
+        base = Path(xdg_data)
+
+    return base / app_name
 
 
 class Config:
@@ -81,11 +105,18 @@ class ProductionConfig(Config):
     """
     Production environment configuration.
 
-    Disables debug mode and uses environment variables for sensitive data.
+    Uses platform-specific data directories and environment variables.
     """
 
     DEBUG = False
-    SECRET_KEY = os.environ.get("SECRET_KEY") or None
+    SECRET_KEY = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
+
+    # Use platform-specific data directory
+    DATA_DIR = get_data_dir()
+    UPLOAD_FOLDER = DATA_DIR / "uploads"
+    EXPORT_FOLDER = DATA_DIR / "exports"
+    DATABASE_PATH = DATA_DIR / "annotations.db"
+    LOG_FILE = DATA_DIR / "app.log"
 
     @staticmethod
     def init_app(app: any) -> None:
@@ -94,15 +125,11 @@ class ProductionConfig(Config):
 
         Args:
             app: Flask application instance
-
-        Raises:
-            ValueError: If SECRET_KEY is not set
         """
-        Config.init_app(app)
-
-        # Ensure SECRET_KEY is set in production
-        if not app.config.get("SECRET_KEY"):
-            raise ValueError("SECRET_KEY must be set in production environment")
+        # Use ProductionConfig paths, not base Config
+        app.config["UPLOAD_FOLDER"].mkdir(parents=True, exist_ok=True)
+        app.config["EXPORT_FOLDER"].mkdir(parents=True, exist_ok=True)
+        app.config["DATABASE_PATH"].parent.mkdir(parents=True, exist_ok=True)
 
 
 class TestingConfig(Config):

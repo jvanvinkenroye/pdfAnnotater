@@ -183,8 +183,8 @@ def generate_markdown_filename(doc_info: dict, last_edited: str | None = None) -
     filename = "".join(parts) + "_notizen.md"
 
     # Sanitize filename - remove invalid characters
-    invalid_chars = ['<', '>', ':', '"', '/', '\\', '|', '?', '*']
+    invalid_chars = ["<", ">", ":", '"', "/", "\\", "|", "?", "*"]
     for char in invalid_chars:
-        filename = filename.replace(char, '_')
+        filename = filename.replace(char, "_")
 
     return filename
