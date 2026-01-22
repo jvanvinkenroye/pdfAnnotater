@@ -1,8 +1,8 @@
 #!/bin/bash
 # PDF Annotator Installation Script
+#
 # Usage: ./install.sh
 #
-# This script installs PDF Annotator as a command-line tool.
 # After installation, run: pdf-annotator
 
 set -euo pipefail
@@ -30,17 +30,16 @@ fi
 
 echo "Found Python $PYTHON_VERSION"
 
-# Check for uv or pip
+# Install using available tool (prefer uv > pipx > pip)
 if command -v uv &> /dev/null; then
-    echo "Using uv for installation..."
-    cd "$REPO_DIR"
-    uv pip install --system -e .
+    echo "Using uv tool for installation..."
+    uv tool install "$REPO_DIR"
 elif command -v pipx &> /dev/null; then
     echo "Using pipx for installation..."
     pipx install "$REPO_DIR"
 else
     echo "Using pip for installation..."
-    pip3 install --user -e "$REPO_DIR"
+    pip3 install --user "$REPO_DIR"
 fi
 
 # Verify installation
@@ -57,12 +56,23 @@ if command -v pdf-annotator &> /dev/null; then
     else
         echo "  ~/.local/share/pdf-annotator/"
     fi
+    echo ""
+    echo "Uninstall:"
+    if command -v uv &> /dev/null; then
+        echo "  uv tool uninstall pdf-annotator"
+    elif command -v pipx &> /dev/null; then
+        echo "  pipx uninstall pdf-annotator"
+    else
+        echo "  pip3 uninstall pdf-annotator"
+    fi
 else
     echo ""
     echo "Installation complete, but 'pdf-annotator' not found in PATH."
-    echo "You may need to add ~/.local/bin to your PATH:"
-    echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
     echo ""
-    echo "Or run directly:"
-    echo "  python3 -m pdf_annotator.desktop"
+    echo "Add to PATH:"
+    if command -v uv &> /dev/null; then
+        echo "  source \$(uv tool dir)/bin/activate"
+    else
+        echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
+    fi
 fi
