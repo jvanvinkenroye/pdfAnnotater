@@ -10,8 +10,31 @@
 
 {% block content %}
 <div class="documents-container">
-    <h1>Ihre PDF-Dokumente</h1>
-    <p class="subtitle">Wählen Sie ein Dokument aus, um es zu bearbeiten oder fortzufahren.</p>
+    <div class="documents-header">
+        <div>
+            <h1>Ihre PDF-Dokumente</h1>
+            <p class="subtitle">Wählen Sie ein Dokument aus, um es zu bearbeiten oder fortzufahren.</p>
+        </div>
+        <div class="data-actions">
+            <button class="btn btn-secondary" id="btn-export-data" title="Alle Daten als ZIP exportieren">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                Exportieren
+            </button>
+            <button class="btn btn-secondary" id="btn-import-data" title="Daten aus ZIP importieren">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                Importieren
+            </button>
+            <input type="file" id="import-file-input" accept=".zip" style="display: none;">
+        </div>
+    </div>
 
     {% if documents %}
     <div class="table-container">
@@ -326,6 +349,103 @@
                 });
         });
     });
+
+    // Export data function
+    const exportBtn = document.getElementById('btn-export-data');
+    if (exportBtn) {
+        exportBtn.addEventListener('click', function() {
+            // First get export info
+            fetch('/export/info')
+                .then(response => response.json())
+                .then(info => {
+                    const msg = `Export enthält:\n` +
+                        `- ${info.document_count} Dokumente\n` +
+                        `- ${info.annotation_count} Notizen\n` +
+                        `- ca. ${info.estimated_size_mb} MB\n\n` +
+                        `Fortfahren?`;
+
+                    if (info.document_count === 0) {
+                        alert('Keine Dokumente zum Exportieren vorhanden.');
+                        return;
+                    }
+
+                    if (confirm(msg)) {
+                        // Trigger download
+                        window.location.href = '/export';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error getting export info:', error);
+                    alert('Fehler beim Abrufen der Export-Informationen');
+                });
+        });
+    }
+
+    // Import data function
+    const importBtn = document.getElementById('btn-import-data');
+    const importFileInput = document.getElementById('import-file-input');
+
+    if (importBtn && importFileInput) {
+        importBtn.addEventListener('click', function() {
+            importFileInput.click();
+        });
+
+        importFileInput.addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            if (!file.name.toLowerCase().endsWith('.zip')) {
+                alert('Bitte wählen Sie eine ZIP-Datei aus.');
+                importFileInput.value = '';
+                return;
+            }
+
+            if (!confirm(`Möchten Sie die Daten aus "${file.name}" importieren?`)) {
+                importFileInput.value = '';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            // Show loading state
+            importBtn.disabled = true;
+            importBtn.textContent = 'Importiere...';
+
+            fetch('/import', {
+                method: 'POST',
+                body: formData
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(data => {
+                            throw new Error(data.error || 'Fehler beim Importieren');
+                        });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    alert(data.message || 'Import erfolgreich!');
+                    window.location.reload();
+                })
+                .catch(error => {
+                    console.error('Error importing data:', error);
+                    alert(`Fehler beim Importieren: ${error.message}`);
+                })
+                .finally(() => {
+                    importBtn.disabled = false;
+                    importBtn.innerHTML = `
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                        </svg>
+                        Importieren
+                    `;
+                    importFileInput.value = '';
+                });
+        });
+    }
 })();
 </script>
 {% endblock %}

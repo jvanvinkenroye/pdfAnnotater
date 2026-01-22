@@ -15,6 +15,7 @@ from flask import (
     redirect,
     render_template,
     request,
+    send_file,
     url_for,
 )
 
@@ -240,3 +241,135 @@ def delete_document(doc_id: str) -> any:
     except Exception as e:
         logger.error(f"Error deleting document {doc_id}: {e}", exc_info=True)
         return jsonify({"error": "Interner Serverfehler beim Löschen"}), 500
+
+
+@upload_bp.route("/export", methods=["GET"])
+def export_data() -> any:
+    """
+    Export all data as ZIP archive.
+
+    Returns:
+        ZIP file download
+
+    Example:
+        GET /export
+        Response: PDF_Annotator_Backup_20260123.zip
+    """
+    try:
+        from pdf_annotator.services.data_manager import DataManager
+
+        upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
+        manager = DataManager(upload_folder)
+
+        # Create export
+        zip_path = manager.export_data()
+
+        logger.info(f"Data exported to: {zip_path}")
+
+        # Send file and delete after
+        return send_file(
+            zip_path,
+            mimetype="application/zip",
+            as_attachment=True,
+            download_name=zip_path.name,
+        )
+
+    except Exception as e:
+        logger.error(f"Export failed: {e}", exc_info=True)
+        return jsonify({"error": "Fehler beim Exportieren der Daten"}), 500
+
+
+@upload_bp.route("/export/info", methods=["GET"])
+def export_info() -> any:
+    """
+    Get information about what would be exported.
+
+    Returns:
+        JSON with document count, annotation count, estimated size
+
+    Example:
+        GET /export/info
+        Response: {"document_count": 5, "annotation_count": 42, "estimated_size_mb": 12.5}
+    """
+    try:
+        from pdf_annotator.services.data_manager import DataManager
+
+        upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
+        manager = DataManager(upload_folder)
+
+        info = manager.get_export_info()
+        return jsonify(info)
+
+    except Exception as e:
+        logger.error(f"Export info failed: {e}", exc_info=True)
+        return jsonify({"error": "Fehler beim Abrufen der Export-Informationen"}), 500
+
+
+@upload_bp.route("/import", methods=["POST"])
+def import_data() -> any:
+    """
+    Import data from ZIP archive.
+
+    Request:
+        - Form data with 'file' field containing ZIP backup
+
+    Returns:
+        JSON with import statistics
+
+    Example:
+        POST /import
+        Response: {"documents_imported": 5, "annotations_imported": 42}
+    """
+    try:
+        from pdf_annotator.services.data_manager import DataManager
+
+        # Check if file is in request
+        if "file" not in request.files:
+            return jsonify({"error": "Keine Datei gefunden"}), 400
+
+        file = request.files["file"]
+
+        if not file.filename:
+            return jsonify({"error": "Keine Datei ausgewählt"}), 400
+
+        if not file.filename.lower().endswith(".zip"):
+            return jsonify({"error": "Nur ZIP-Dateien werden akzeptiert"}), 400
+
+        # Save to temp location
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as tmp:
+            file.save(tmp.name)
+            tmp_path = Path(tmp.name)
+
+        try:
+            upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
+            manager = DataManager(upload_folder)
+
+            # Import data
+            stats = manager.import_data(tmp_path)
+
+            logger.info(
+                f"Data imported: {stats['documents_imported']} docs, "
+                f"{stats['annotations_imported']} annotations"
+            )
+
+            return jsonify(
+                {
+                    "success": True,
+                    "message": f"{stats['documents_imported']} Dokumente und "
+                    f"{stats['annotations_imported']} Notizen importiert",
+                    **stats,
+                }
+            )
+
+        finally:
+            # Clean up temp file
+            tmp_path.unlink(missing_ok=True)
+
+    except ValueError as e:
+        logger.warning(f"Import validation failed: {e}")
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        logger.error(f"Import failed: {e}", exc_info=True)
+        return jsonify({"error": "Fehler beim Importieren der Daten"}), 500
