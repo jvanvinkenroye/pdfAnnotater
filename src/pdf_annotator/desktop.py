@@ -5,13 +5,13 @@ Uses flaskwebgui to run Flask app in a native desktop window.
 Falls back to default browser if no Chromium-based browser is found.
 """
 
+import argparse
+import logging
 import os
 import shutil
 import sys
 import webbrowser
 from threading import Timer
-
-from pdf_annotator.app import create_app
 
 
 def get_window_size() -> tuple[int, int]:
@@ -61,6 +61,19 @@ def find_chromium_browser() -> str | None:
     return None
 
 
+def suppress_output() -> None:
+    """Suppress stdout and stderr for quiet mode."""
+    # Redirect stderr to devnull to suppress Chrome's verbose logging
+    sys.stderr = open(os.devnull, "w")
+
+    # Suppress Flask/Werkzeug logging
+    log = logging.getLogger("werkzeug")
+    log.setLevel(logging.ERROR)
+
+    # Suppress flaskwebgui logging
+    logging.getLogger("flaskwebgui").setLevel(logging.ERROR)
+
+
 def run_with_flaskwebgui(app: any, width: int, height: int) -> None:
     """
     Run app with flaskwebgui (native window).
@@ -82,22 +95,24 @@ def run_with_flaskwebgui(app: any, width: int, height: int) -> None:
     ui.run()
 
 
-def run_with_browser(app: any, port: int = 5123) -> None:
+def run_with_browser(app: any, port: int = 5123, verbose: bool = False) -> None:
     """
     Run app as web server and open in default browser.
 
     Args:
         app: Flask application instance
         port: Port to run server on
+        verbose: Whether to show verbose output
     """
     url = f"http://127.0.0.1:{port}"
 
     def open_browser() -> None:
         webbrowser.open(url)
 
-    print("Kein Chromium-Browser gefunden. Öffne Standard-Browser...")
-    print(f"URL: {url}")
-    print("Beenden mit Ctrl+C")
+    if verbose:
+        print("Kein Chromium-Browser gefunden. Öffne Standard-Browser...")
+        print(f"URL: {url}")
+        print("Beenden mit Ctrl+C")
 
     # Open browser after short delay to let server start
     Timer(1.5, open_browser).start()
@@ -106,19 +121,29 @@ def run_with_browser(app: any, port: int = 5123) -> None:
     app.run(host="127.0.0.1", port=port, debug=False)
 
 
-def run_desktop() -> None:
+def run_desktop(verbose: bool = False) -> None:
     """
     Run PDF Annotator as a desktop application.
 
     Tries to use flaskwebgui with a Chromium browser for native app experience.
     Falls back to default browser if no Chromium browser is available.
 
+    Args:
+        verbose: Whether to show verbose output
+
     Data is stored in platform-specific directories:
     - macOS: ~/Library/Application Support/PDF-Annotator/
     - Linux: ~/.local/share/pdf-annotator/
     """
+    # Suppress output unless verbose mode
+    if not verbose:
+        suppress_output()
+
     # Use production config for installed desktop app (platform-specific paths)
     os.environ.setdefault("FLASK_ENV", "production")
+
+    # Import here to avoid logging before suppress_output
+    from pdf_annotator.app import create_app
 
     # Create Flask app
     app = create_app()
@@ -134,13 +159,29 @@ def run_desktop() -> None:
         run_with_flaskwebgui(app, width, height)
     else:
         # Fallback to default browser
-        run_with_browser(app)
+        run_with_browser(app, verbose=verbose)
+
+
+def parse_args() -> argparse.Namespace:
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(
+        description="PDF Annotator - PDF annotation tool with side-by-side view"
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Show verbose output including browser and server logs",
+    )
+    return parser.parse_args()
 
 
 def main() -> None:
     """Entry point for desktop application."""
+    args = parse_args()
+
     try:
-        run_desktop()
+        run_desktop(verbose=args.verbose)
     except KeyboardInterrupt:
         print("\nPDF Annotator beendet.")
         sys.exit(0)
