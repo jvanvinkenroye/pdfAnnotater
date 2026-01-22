@@ -2,12 +2,14 @@
 Desktop application wrapper for PDF Annotator.
 
 Uses flaskwebgui to run Flask app in a native desktop window.
+Falls back to default browser if no Chromium-based browser is found.
 """
 
 import os
+import shutil
 import sys
-
-from flaskwebgui import FlaskUI
+import webbrowser
+from threading import Timer
 
 from pdf_annotator.app import create_app
 
@@ -23,12 +25,93 @@ def get_window_size() -> tuple[int, int]:
     return 1400, 900
 
 
+def find_chromium_browser() -> str | None:
+    """
+    Find a Chromium-based browser on the system.
+
+    Returns:
+        Path to browser executable or None if not found
+    """
+    if sys.platform == "darwin":  # macOS
+        browsers = [
+            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+            "/Applications/Chromium.app/Contents/MacOS/Chromium",
+            "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+            "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+        ]
+    elif sys.platform == "win32":  # Windows
+        browsers = [
+            shutil.which("chrome"),
+            shutil.which("msedge"),
+            shutil.which("chromium"),
+        ]
+    else:  # Linux
+        browsers = [
+            shutil.which("google-chrome"),
+            shutil.which("google-chrome-stable"),
+            shutil.which("chromium"),
+            shutil.which("chromium-browser"),
+            shutil.which("microsoft-edge"),
+        ]
+
+    for browser in browsers:
+        if browser and os.path.exists(browser):
+            return browser
+
+    return None
+
+
+def run_with_flaskwebgui(app: any, width: int, height: int) -> None:
+    """
+    Run app with flaskwebgui (native window).
+
+    Args:
+        app: Flask application instance
+        width: Window width in pixels
+        height: Window height in pixels
+    """
+    from flaskwebgui import FlaskUI
+
+    ui = FlaskUI(
+        app=app,
+        server="flask",
+        width=width,
+        height=height,
+        port=5123,
+    )
+    ui.run()
+
+
+def run_with_browser(app: any, port: int = 5123) -> None:
+    """
+    Run app as web server and open in default browser.
+
+    Args:
+        app: Flask application instance
+        port: Port to run server on
+    """
+    url = f"http://127.0.0.1:{port}"
+
+    def open_browser() -> None:
+        webbrowser.open(url)
+
+    print("Kein Chromium-Browser gefunden. Öffne Standard-Browser...")
+    print(f"URL: {url}")
+    print("Beenden mit Ctrl+C")
+
+    # Open browser after short delay to let server start
+    Timer(1.5, open_browser).start()
+
+    # Run Flask server
+    app.run(host="127.0.0.1", port=port, debug=False)
+
+
 def run_desktop() -> None:
     """
     Run PDF Annotator as a desktop application.
 
-    Creates a Flask app and wraps it in a native window using flaskwebgui.
-    The browser chrome is hidden and the app appears as a standalone application.
+    Tries to use flaskwebgui with a Chromium browser for native app experience.
+    Falls back to default browser if no Chromium browser is available.
 
     Data is stored in platform-specific directories:
     - macOS: ~/Library/Application Support/PDF-Annotator/
@@ -43,20 +126,15 @@ def run_desktop() -> None:
     # Get window dimensions
     width, height = get_window_size()
 
-    # Create desktop UI wrapper
-    ui = FlaskUI(
-        app=app,
-        server="flask",
-        width=width,
-        height=height,
-        # Use a specific port to avoid conflicts
-        port=5123,
-        # Custom window title
-        # browser_path can be set to use specific browser
-    )
+    # Check for Chromium browser
+    browser_path = find_chromium_browser()
 
-    # Run the desktop application
-    ui.run()
+    if browser_path:
+        # Use flaskwebgui for native app experience
+        run_with_flaskwebgui(app, width, height)
+    else:
+        # Fallback to default browser
+        run_with_browser(app)
 
 
 def main() -> None:
