@@ -5,6 +5,7 @@ Creates and configures Flask application with all routes and settings.
 """
 
 import os
+from typing import Any
 
 from flask import Flask
 
@@ -16,7 +17,7 @@ from pdf_annotator.routes.viewer import viewer_bp
 from pdf_annotator.utils.logger import setup_logger
 
 
-def create_app(config_name: str = None) -> Flask:
+def create_app(config_name: str | None = None) -> Flask:
     """
     Application factory for creating Flask app.
 
@@ -33,7 +34,7 @@ def create_app(config_name: str = None) -> Flask:
     """
     # Determine config
     if config_name is None:
-        config_name = os.environ.get("FLASK_ENV", "development")
+        config_name = os.environ.get("APP_ENV", "development")
 
     # Create Flask app
     app = Flask(__name__, template_folder="templates", static_folder="static")
@@ -63,9 +64,26 @@ def create_app(config_name: str = None) -> Flask:
 
     logger.info("All blueprints registered")
 
+    # Security headers
+    @app.after_request
+    def set_security_headers(response):
+        """Add security headers to all responses."""
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data: blob:; "
+            "font-src 'self'"
+        )
+        return response
+
     # Error handlers
     @app.errorhandler(404)
-    def not_found(e: any) -> tuple:
+    def not_found(e: Any) -> tuple:
         """Handle 404 errors."""
         from flask import render_template
 
@@ -79,7 +97,7 @@ def create_app(config_name: str = None) -> Flask:
         )
 
     @app.errorhandler(500)
-    def internal_error(e: any) -> tuple:
+    def internal_error(e: Any) -> tuple:
         """Handle 500 errors."""
         from flask import render_template
 
@@ -94,7 +112,7 @@ def create_app(config_name: str = None) -> Flask:
         )
 
     @app.errorhandler(413)
-    def request_entity_too_large(e: any) -> tuple:
+    def request_entity_too_large(e: Any) -> tuple:
         """Handle file too large errors."""
         from flask import render_template
 

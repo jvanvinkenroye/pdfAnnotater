@@ -4,30 +4,17 @@ Markdown Exporter module for PDF Annotator.
 Exports annotations to Markdown format with timestamps and page numbers.
 """
 
-from datetime import datetime
 from pathlib import Path
 
 from pdf_annotator.models.database import DatabaseManager
+from pdf_annotator.services.export_utils import (
+    format_timestamp,
+    generate_export_filename,
+    parse_timestamp,
+)
 from pdf_annotator.utils.logger import get_logger
 
 logger = get_logger(__name__)
-
-
-def format_timestamp(dt: datetime) -> str:
-    """
-    Format datetime to [YYYY-MM-DD HH:mm] format.
-
-    Args:
-        dt: Datetime object
-
-    Returns:
-        str: Formatted timestamp
-
-    Example:
-        ts = format_timestamp(datetime.now())
-        # Returns: "[2026-01-07 20:45]"
-    """
-    return dt.strftime("[%Y-%m-%d %H:%M]")
 
 
 def export_to_markdown(doc_id: str, output_path: Path, db: DatabaseManager) -> bool:
@@ -99,12 +86,7 @@ def export_to_markdown(doc_id: str, output_path: Path, db: DatabaseManager) -> b
                 updated_at = ann["updated_at"]
 
                 # Convert to datetime and format timestamp
-                if isinstance(updated_at, str):
-                    # Parse string timestamp from database
-                    updated_dt = datetime.strptime(updated_at, "%Y-%m-%d %H:%M:%S")
-                else:
-                    updated_dt = updated_at
-
+                updated_dt = parse_timestamp(updated_at)
                 timestamp = format_timestamp(updated_dt)
 
                 # Add annotation section
@@ -148,43 +130,4 @@ def generate_markdown_filename(doc_info: dict, last_edited: str | None = None) -
         new_name = generate_markdown_filename(doc_info, "2026-01-08 00:05:00")
         # Returns: "MustermannMax2026-01-08_notizen.md"
     """
-    # Extract metadata
-    last_name = doc_info.get("last_name", "").strip()
-    first_name = doc_info.get("first_name", "").strip()
-
-    # Format last edited date (YYYY-MM-DD)
-    date_str = ""
-    if last_edited:
-        try:
-            # Convert to string if it's a datetime object
-            if isinstance(last_edited, datetime):
-                date_str = last_edited.strftime("%Y-%m-%d")
-            else:
-                # It's already a string, extract date part
-                date_str = str(last_edited)[:10]
-        except (ValueError, AttributeError, TypeError):
-            date_str = ""
-
-    # Build filename parts
-    parts = []
-    if last_name:
-        parts.append(last_name)
-    if first_name:
-        parts.append(first_name)
-    if date_str:
-        parts.append(date_str)
-
-    # If no metadata, fall back to original filename
-    if not parts:
-        stem = Path(doc_info.get("original_filename", "document")).stem
-        return f"{stem}_notizen.md"
-
-    # Combine parts
-    filename = "".join(parts) + "_notizen.md"
-
-    # Sanitize filename - remove invalid characters
-    invalid_chars = ["<", ">", ":", '"', "/", "\\", "|", "?", "*"]
-    for char in invalid_chars:
-        filename = filename.replace(char, "_")
-
-    return filename
+    return generate_export_filename(doc_info, last_edited, "notizen.md")

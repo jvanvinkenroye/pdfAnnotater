@@ -5,6 +5,22 @@
     box-sizing: border-box;
 }
 
+/* Skip Navigation */
+.skip-nav {
+    position: absolute;
+    top: -40px;
+    left: 0;
+    background: var(--primary-color, #2563eb);
+    color: #fff;
+    padding: 0.5rem 1rem;
+    z-index: 1000;
+    transition: top 0.2s;
+}
+
+.skip-nav:focus {
+    top: 0;
+}
+
 :root {
     --primary-color: #2563eb;
     --primary-hover: #1d4ed8;

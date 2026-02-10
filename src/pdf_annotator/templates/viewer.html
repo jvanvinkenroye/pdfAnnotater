@@ -72,14 +72,14 @@
 <div class="viewer-controls">
     <div class="container">
         <div class="controls-left">
-            <button id="prev-page" class="btn btn-secondary" disabled>
-                <span class="btn-icon">◀</span> Zurück
+            <button id="prev-page" class="btn btn-secondary" disabled aria-label="Vorherige Seite">
+                <span class="btn-icon" aria-hidden="true">◀</span> Zurück
             </button>
             <span class="page-indicator">
                 Seite <span id="current-page">1</span> von <span id="total-pages">{{ page_count }}</span>
             </span>
-            <button id="next-page" class="btn btn-secondary">
-                Weiter <span class="btn-icon">▶</span>
+            <button id="next-page" class="btn btn-secondary" aria-label="Naechste Seite">
+                Weiter <span class="btn-icon" aria-hidden="true">▶</span>
             </button>
         </div>
         <div class="controls-right">
@@ -108,11 +108,12 @@
     <div class="note-editor">
         <div class="editor-header">
             <h2>Notizen</h2>
-            <span id="save-status" class="save-status">Gespeichert</span>
+            <span id="save-status" class="save-status" role="status" aria-live="polite">Gespeichert</span>
         </div>
         <textarea
             id="note-field"
             class="note-textarea"
+            aria-label="Notizen fuer diese Seite"
             placeholder="Fügen Sie hier Ihre Notizen für diese Seite hinzu..."
         ></textarea>
         <div class="editor-footer">

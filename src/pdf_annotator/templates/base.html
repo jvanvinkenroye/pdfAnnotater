@@ -8,10 +8,11 @@
     {% block extra_css %}{% endblock %}
 </head>
 <body>
+    <a href="#main-content" class="skip-nav">Zum Inhalt springen</a>
     <header class="header">
         <div class="container">
             <h1 class="logo"><a href="{{ url_for('upload.index') }}">PDF Annotator</a></h1>
-            <nav class="nav">
+            <nav class="nav" aria-label="Hauptnavigation">
                 {% block nav %}
                 <a href="{{ url_for('upload.list_documents') }}" class="nav-link">Meine Dokumente</a>
                 <a href="{{ url_for('upload.index') }}" class="nav-link">Neues PDF</a>
@@ -20,7 +21,7 @@
         </div>
     </header>
 
-    <main class="main">
+    <main class="main" id="main-content">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 <div class="flash-messages">

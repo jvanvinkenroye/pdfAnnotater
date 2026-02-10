@@ -95,9 +95,18 @@
         progressText.textContent = 'Wird hochgeladen...';
         updateProgress(0);
 
-        // Create FormData
+        // Create FormData with file and metadata fields
         const formData = new FormData();
         formData.append('file', file);
+
+        // Include metadata fields from the form
+        const metadataFields = ['first_name', 'last_name', 'title', 'year', 'subject'];
+        metadataFields.forEach(field => {
+            const input = document.getElementById(field);
+            if (input) {
+                formData.append(field, input.value.trim());
+            }
+        });
 
         // Create XMLHttpRequest for progress tracking
         const xhr = new XMLHttpRequest();

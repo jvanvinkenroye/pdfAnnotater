@@ -12,6 +12,7 @@ import shutil
 import sys
 import webbrowser
 from threading import Timer
+from typing import Any
 
 
 def get_window_size() -> tuple[int, int]:
@@ -61,10 +62,15 @@ def find_chromium_browser() -> str | None:
     return None
 
 
+_devnull_fd = None
+
+
 def suppress_output() -> None:
     """Suppress stdout and stderr for quiet mode."""
+    global _devnull_fd
     # Redirect stderr to devnull to suppress Chrome's verbose logging
-    sys.stderr = open(os.devnull, "w")
+    _devnull_fd = open(os.devnull, "w")  # noqa: SIM115
+    sys.stderr = _devnull_fd
 
     # Suppress Flask/Werkzeug logging
     log = logging.getLogger("werkzeug")
@@ -74,7 +80,7 @@ def suppress_output() -> None:
     logging.getLogger("flaskwebgui").setLevel(logging.ERROR)
 
 
-def run_with_flaskwebgui(app: any, width: int, height: int) -> None:
+def run_with_flaskwebgui(app: Any, width: int, height: int) -> None:
     """
     Run app with flaskwebgui (native window).
 
@@ -95,7 +101,7 @@ def run_with_flaskwebgui(app: any, width: int, height: int) -> None:
     ui.run()
 
 
-def run_with_browser(app: any, port: int = 5123, verbose: bool = False) -> None:
+def run_with_browser(app: Any, port: int = 5123, verbose: bool = False) -> None:
     """
     Run app as web server and open in default browser.
 
@@ -140,7 +146,7 @@ def run_desktop(verbose: bool = False) -> None:
         suppress_output()
 
     # Use production config for installed desktop app (platform-specific paths)
-    os.environ.setdefault("FLASK_ENV", "production")
+    os.environ.setdefault("APP_ENV", "production")
 
     # Import here to avoid logging before suppress_output
     from pdf_annotator.app import create_app

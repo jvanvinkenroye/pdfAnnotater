@@ -57,10 +57,11 @@ class DatabaseManager:
         """
         conn = sqlite3.connect(str(self._db_path), detect_types=sqlite3.PARSE_DECLTYPES)
         conn.row_factory = sqlite3.Row  # Enable column access by name
+        conn.execute("PRAGMA foreign_keys = ON")
         try:
             yield conn
             conn.commit()
-        except Exception:
+        except sqlite3.Error:
             conn.rollback()
             raise
         finally:
@@ -95,36 +96,18 @@ class DatabaseManager:
             )
 
             # Migrate existing database (add new columns if they don't exist)
-            try:
-                cursor.execute(
-                    "ALTER TABLE documents ADD COLUMN first_name TEXT DEFAULT ''"
-                )
-            except Exception:
-                pass  # Column already exists
-
-            try:
-                cursor.execute(
-                    "ALTER TABLE documents ADD COLUMN last_name TEXT DEFAULT ''"
-                )
-            except Exception:
-                pass  # Column already exists
-
-            try:
-                cursor.execute("ALTER TABLE documents ADD COLUMN title TEXT DEFAULT ''")
-            except Exception:
-                pass  # Column already exists
-
-            try:
-                cursor.execute("ALTER TABLE documents ADD COLUMN year TEXT DEFAULT ''")
-            except Exception:
-                pass  # Column already exists
-
-            try:
-                cursor.execute(
-                    "ALTER TABLE documents ADD COLUMN subject TEXT DEFAULT ''"
-                )
-            except Exception:
-                pass  # Column already exists
+            migration_columns = [
+                "first_name TEXT DEFAULT ''",
+                "last_name TEXT DEFAULT ''",
+                "title TEXT DEFAULT ''",
+                "year TEXT DEFAULT ''",
+                "subject TEXT DEFAULT ''",
+            ]
+            for col_def in migration_columns:
+                try:
+                    cursor.execute(f"ALTER TABLE documents ADD COLUMN {col_def}")
+                except sqlite3.OperationalError:
+                    pass  # Column already exists
 
             # Create annotations table
             cursor.execute(
@@ -299,7 +282,7 @@ class DatabaseManager:
                     (first_name, last_name, title, year, subject, doc_id),
                 )
                 return cursor.rowcount > 0
-        except Exception:
+        except sqlite3.Error:
             return False
 
     def upsert_annotation(self, doc_id: str, page_number: int, note_text: str) -> None:

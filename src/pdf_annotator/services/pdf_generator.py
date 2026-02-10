@@ -4,34 +4,21 @@ PDF Generator module for PDF Annotator.
 Creates annotated PDFs with timestamps and formatted notes.
 """
 
-from datetime import datetime
 from pathlib import Path
 
 import fitz  # PyMuPDF
 from flask import current_app
 
 from pdf_annotator.models.database import DatabaseManager
+from pdf_annotator.services.export_utils import (
+    format_timestamp,
+    generate_export_filename,
+    parse_timestamp,
+)
 from pdf_annotator.utils.logger import get_logger
 from pdf_annotator.utils.validators import validate_file_path
 
 logger = get_logger(__name__)
-
-
-def format_timestamp(dt: datetime) -> str:
-    """
-    Format datetime to [YYYY-MM-DD HH:mm] format.
-
-    Args:
-        dt: Datetime object
-
-    Returns:
-        str: Formatted timestamp
-
-    Example:
-        ts = format_timestamp(datetime.now())
-        # Returns: "[2026-01-07 20:45]"
-    """
-    return dt.strftime("[%Y-%m-%d %H:%M]")
 
 
 def calculate_footer_rect(page_rect: fitz.Rect, footer_height: float = 80) -> fitz.Rect:
@@ -196,12 +183,7 @@ def create_annotated_pdf(
                 continue
 
             # Convert to datetime and format timestamp
-            if isinstance(updated_at, str):
-                # Parse string timestamp from database
-                updated_dt = datetime.strptime(updated_at, "%Y-%m-%d %H:%M:%S")
-            else:
-                updated_dt = updated_at
-
+            updated_dt = parse_timestamp(updated_at)
             timestamp = format_timestamp(updated_dt)
 
             # Get page (0-indexed)
@@ -253,43 +235,4 @@ def generate_annotated_filename(doc_info: dict, last_edited: str | None = None) 
         new_name = generate_annotated_filename(doc_info, "2026-01-08 00:05:00")
         # Returns: "MustermannMax2026-01-08_annotiert.pdf"
     """
-    # Extract metadata
-    last_name = doc_info.get("last_name", "").strip()
-    first_name = doc_info.get("first_name", "").strip()
-
-    # Format last edited date (YYYY-MM-DD)
-    date_str = ""
-    if last_edited:
-        try:
-            # Convert to string if it's a datetime object
-            if isinstance(last_edited, datetime):
-                date_str = last_edited.strftime("%Y-%m-%d")
-            else:
-                # It's already a string, extract date part
-                date_str = str(last_edited)[:10]
-        except (ValueError, AttributeError, TypeError):
-            date_str = ""
-
-    # Build filename parts
-    parts = []
-    if last_name:
-        parts.append(last_name)
-    if first_name:
-        parts.append(first_name)
-    if date_str:
-        parts.append(date_str)
-
-    # If no metadata, fall back to original filename
-    if not parts:
-        stem = Path(doc_info.get("original_filename", "document")).stem
-        return f"{stem}_annotiert.pdf"
-
-    # Combine parts
-    filename = "".join(parts) + "_annotiert.pdf"
-
-    # Sanitize filename - remove invalid characters
-    invalid_chars = ["<", ">", ":", '"', "/", "\\", "|", "?", "*"]
-    for char in invalid_chars:
-        filename = filename.replace(char, "_")
-
-    return filename
+    return generate_export_filename(doc_info, last_edited, "annotiert.pdf")

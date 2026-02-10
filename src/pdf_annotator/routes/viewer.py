@@ -5,13 +5,20 @@ Handles viewer page and API endpoints for PDF rendering and annotations.
 """
 
 from pathlib import Path
+from typing import Any
 
 from flask import Blueprint, Response, current_app, jsonify, render_template, request
 
 from pdf_annotator.models.database import DatabaseManager
-from pdf_annotator.services.pdf_processor import get_page_count, render_page_to_image
+from pdf_annotator.services.pdf_processor import (
+    clear_render_cache,
+    get_page_count,
+    render_page_to_image,
+)
 from pdf_annotator.utils.logger import get_logger
 from pdf_annotator.utils.validators import (
+    validate_doc_id,
+    validate_file_path,
     validate_file_size,
     validate_file_type,
     validate_note_text,
@@ -25,7 +32,7 @@ viewer_bp = Blueprint("viewer", __name__, url_prefix="/viewer")
 
 
 @viewer_bp.route("/<doc_id>", methods=["GET"])
-def view_document(doc_id: str) -> any:
+def view_document(doc_id: str) -> Any:
     """
     Render viewer page for document.
 
@@ -39,6 +46,14 @@ def view_document(doc_id: str) -> any:
         GET /viewer/abc-123-def-456
     """
     try:
+        is_valid, error_msg = validate_doc_id(doc_id)
+        if not is_valid:
+            return render_template(
+                "error.html",
+                error_title="Ungültige Anfrage",
+                error_message="Ungültige Dokument-ID.",
+            ), 400
+
         db = DatabaseManager()
         doc_info = db.get_document(doc_id)
 
@@ -47,7 +62,7 @@ def view_document(doc_id: str) -> any:
             return render_template(
                 "error.html",
                 error_title="Dokument nicht gefunden",
-                error_message=f"Das Dokument mit ID {doc_id} wurde nicht gefunden.",
+                error_message="Das Dokument wurde nicht gefunden.",
             ), 404
 
         logger.info(f"Viewing document: {doc_id} ({doc_info['original_filename']})")
@@ -89,6 +104,10 @@ def get_page_image(doc_id: str, page_number: int) -> Response:
         GET /viewer/api/page/abc-123/1
     """
     try:
+        is_valid, error_msg = validate_doc_id(doc_id)
+        if not is_valid:
+            return jsonify({"error": error_msg}), 400
+
         db = DatabaseManager()
         doc_info = db.get_document(doc_id)
 
@@ -110,8 +129,10 @@ def get_page_image(doc_id: str, page_number: int) -> Response:
             logger.error(f"Failed to render page {page_number} of document {doc_id}")
             return jsonify({"error": "Fehler beim Rendern der Seite"}), 500
 
-        # Return PNG image
-        return Response(image_bytes, mimetype="image/png")
+        # Return PNG image with cache headers
+        resp = Response(image_bytes, mimetype="image/png")
+        resp.headers["Cache-Control"] = "private, max-age=300"
+        return resp
 
     except Exception as e:
         logger.error(
@@ -122,7 +143,7 @@ def get_page_image(doc_id: str, page_number: int) -> Response:
 
 
 @viewer_bp.route("/api/annotation/<doc_id>/<int:page_number>", methods=["GET"])
-def get_annotation(doc_id: str, page_number: int) -> any:
+def get_annotation(doc_id: str, page_number: int) -> Any:
     """
     Get annotation for specific page.
 
@@ -143,6 +164,10 @@ def get_annotation(doc_id: str, page_number: int) -> any:
         }
     """
     try:
+        is_valid, error_msg = validate_doc_id(doc_id)
+        if not is_valid:
+            return jsonify({"error": error_msg}), 400
+
         db = DatabaseManager()
         doc_info = db.get_document(doc_id)
 
@@ -179,7 +204,7 @@ def get_annotation(doc_id: str, page_number: int) -> any:
 
 
 @viewer_bp.route("/api/annotation/<doc_id>/<int:page_number>", methods=["POST"])
-def save_annotation(doc_id: str, page_number: int) -> any:
+def save_annotation(doc_id: str, page_number: int) -> Any:
     """
     Save or update annotation for specific page.
 
@@ -206,6 +231,10 @@ def save_annotation(doc_id: str, page_number: int) -> any:
         }
     """
     try:
+        is_valid, error_msg = validate_doc_id(doc_id)
+        if not is_valid:
+            return jsonify({"error": error_msg}), 400
+
         db = DatabaseManager()
         doc_info = db.get_document(doc_id)
 
@@ -252,7 +281,7 @@ def save_annotation(doc_id: str, page_number: int) -> any:
 
 
 @viewer_bp.route("/api/metadata/<doc_id>", methods=["POST"])
-def update_metadata(doc_id: str) -> any:
+def update_metadata(doc_id: str) -> Any:
     """
     Update document metadata.
 
@@ -267,6 +296,10 @@ def update_metadata(doc_id: str) -> any:
         Body: {"first_name": "Max", "last_name": "Mustermann", ...}
     """
     try:
+        is_valid, error_msg = validate_doc_id(doc_id)
+        if not is_valid:
+            return jsonify({"error": error_msg}), 400
+
         db = DatabaseManager()
         doc_info = db.get_document(doc_id)
 
@@ -359,7 +392,7 @@ def update_metadata(doc_id: str) -> any:
 
 
 @viewer_bp.route("/api/replace/<doc_id>", methods=["POST"])
-def replace_pdf(doc_id: str) -> any:
+def replace_pdf(doc_id: str) -> Any:
     """
     Replace existing PDF with a new version.
 
@@ -376,6 +409,10 @@ def replace_pdf(doc_id: str) -> any:
         File: new_version.pdf
     """
     try:
+        is_valid, error_msg = validate_doc_id(doc_id)
+        if not is_valid:
+            return jsonify({"error": error_msg}), 400
+
         db = DatabaseManager()
         doc_info = db.get_document(doc_id)
 
@@ -414,15 +451,23 @@ def replace_pdf(doc_id: str) -> any:
 
         logger.info(f"Replacing PDF for document {doc_id}")
 
-        # Get file path
+        # Get file path and validate it
         file_path = Path(doc_info["file_path"])
+        upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
+        is_valid, error_msg = validate_file_path(file_path, upload_folder)
+        if not is_valid:
+            logger.error(f"Path traversal attempt blocked in replace: {file_path}")
+            return jsonify({"error": "Ungültiger Dateipfad"}), 400
 
         # Save new file (overwrites old one)
         file.save(file_path)
         logger.info(f"Saved new PDF to: {file_path}")
 
+        # Clear render cache so stale images are not served
+        clear_render_cache()
+
         # Get new page count
-        new_page_count = get_page_count(str(file_path))
+        new_page_count = get_page_count(file_path)
         logger.info(f"New PDF has {new_page_count} pages")
 
         # Update page count in database

@@ -58,7 +58,11 @@
             pageLoading.style.display = 'none';
         };
         img.onerror = function() {
-            pageLoading.innerHTML = '<p style="color: #ef4444;">Fehler beim Laden der Seite</p>';
+            pageLoading.textContent = '';
+            const errorP = document.createElement('p');
+            errorP.style.color = '#ef4444';
+            errorP.textContent = 'Fehler beim Laden der Seite';
+            pageLoading.appendChild(errorP);
         };
         img.src = pageUrl;
 
@@ -91,6 +95,7 @@
     /**
      * Save current annotation
      * @param {boolean} immediate - Save immediately without debounce
+     * @returns {Promise} - Resolves when save is complete
      */
     function saveNote(immediate = false) {
         // Clear existing timeout
@@ -101,13 +106,14 @@
 
         // Debounce save
         if (!immediate) {
-            saveTimeout = setTimeout(() => saveNote(true), SAVE_DELAY);
-            return;
+            return new Promise(resolve => {
+                saveTimeout = setTimeout(() => saveNote(true).then(resolve), SAVE_DELAY);
+            });
         }
 
         // Already saving
         if (isSaving) {
-            return;
+            return Promise.resolve();
         }
 
         isSaving = true;
@@ -116,7 +122,7 @@
         const saveUrl = `/viewer/api/annotation/${docId}/${currentPage}`;
         const noteText = noteField.value;
 
-        fetch(saveUrl, {
+        return fetch(saveUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -167,16 +173,13 @@
             return;
         }
 
-        // Save current page's note before navigating
+        // Save current page's note before navigating, then load new page
         if (currentPage !== pageNumber) {
-            saveNote(true); // Immediate save
+            saveNote(true).then(() => {
+                currentPage = pageNumber;
+                loadPage(currentPage);
+            });
         }
-
-        // Wait a moment for save to complete
-        setTimeout(() => {
-            currentPage = pageNumber;
-            loadPage(currentPage);
-        }, 100);
     }
 
     /**
@@ -380,10 +383,12 @@
         saveNote(true); // Immediate save
     });
 
-    // Save before page unload
+    // Save before page unload using sendBeacon for reliability
     window.addEventListener('beforeunload', function(e) {
         if (noteField.value.trim() !== '') {
-            saveNote(true);
+            const saveUrl = `/viewer/api/annotation/${docId}/${currentPage}`;
+            const data = JSON.stringify({ note_text: noteField.value });
+            navigator.sendBeacon(saveUrl, new Blob([data], { type: 'application/json' }));
         }
     });
 

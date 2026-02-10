@@ -6,6 +6,7 @@ Provides structured logging setup with console and file output.
 
 import logging
 import sys
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 
@@ -54,10 +55,12 @@ def setup_logger(
     console_handler.setFormatter(console_formatter)
     logger.addHandler(console_handler)
 
-    # File handler (if log_file specified)
+    # File handler with rotation (if log_file specified)
     if log_file:
         log_file.parent.mkdir(parents=True, exist_ok=True)
-        file_handler = logging.FileHandler(log_file)
+        file_handler = RotatingFileHandler(
+            log_file, maxBytes=5 * 1024 * 1024, backupCount=3
+        )
         file_handler.setLevel(logging.DEBUG)
         file_handler.setFormatter(file_formatter)
         logger.addHandler(file_handler)

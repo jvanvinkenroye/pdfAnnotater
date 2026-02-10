@@ -26,6 +26,7 @@ class DataManager:
     METADATA_FILENAME = "metadata.json"
     PDFS_FOLDER = "pdfs"
     EXPORT_VERSION = "1.0"
+    MAX_UNCOMPRESSED_SIZE = 500 * 1024 * 1024  # 500 MB safety limit
 
     def __init__(self, upload_folder: Path, db: DatabaseManager | None = None):
         """
@@ -147,6 +148,14 @@ class DataManager:
         }
 
         with zipfile.ZipFile(zip_path, "r") as zf:
+            # Check total uncompressed size to prevent ZIP bombs
+            total_size = sum(info.file_size for info in zf.infolist())
+            if total_size > self.MAX_UNCOMPRESSED_SIZE:
+                raise ValueError(
+                    f"ZIP-Inhalt zu gross ({total_size / (1024 * 1024):.0f} MB). "
+                    f"Maximum: {self.MAX_UNCOMPRESSED_SIZE / (1024 * 1024):.0f} MB"
+                )
+
             # Read and validate metadata
             try:
                 metadata_content = zf.read(self.METADATA_FILENAME)
@@ -167,6 +176,14 @@ class DataManager:
             for doc_data in metadata.get("documents", []):
                 doc_id = doc_data["id"]
 
+                # Validate doc_id is a safe UUID (prevents path traversal)
+                from pdf_annotator.utils.validators import validate_doc_id
+
+                is_valid, _ = validate_doc_id(doc_id)
+                if not is_valid:
+                    stats["documents_skipped"] += 1
+                    continue
+
                 # Check if document already exists
                 existing = self.db.get_document(doc_id)
                 if existing and not merge:
@@ -178,6 +195,14 @@ class DataManager:
                 try:
                     pdf_content = zf.read(pdf_archive_path)
                     pdf_dest = self.upload_folder / f"{doc_id}.pdf"
+
+                    # Verify destination is within upload folder
+                    if not pdf_dest.resolve().is_relative_to(
+                        self.upload_folder.resolve()
+                    ):
+                        stats["documents_skipped"] += 1
+                        continue
+
                     pdf_dest.write_bytes(pdf_content)
                 except KeyError:
                     # PDF not in archive, skip this document
@@ -218,24 +243,18 @@ class DataManager:
 
         This ensures document IDs remain consistent across backups.
         """
-        # Get the newly created document (last one)
-        docs = self.db.get_all_documents()
-        if not docs:
-            return
-
-        # Find the document we just created by file path
-        for doc in docs:
-            if doc["file_path"] == str(pdf_dest):
-                # Delete and recreate with correct ID
-                old_id = doc["id"]
-                if old_id != doc_data["id"]:
-                    with self.db.get_connection() as conn:
-                        cursor = conn.cursor()
-                        cursor.execute(
-                            "UPDATE documents SET id = ? WHERE id = ?",
-                            (doc_data["id"], old_id),
-                        )
-                break
+        with self.db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT id FROM documents WHERE file_path = ?",
+                (str(pdf_dest),),
+            )
+            row = cursor.fetchone()
+            if row and row["id"] != doc_data["id"]:
+                cursor.execute(
+                    "UPDATE documents SET id = ? WHERE id = ?",
+                    (doc_data["id"], row["id"]),
+                )
 
     def _is_version_compatible(self, version: str) -> bool:
         """

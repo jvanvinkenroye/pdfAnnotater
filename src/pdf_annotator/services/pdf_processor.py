@@ -29,11 +29,10 @@ def validate_pdf(file_path: Path) -> bool:
             print("Valid PDF")
     """
     try:
-        doc = fitz.open(str(file_path))
-        page_count = len(doc)
-        doc.close()
-        logger.debug(f"Validated PDF: {file_path.name} ({page_count} pages)")
-        return page_count > 0
+        with fitz.open(str(file_path)) as doc:
+            page_count = len(doc)
+            logger.debug(f"Validated PDF: {file_path.name} ({page_count} pages)")
+            return page_count > 0
     except Exception as e:
         logger.error(f"PDF validation failed for {file_path}: {e}")
         return False
@@ -57,10 +56,8 @@ def get_page_count(file_path: Path) -> int:
         print(f"Document has {page_count} pages")
     """
     try:
-        doc = fitz.open(str(file_path))
-        page_count = len(doc)
-        doc.close()
-        return page_count
+        with fitz.open(str(file_path)) as doc:
+            return len(doc)
     except Exception as e:
         logger.error(f"Failed to get page count for {file_path}: {e}")
         raise ValueError(f"Invalid PDF file: {e}") from e
@@ -85,15 +82,12 @@ def get_page_dimensions(file_path: Path, page_num: int) -> tuple[float, float]:
         print(f"Page 1: {width}x{height} points")
     """
     try:
-        doc = fitz.open(str(file_path))
-        if page_num < 1 or page_num > len(doc):
-            raise ValueError(f"Page number {page_num} out of range (1-{len(doc)})")
-
-        page = doc[page_num - 1]  # Convert to 0-indexed
-        rect = page.rect
-        dimensions = (rect.width, rect.height)
-        doc.close()
-        return dimensions
+        with fitz.open(str(file_path)) as doc:
+            if page_num < 1 or page_num > len(doc):
+                raise ValueError(f"Page number {page_num} out of range (1-{len(doc)})")
+            page = doc[page_num - 1]  # Convert to 0-indexed
+            rect = page.rect
+            return (rect.width, rect.height)
     except Exception as e:
         logger.error(
             f"Failed to get dimensions for page {page_num} of {file_path}: {e}"

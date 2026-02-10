@@ -4,6 +4,7 @@ Validation module for PDF Annotator.
 Provides file and input validation functions.
 """
 
+import re
 from pathlib import Path
 
 from werkzeug.datastructures import FileStorage
@@ -11,6 +12,27 @@ from werkzeug.datastructures import FileStorage
 from pdf_annotator.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+UUID_PATTERN = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+    re.IGNORECASE,
+)
+
+
+def validate_doc_id(doc_id: str) -> tuple[bool, str | None]:
+    """
+    Validate that doc_id is a valid UUID format.
+
+    Args:
+        doc_id: Document ID to validate
+
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    if not doc_id or not UUID_PATTERN.match(doc_id):
+        return False, "Ungültige Dokument-ID"
+    return True, None
 
 
 def allowed_file(filename: str, allowed_extensions: set) -> bool:

@@ -4,10 +4,16 @@ Configuration module for PDF Annotator.
 Provides configuration classes for different environments (development, production).
 """
 
+from __future__ import annotations
+
 import os
 import secrets
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from flask import Flask
 
 
 def get_data_dir() -> Path:
@@ -67,7 +73,8 @@ class Config:
     DATABASE_PATH = BASE_DIR / "data" / "annotations.db"
 
     # PDF rendering settings
-    PDF_RENDER_DPI = 300  # DPI for PDF to image conversion
+    PDF_RENDER_DPI = 150  # DPI for browser preview (lower = faster)
+    PDF_EXPORT_DPI = 300  # DPI for PDF export (higher = better quality)
     PDF_ANNOTATION_FONTSIZE = 9
     PDF_ANNOTATION_FONT = "courier"
     PDF_ANNOTATION_COLOR = (0, 0.5, 0)  # Green in RGB 0-1 range
@@ -77,7 +84,7 @@ class Config:
     LOG_FILE = BASE_DIR / "data" / "app.log"
 
     @staticmethod
-    def init_app(app: any) -> None:
+    def init_app(app: Flask) -> None:
         """
         Initialize application with configuration.
 
@@ -119,7 +126,7 @@ class ProductionConfig(Config):
     LOG_FILE = DATA_DIR / "app.log"
 
     @staticmethod
-    def init_app(app: any) -> None:
+    def init_app(app: Flask) -> None:
         """
         Initialize production application.
 

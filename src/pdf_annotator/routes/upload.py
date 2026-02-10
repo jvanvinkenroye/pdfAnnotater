@@ -5,6 +5,7 @@ Handles PDF file uploads, validation, and storage.
 """
 
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 from flask import (
@@ -22,7 +23,11 @@ from flask import (
 from pdf_annotator.models.database import DatabaseManager
 from pdf_annotator.services.pdf_processor import get_page_count, validate_pdf
 from pdf_annotator.utils.logger import get_logger
-from pdf_annotator.utils.validators import sanitize_filename, validate_uploaded_file
+from pdf_annotator.utils.validators import (
+    sanitize_filename,
+    validate_doc_id,
+    validate_uploaded_file,
+)
 
 logger = get_logger(__name__)
 
@@ -60,7 +65,7 @@ def list_documents() -> str:
 
 
 @upload_bp.route("/upload", methods=["POST"])
-def upload_file() -> any:
+def upload_file() -> Any:
     """
     Handle PDF file upload.
 
@@ -100,9 +105,9 @@ def upload_file() -> any:
         logger.info(f"Processing upload: {original_filename}")
 
         # Generate unique filename for storage
-        doc_id = str(uuid4())
+        storage_id = str(uuid4())
         file_extension = Path(original_filename).suffix
-        storage_filename = f"{doc_id}{file_extension}"
+        storage_filename = f"{storage_id}{file_extension}"
         storage_path = Path(current_app.config["UPLOAD_FOLDER"]) / storage_filename
 
         # Save file
@@ -148,6 +153,17 @@ def upload_file() -> any:
         year = request.form.get("year", "").strip()
         subject = request.form.get("subject", "").strip()
 
+        # Truncate metadata to configured max lengths
+        max_name = current_app.config.get("MAX_NAME_LENGTH", 100)
+        max_title = current_app.config.get("MAX_TITLE_LENGTH", 200)
+        max_year = current_app.config.get("MAX_YEAR_LENGTH", 4)
+        max_subject = current_app.config.get("MAX_SUBJECT_LENGTH", 200)
+        first_name = first_name[:max_name]
+        last_name = last_name[:max_name]
+        title = title[:max_title]
+        year = year[:max_year]
+        subject = subject[:max_subject]
+
         # Create database entry
         db = DatabaseManager()
         doc_id = db.create_document(
@@ -189,7 +205,7 @@ def upload_file() -> any:
 
 
 @upload_bp.route("/delete/<doc_id>", methods=["DELETE"])
-def delete_document(doc_id: str) -> any:
+def delete_document(doc_id: str) -> Any:
     """
     Delete document, annotations, and PDF file.
 
@@ -204,6 +220,10 @@ def delete_document(doc_id: str) -> any:
         Response: {"success": true}
     """
     try:
+        is_valid, error_msg = validate_doc_id(doc_id)
+        if not is_valid:
+            return jsonify({"error": error_msg}), 400
+
         db = DatabaseManager()
 
         # Get document info to access file path
@@ -244,7 +264,7 @@ def delete_document(doc_id: str) -> any:
 
 
 @upload_bp.route("/export", methods=["GET"])
-def export_data() -> any:
+def export_data() -> Any:
     """
     Export all data as ZIP archive.
 
@@ -280,7 +300,7 @@ def export_data() -> any:
 
 
 @upload_bp.route("/export/info", methods=["GET"])
-def export_info() -> any:
+def export_info() -> Any:
     """
     Get information about what would be exported.
 
@@ -306,7 +326,7 @@ def export_info() -> any:
 
 
 @upload_bp.route("/import", methods=["POST"])
-def import_data() -> any:
+def import_data() -> Any:
     """
     Import data from ZIP archive.
 
