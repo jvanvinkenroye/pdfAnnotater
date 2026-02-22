@@ -4,12 +4,14 @@ Unit tests for validators module.
 Tests security-critical validation functions.
 """
 
-import pytest
 from pathlib import Path
+
+import pytest
+
 from pdf_annotator.utils.validators import (
+    sanitize_filename,
     validate_file_path,
     validate_note_text,
-    sanitize_filename,
 )
 
 
@@ -137,7 +139,9 @@ class TestSanitizeFilename:
         # Dangerous characters should be removed
         assert "<" not in sanitized
         assert ">" not in sanitized
-        assert "script" not in sanitized or "_" in sanitized  # XSS content removed or sanitized
+        assert (
+            "script" not in sanitized or "_" in sanitized
+        )  # XSS content removed or sanitized
         assert ".pdf" in sanitized  # Extension preserved
 
 

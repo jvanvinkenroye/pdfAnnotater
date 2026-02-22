@@ -35,11 +35,23 @@
     const replacePdfBtn = document.getElementById('replace-pdf-btn');
     const replacePdfInput = document.getElementById('replace-pdf-input');
 
+    // Zoom elements
+    const zoomInBtn = document.getElementById('zoom-in');
+    const zoomOutBtn = document.getElementById('zoom-out');
+    const zoomFitBtn = document.getElementById('zoom-fit');
+    const zoomLevelSpan = document.getElementById('zoom-level');
+    const pdfPageWrapper = document.querySelector('.pdf-page-wrapper');
+
     // State
     let currentPage = 1;
     let isSaving = false;
     let saveTimeout = null;
     const SAVE_DELAY = 500; // Debounce delay in milliseconds
+
+    // Zoom state
+    const ZOOM_LEVELS = [50, 75, 100, 125, 150, 200];
+    let currentZoomIndex = 2; // 100%
+    let fitToWidth = true; // Default: fit to container width
 
     /**
      * Load PDF page image
@@ -362,7 +374,66 @@
             });
     }
 
+    /**
+     * Apply zoom level to PDF image
+     */
+    function applyZoom() {
+        if (fitToWidth) {
+            // Fit to container width: reset to default CSS behavior
+            pdfPage.classList.remove('zoomed');
+            pdfPageWrapper.classList.remove('zoomed');
+            pdfPage.style.transform = '';
+            zoomLevelSpan.textContent = 'Anp.';
+            zoomFitBtn.classList.add('active');
+        } else {
+            var scale = ZOOM_LEVELS[currentZoomIndex] / 100;
+            pdfPage.classList.add('zoomed');
+            pdfPageWrapper.classList.add('zoomed');
+            pdfPage.style.transform = 'scale(' + scale + ')';
+            zoomLevelSpan.textContent = ZOOM_LEVELS[currentZoomIndex] + '%';
+            zoomFitBtn.classList.remove('active');
+        }
+    }
+
+    /**
+     * Zoom in one level
+     */
+    function zoomIn() {
+        fitToWidth = false;
+        if (currentZoomIndex < ZOOM_LEVELS.length - 1) {
+            currentZoomIndex++;
+        }
+        applyZoom();
+    }
+
+    /**
+     * Zoom out one level
+     */
+    function zoomOut() {
+        fitToWidth = false;
+        if (currentZoomIndex > 0) {
+            currentZoomIndex--;
+        }
+        applyZoom();
+    }
+
+    /**
+     * Toggle fit-to-width mode
+     */
+    function toggleFitToWidth() {
+        fitToWidth = !fitToWidth;
+        if (!fitToWidth) {
+            currentZoomIndex = 2; // Reset to 100%
+        }
+        applyZoom();
+    }
+
     // Event Listeners
+
+    // Zoom controls
+    zoomInBtn.addEventListener('click', zoomIn);
+    zoomOutBtn.addEventListener('click', zoomOut);
+    zoomFitBtn.addEventListener('click', toggleFitToWidth);
 
     // Navigation buttons
     prevButton.addEventListener('click', function() {

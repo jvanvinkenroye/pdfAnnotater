@@ -149,6 +149,7 @@ class TestingConfig(Config):
     TESTING = True
     DEBUG = True
     DATABASE_PATH = ":memory:"  # In-memory database for tests
+    WTF_CSRF_ENABLED = False  # Disable CSRF for test client
 
 
 # Configuration dictionary

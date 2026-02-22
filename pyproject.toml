@@ -37,6 +37,12 @@ warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
 
+[tool.pytest.ini_options]
+filterwarnings = [
+    "ignore::DeprecationWarning:importlib._bootstrap",
+    "ignore::DeprecationWarning:sqlite3",
+]
+
 [dependency-groups]
 dev = [
     "pytest-cov>=7.0.0",

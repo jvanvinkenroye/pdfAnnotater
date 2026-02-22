@@ -63,21 +63,31 @@ def find_chromium_browser() -> str | None:
 
 
 _devnull_fd = None
+_original_stderr_fd = None
 
 
 def suppress_output() -> None:
-    """Suppress stdout and stderr for quiet mode."""
-    global _devnull_fd
-    # Redirect stderr to devnull to suppress Chrome's verbose logging
+    """Suppress stdout and stderr for quiet mode.
+
+    Redirects OS-level file descriptors so Chrome subprocess output
+    and Flask startup messages are also suppressed.
+    """
+    global _devnull_fd, _original_stderr_fd
+    # Save original stderr fd for potential restore
+    _original_stderr_fd = os.dup(2)
+
+    # Redirect OS-level stdout (fd 1) and stderr (fd 2) to devnull
+    # This suppresses Chrome subprocess output and Flask startup messages
     _devnull_fd = open(os.devnull, "w")  # noqa: SIM115
+    os.dup2(_devnull_fd.fileno(), 1)
+    os.dup2(_devnull_fd.fileno(), 2)
+    sys.stdout = _devnull_fd
     sys.stderr = _devnull_fd
 
-    # Suppress Flask/Werkzeug logging
-    log = logging.getLogger("werkzeug")
-    log.setLevel(logging.ERROR)
-
-    # Suppress flaskwebgui logging
+    # Suppress all logging (Flask, Werkzeug, flaskwebgui, app)
+    logging.getLogger("werkzeug").setLevel(logging.ERROR)
     logging.getLogger("flaskwebgui").setLevel(logging.ERROR)
+    logging.getLogger("pdf_annotator").setLevel(logging.ERROR)
 
 
 def run_with_flaskwebgui(app: Any, width: int, height: int) -> None:
@@ -153,6 +163,10 @@ def run_desktop(verbose: bool = False) -> None:
 
     # Create Flask app
     app = create_app()
+
+    # Re-suppress app logger (create_app reconfigures it)
+    if not verbose:
+        logging.getLogger("pdf_annotator").setLevel(logging.ERROR)
 
     # Get window dimensions
     width, height = get_window_size()
