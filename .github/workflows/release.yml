@@ -1,0 +1,63 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  update-homebrew-tap:
+    name: Update Homebrew tap
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Compute SHA256 of release tarball
+        id: sha
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          URL="https://github.com/jvanvinkenroye/pdfAnnotater/archive/refs/tags/${TAG}.tar.gz"
+          SHA=$(curl -sL "$URL" | sha256sum | cut -d' ' -f1)
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Update formula in homebrew tap
+        env:
+          GH_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+          TAG: ${{ steps.sha.outputs.tag }}
+          NEW_SHA: ${{ steps.sha.outputs.sha }}
+        run: |
+          API="repos/jvanvinkenroye/homebrew-pdf-annotator/contents/Formula/pdf-annotator.rb"
+
+          BLOB_SHA=$(gh api "$API" --jq '.sha')
+          CURRENT=$(gh api "$API" --jq '.content' | base64 -d)
+
+          UPDATED=$(printf "%s" "$CURRENT" | python3 -c "
+          import sys, os, re
+
+          content = sys.stdin.read()
+          tag     = os.environ['TAG']
+          new_sha = os.environ['NEW_SHA']
+
+          content = re.sub(
+              r'(url\s+\"https://github\.com/jvanvinkenroye/pdfAnnotater/archive/refs/tags/)[^\"]+(\\.tar\\.gz\")',
+              rf'\g<1>{tag}\g<2>',
+              content,
+          )
+          content = re.sub(
+              r'(sha256\s+\")[a-f0-9]{64}(\")',
+              rf'\g<1>{new_sha}\g<2>',
+              content,
+              count=1,
+          )
+          sys.stdout.write(content)
+          ")
+
+          ENCODED=$(printf "%s" "$UPDATED" | base64 -w 0)
+
+          gh api "$API" --method PUT \
+            -f message="chore: Update formula to ${TAG}" \
+            -f content="${ENCODED}" \
+            -f sha="${BLOB_SHA}" \
+            --jq '.commit.html_url' \
+            | xargs echo "Updated:"
