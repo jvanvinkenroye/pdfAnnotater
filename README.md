@@ -5,14 +5,20 @@ Eine Flask-basierte Web-Applikation zum Annotieren von PDF-Dokumenten mit Side-b
 ## Features
 
 - **Split-Screen View:** PDF-Anzeige links, Notizen-Editor rechts
-- **Seitenweise Navigation:** Vor/Zurück-Buttons und Tastatur-Shortcuts (Pfeiltasten)
+- **Seitenweise Navigation:** Vor/Zurueck-Buttons, Seiteneingabe und Tastatur-Shortcuts
+- **Seite loeschen:** Einzelne Seiten aus dem PDF entfernen (z.B. leere Seiten, falsche Scans)
+- **PDF ersetzen:** PDF-Datei austauschen, alle Notizen bleiben erhalten
 - **Auto-Save:** Notizen werden automatisch gespeichert (debounced, 500ms)
+- **Metadaten:** Vorname, Nachname, Titel, Jahr, Thema pro Dokument
 - **Export-Funktionen:**
-  - **Annotiertes PDF:** Original-PDF mit Notizen in grüner Courier-Schrift + Zeitstempel
+  - **Annotiertes PDF:** Original-PDF mit Notizen in gruener Courier-Schrift + Zeitstempel
   - **Markdown-Export:** Alle Notizen als strukturiertes Markdown-Dokument
+- **Zoom:** Stufenweises Zoomen (50%-200%) und Breitenanpassung
+- **Dark Mode:** Automatische Erkennung der System-Einstellung
+- **Dokument-Verwaltung:** Liste aller Dokumente mit Loeschfunktion
 - **Single-User:** Lokale Applikation ohne Session-Management
-- **Persistente Speicherung:** Dokumente bleiben bis zur manuellen Löschung erhalten
-- **Max. 50 MB:** Upload-Limit für PDF-Dateien
+- **Persistente Speicherung:** Dokumente bleiben bis zur manuellen Loeschung erhalten
+- **Max. 50 MB:** Upload-Limit fuer PDF-Dateien
 
 ## Screenshots
 
@@ -29,28 +35,19 @@ Split-Screen mit PDF-Rendering links und Notizen-Editor rechts. Auto-Save und Ke
 - Python 3.10 oder höher
 - macOS oder Linux
 
-### Schnell-Installation (Empfohlen)
+### Homebrew (macOS, empfohlen)
 
 ```bash
-# Repository klonen
-git clone https://github.com/yourusername/pdfAnnotater.git
-cd pdfAnnotater
-
-# Installieren
-./install.sh
+brew tap jvanvinkenroye/pdf-annotator
+brew install pdf-annotator
 ```
 
-Nach der Installation: `pdf-annotator` in Terminal eingeben.
+Nach der Installation: `pdf-annotator` im Terminal eingeben.
 
-### Installation mit pipx (Isoliert)
+### uv tool (plattformuebergreifend)
 
 ```bash
-# pipx installieren (falls nicht vorhanden)
-brew install pipx
-pipx ensurepath
-
-# PDF Annotator installieren
-pipx install /path/to/pdfAnnotater
+uv tool install git+https://github.com/jvanvinkenroye/pdfAnnotater.git
 ```
 
 ### Manuelle Installation (Entwickler)
@@ -70,13 +67,13 @@ uv pip install -e .
 uv pip install -e ".[dev]"
 ```
 
-### Homebrew (macOS)
-
-Eine Homebrew-Formel liegt unter `homebrew/pdf-annotator.rb`. Nach Veröffentlichung:
+### Manuelle Installation (aus Source)
 
 ```bash
-brew tap yourusername/pdf-annotator
-brew install pdf-annotator
+git clone https://github.com/jvanvinkenroye/pdfAnnotater.git
+cd pdfAnnotater
+uv venv --seed && source .venv/bin/activate
+uv pip install -e .
 ```
 
 ## Verwendung
@@ -128,8 +125,16 @@ python src/pdf_annotator/app.py
 
 ### Tastatur-Shortcuts
 
-- **←/↑:** Vorherige Seite
-- **→/↓:** Nächste Seite
+Alle Shortcuts erfordern **Ctrl** (Windows/Linux) bzw. **Cmd** (Mac):
+
+| Shortcut | Funktion |
+|---|---|
+| Ctrl/Cmd + Links/Hoch | Vorherige Seite |
+| Ctrl/Cmd + Rechts/Runter | Naechste Seite |
+| Ctrl/Cmd + Home | Erste Seite |
+| Ctrl/Cmd + End | Letzte Seite |
+| Ctrl/Cmd + G | Zu Seite springen |
+| Ctrl/Cmd + Delete/Backspace | Seite loeschen |
 
 ## Projektstruktur
 
@@ -187,6 +192,11 @@ CREATE TABLE documents (
     original_filename TEXT NOT NULL,
     file_path TEXT NOT NULL,
     page_count INTEGER NOT NULL,
+    first_name TEXT DEFAULT '',
+    last_name TEXT DEFAULT '',
+    title TEXT DEFAULT '',
+    year TEXT DEFAULT '',
+    subject TEXT DEFAULT '',
     upload_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -210,12 +220,20 @@ CREATE TABLE annotations (
 ### Viewer
 - `GET /viewer/<doc_id>` - Viewer-Seite laden
 - `GET /viewer/api/page/<doc_id>/<page>` - PDF-Seite als PNG
+- `DELETE /viewer/api/page/<doc_id>/<page>` - Seite aus PDF loeschen
 - `GET /viewer/api/annotation/<doc_id>/<page>` - Notiz laden
 - `POST /viewer/api/annotation/<doc_id>/<page>` - Notiz speichern
+- `POST /viewer/api/metadata/<doc_id>` - Metadaten aktualisieren
+- `POST /viewer/api/replace/<doc_id>` - PDF ersetzen
+
+### Dokumente
+- `GET /documents` - Dokumentenliste
+- `DELETE /delete/<doc_id>` - Dokument loeschen
 
 ### Export
 - `POST /export/pdf/<doc_id>` - Annotiertes PDF herunterladen
 - `POST /export/markdown/<doc_id>` - Markdown-Datei herunterladen
+- `GET /export/original/<doc_id>` - Original-PDF herunterladen
 
 ## Entwicklung
 
@@ -278,14 +296,11 @@ Dieses Projekt wurde als Lernprojekt erstellt.
 - **PDF-Rendering:** Sehr große PDFs (100+ Seiten) können Performance-Einbußen haben
 - **Text-Positionierung:** Notizen werden im Footer-Bereich (80px) platziert und können bei sehr langen Notizen überlappen
 
-## Zukünftige Erweiterungen
+## Zukuenftige Erweiterungen
 
-- Multi-User-Support mit Session-Management
-- Rich-Text-Editor für Notizen
 - Highlighting direkt im PDF
 - Volltext-Suche in Notizen
 - Export als DOCX/HTML
-- Kollaboration (mehrere User, gleiches PDF)
 
 ## Troubleshooting
 
