@@ -8,6 +8,9 @@ import os
 from typing import Any
 
 from flask import Flask
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask_wtf.csrf import CSRFProtect
 
 from pdf_annotator.config import config
 from pdf_annotator.models.database import DatabaseManager
@@ -52,6 +55,21 @@ def create_app(config_name: str | None = None) -> Flask:
 
     logger.info(f"Starting PDF Annotator in {config_name} mode")
 
+    # Initialize CSRF protection
+    csrf = CSRFProtect(app)
+
+    # Exempt save_annotation from CSRF for sendBeacon support
+    # (sendBeacon cannot send custom headers; endpoint validates doc_id UUID)
+    csrf.exempt("pdf_annotator.routes.viewer.save_annotation")
+
+    # Initialize rate limiter
+    limiter = Limiter(
+        get_remote_address,
+        app=app,
+        default_limits=["200 per minute"],
+        storage_uri="memory://",
+    )
+
     # Initialize database
     db = DatabaseManager(app.config["DATABASE_PATH"])
     db.init_db()
@@ -63,6 +81,11 @@ def create_app(config_name: str | None = None) -> Flask:
     app.register_blueprint(export_bp)
 
     logger.info("All blueprints registered")
+
+    # Apply stricter rate limits to resource-intensive endpoints
+    limiter.limit("10 per minute")(app.view_functions["upload.upload_file"])
+    limiter.limit("60 per minute")(app.view_functions["viewer.get_page_image"])
+    limiter.limit("10 per minute")(app.view_functions["upload.import_data"])
 
     # Security headers
     @app.after_request

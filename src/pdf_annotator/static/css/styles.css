@@ -31,7 +31,7 @@
     --border-color: #e2e8f0;
     --bg-light: #f8fafc;
     --text-primary: #1e293b;
-    --text-secondary: #64748b;
+    --text-secondary: #475569;
     --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
     --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
 }
@@ -117,6 +117,26 @@ body {
     padding: 1rem;
     border-radius: 8px;
     margin-bottom: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    transition: opacity 0.3s;
+}
+
+.flash-close {
+    background: none;
+    border: none;
+    font-size: 1.25rem;
+    cursor: pointer;
+    color: inherit;
+    opacity: 0.7;
+    padding: 0 0.25rem;
+    line-height: 1;
+}
+
+.flash-close:hover {
+    opacity: 1;
 }
 
 .flash-success {
@@ -565,6 +585,120 @@ body {
     text-align: center;
 }
 
+/* Utility Classes */
+.hidden {
+    display: none;
+}
+
+.error-text {
+    color: var(--error-color);
+}
+
+/* Modal Overlay */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 9998;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+}
+
+.modal-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Modal Dialog */
+.modal-dialog {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.95);
+    z-index: 9999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s, transform 0.2s;
+}
+
+.modal-dialog.active {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate(-50%, -50%) scale(1);
+}
+
+.modal-content {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem 2rem;
+    box-shadow: var(--shadow-lg);
+    min-width: 320px;
+    max-width: 500px;
+}
+
+.modal-message {
+    color: var(--text-primary);
+    font-size: 0.95rem;
+    line-height: 1.6;
+    margin-bottom: 1.5rem;
+    white-space: pre-line;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+}
+
+/* Toast Notifications */
+.toast-container {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.toast {
+    padding: 0.75rem 1.25rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    box-shadow: var(--shadow-lg);
+    opacity: 0;
+    transform: translateX(1rem);
+    transition: opacity 0.3s, transform 0.3s;
+    max-width: 400px;
+}
+
+.toast.active {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.toast-success {
+    background: #d1fae5;
+    color: #065f46;
+    border: 1px solid #6ee7b7;
+}
+
+.toast-error {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fca5a5;
+}
+
+.toast-info {
+    background: #dbeafe;
+    color: #1e40af;
+    border: 1px solid #93c5fd;
+}
+
 /* Error Page */
 .error-container {
     max-width: 600px;
@@ -832,10 +966,22 @@ body {
         flex-wrap: wrap;
     }
 
-    /* Responsive table on mobile */
+    /* Responsive table on mobile - horizontal scroll with gradient hint */
     .table-container {
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
+        position: relative;
+    }
+
+    .table-container::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: 2rem;
+        background: linear-gradient(to right, transparent, rgba(255,255,255,0.8));
+        pointer-events: none;
     }
 
     .documents-table {
@@ -866,16 +1012,15 @@ body {
     .actions-cell .btn {
         margin: 0 0.15rem;
     }
+}
 
-    /* Stack buttons on very small screens */
-    @media (max-width: 480px) {
-        .actions-cell {
-            white-space: normal;
-        }
+@media (max-width: 480px) {
+    .actions-cell {
+        white-space: normal;
+    }
 
-        .actions-cell .btn {
-            display: inline-block;
-            margin: 0.15rem;
-        }
+    .actions-cell .btn {
+        display: inline-block;
+        margin: 0.15rem;
     }
 }

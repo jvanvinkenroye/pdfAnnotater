@@ -9,6 +9,8 @@ dependencies = [
     "pymupdf>=1.23.0",
     "pillow>=10.0.0",
     "flaskwebgui>=1.1.8",
+    "flask-wtf>=1.2.2",
+    "flask-limiter>=4.1.1",
 ]
 
 [project.scripts]

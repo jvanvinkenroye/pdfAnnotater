@@ -16,6 +16,9 @@
     const progressText = document.getElementById('progress-text');
     const errorMessage = document.getElementById('error-message');
 
+    // CSRF token for POST requests
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
     // Constants
     const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
     const ALLOWED_TYPES = ['application/pdf'];
@@ -165,6 +168,7 @@
         // Send request
         xhr.open('POST', uploadForm.action);
         xhr.setRequestHeader('Accept', 'application/json');
+        xhr.setRequestHeader('X-CSRFToken', csrfToken);
         xhr.send(formData);
     }
 

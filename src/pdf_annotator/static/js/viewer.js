@@ -6,6 +6,9 @@
 (function() {
     'use strict';
 
+    // CSRF token for all POST requests
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
     // Get viewer data from HTML
     const viewerData = document.getElementById('viewer-data');
     const docId = viewerData.dataset.docId;
@@ -60,7 +63,7 @@
         img.onerror = function() {
             pageLoading.textContent = '';
             const errorP = document.createElement('p');
-            errorP.style.color = '#ef4444';
+            errorP.classList.add('error-text');
             errorP.textContent = 'Fehler beim Laden der Seite';
             pageLoading.appendChild(errorP);
         };
@@ -126,6 +129,7 @@
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken,
             },
             body: JSON.stringify({ note_text: noteText })
         })
@@ -244,6 +248,7 @@
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken,
             },
             body: JSON.stringify({
                 first_name: firstName,
@@ -276,7 +281,7 @@
             })
             .catch(error => {
                 console.error('Error saving metadata:', error);
-                alert('Fehler beim Speichern der Metadaten');
+                showToast('Fehler beim Speichern der Metadaten', 'error');
                 saveMetadataBtn.disabled = false;
                 saveMetadataBtn.textContent = 'Speichern';
             });
@@ -293,7 +298,7 @@
 
         // Validate file type
         if (!file.name.toLowerCase().endsWith('.pdf')) {
-            alert('Bitte wählen Sie eine PDF-Datei aus.');
+            showToast('Bitte wählen Sie eine PDF-Datei aus.', 'error');
             replacePdfInput.value = '';
             return;
         }
@@ -301,17 +306,26 @@
         // Validate file size (50 MB)
         const maxSize = 50 * 1024 * 1024;
         if (file.size > maxSize) {
-            alert('Die Datei ist zu groß. Maximum: 50 MB');
+            showToast('Die Datei ist zu groß. Maximum: 50 MB', 'error');
             replacePdfInput.value = '';
             return;
         }
 
         // Confirm replacement
-        if (!confirm('Möchten Sie wirklich das PDF ersetzen? Alle Notizen bleiben erhalten.')) {
-            replacePdfInput.value = '';
-            return;
-        }
+        showConfirm('Möchten Sie wirklich das PDF ersetzen? Alle Notizen bleiben erhalten.').then(function(confirmed) {
+            if (!confirmed) {
+                replacePdfInput.value = '';
+                return;
+            }
+            doReplacePdf(file);
+        });
+    }
 
+    /**
+     * Perform the actual PDF replacement upload
+     * @param {File} file - PDF file to upload
+     */
+    function doReplacePdf(file) {
         // Disable button and show feedback
         replacePdfBtn.disabled = true;
         replacePdfBtn.textContent = 'PDF wird ersetzt...';
@@ -324,6 +338,7 @@
 
         fetch(replaceUrl, {
             method: 'POST',
+            headers: { 'X-CSRFToken': csrfToken },
             body: formData
         })
             .then(response => {
@@ -335,13 +350,12 @@
                 return response.json();
             })
             .then(data => {
-                alert(`PDF erfolgreich ersetzt! Neue Seitenanzahl: ${data.page_count}`);
-                // Reload page to reflect new page count
-                window.location.reload();
+                showToast(`PDF erfolgreich ersetzt! Neue Seitenanzahl: ${data.page_count}`, 'success');
+                setTimeout(function() { window.location.reload(); }, 1500);
             })
             .catch(error => {
                 console.error('Error replacing PDF:', error);
-                alert(`Fehler beim Ersetzen des PDFs: ${error.message}`);
+                showToast(`Fehler beim Ersetzen des PDFs: ${error.message}`, 'error');
                 replacePdfBtn.disabled = false;
                 replacePdfBtn.textContent = 'PDF ersetzen';
                 replacePdfInput.value = '';

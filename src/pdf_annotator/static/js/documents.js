@@ -6,6 +6,9 @@
 (function() {
     'use strict';
 
+    // CSRF token for all POST/DELETE requests
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
     const table = document.getElementById('documents-table');
     if (!table) return;
 
@@ -73,8 +76,6 @@
             rows.forEach(row => tbody.appendChild(row));
         });
 
-        // Add hover effect
-        header.style.cursor = 'pointer';
     });
 
     // Download functions for POST requests - using event delegation
@@ -97,6 +98,7 @@
     function downloadFile(url, method) {
         fetch(url, {
             method: method,
+            headers: { 'X-CSRFToken': csrfToken },
         })
             .then(response => {
                 if (!response.ok) {
@@ -131,7 +133,7 @@
             })
             .catch(error => {
                 console.error('Error downloading file:', error);
-                alert('Fehler beim Herunterladen der Datei');
+                showToast('Fehler beim Herunterladen der Datei', 'error');
             });
     }
 
@@ -152,7 +154,7 @@
 
         // Validate file type
         if (!file.name.toLowerCase().endsWith('.pdf')) {
-            alert('Bitte waehlen Sie eine PDF-Datei aus.');
+            showToast('Bitte waehlen Sie eine PDF-Datei aus.', 'error');
             replacePdfFileInput.value = '';
             currentReplacingDocId = null;
             return;
@@ -161,50 +163,53 @@
         // Validate file size (50 MB)
         const maxSize = 50 * 1024 * 1024;
         if (file.size > maxSize) {
-            alert('Die Datei ist zu gross. Maximum: 50 MB');
+            showToast('Die Datei ist zu gross. Maximum: 50 MB', 'error');
             replacePdfFileInput.value = '';
             currentReplacingDocId = null;
             return;
         }
 
         // Confirm replacement
-        if (!confirm('Moechten Sie wirklich das PDF ersetzen? Alle Notizen bleiben erhalten.')) {
-            replacePdfFileInput.value = '';
-            currentReplacingDocId = null;
-            return;
-        }
-
-        // Create FormData and upload
-        const formData = new FormData();
-        formData.append('file', file);
-
-        const replaceUrl = `/viewer/api/replace/${currentReplacingDocId}`;
-
-        fetch(replaceUrl, {
-            method: 'POST',
-            body: formData
-        })
-            .then(response => {
-                if (!response.ok) {
-                    return response.json().then(data => {
-                        throw new Error(data.error || 'Fehler beim Ersetzen');
-                    });
-                }
-                return response.json();
-            })
-            .then(data => {
-                alert(`PDF erfolgreich ersetzt! Neue Seitenanzahl: ${data.page_count}`);
-                // Reload page to reflect changes
-                window.location.reload();
-            })
-            .catch(error => {
-                console.error('Error replacing PDF:', error);
-                alert(`Fehler beim Ersetzen des PDFs: ${error.message}`);
-            })
-            .finally(() => {
+        var docIdToReplace = currentReplacingDocId;
+        showConfirm('Moechten Sie wirklich das PDF ersetzen? Alle Notizen bleiben erhalten.').then(function(confirmed) {
+            if (!confirmed) {
                 replacePdfFileInput.value = '';
                 currentReplacingDocId = null;
-            });
+                return;
+            }
+
+            // Create FormData and upload
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const replaceUrl = `/viewer/api/replace/${docIdToReplace}`;
+
+            fetch(replaceUrl, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken },
+                body: formData
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(data => {
+                            throw new Error(data.error || 'Fehler beim Ersetzen');
+                        });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    showToast(`PDF erfolgreich ersetzt! Neue Seitenanzahl: ${data.page_count}`, 'success');
+                    setTimeout(function() { window.location.reload(); }, 1500);
+                })
+                .catch(error => {
+                    console.error('Error replacing PDF:', error);
+                    showToast(`Fehler beim Ersetzen des PDFs: ${error.message}`, 'error');
+                })
+                .finally(() => {
+                    replacePdfFileInput.value = '';
+                    currentReplacingDocId = null;
+                });
+        });
     });
 
     // Delete document function - using event delegation
@@ -214,31 +219,31 @@
             const filename = this.dataset.filename;
 
             // Confirm deletion
-            if (!confirm(`Moechten Sie wirklich "${filename}" und alle zugehoerigen Notizen loeschen?\n\nDiese Aktion kann nicht rueckgaengig gemacht werden.`)) {
-                return;
-            }
+            showConfirm(`Moechten Sie wirklich "${filename}" und alle zugehoerigen Notizen loeschen?\n\nDiese Aktion kann nicht rueckgaengig gemacht werden.`).then(function(confirmed) {
+                if (!confirmed) return;
 
-            // Send DELETE request
-            fetch(`/delete/${docId}`, {
-                method: 'DELETE',
-            })
-                .then(response => {
-                    if (!response.ok) {
-                        return response.json().then(data => {
-                            throw new Error(data.error || 'Fehler beim Loeschen');
-                        });
-                    }
-                    return response.json();
+                // Send DELETE request
+                fetch(`/delete/${docId}`, {
+                    method: 'DELETE',
+                    headers: { 'X-CSRFToken': csrfToken },
                 })
-                .then(data => {
-                    // Show success message and reload page
-                    alert(data.message || 'Dokument erfolgreich geloescht');
-                    window.location.reload();
-                })
-                .catch(error => {
-                    console.error('Error deleting document:', error);
-                    alert(`Fehler beim Loeschen: ${error.message}`);
-                });
+                    .then(response => {
+                        if (!response.ok) {
+                            return response.json().then(data => {
+                                throw new Error(data.error || 'Fehler beim Loeschen');
+                            });
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        showToast(data.message || 'Dokument erfolgreich geloescht', 'success');
+                        setTimeout(function() { window.location.reload(); }, 1500);
+                    })
+                    .catch(error => {
+                        console.error('Error deleting document:', error);
+                        showToast(`Fehler beim Loeschen: ${error.message}`, 'error');
+                    });
+            });
         });
     });
 
@@ -250,25 +255,26 @@
             fetch('/export/info')
                 .then(response => response.json())
                 .then(info => {
+                    if (info.document_count === 0) {
+                        showToast('Keine Dokumente zum Exportieren vorhanden.', 'info');
+                        return;
+                    }
+
                     const msg = `Export enthaelt:\n` +
                         `- ${info.document_count} Dokumente\n` +
                         `- ${info.annotation_count} Notizen\n` +
                         `- ca. ${info.estimated_size_mb} MB\n\n` +
                         `Fortfahren?`;
 
-                    if (info.document_count === 0) {
-                        alert('Keine Dokumente zum Exportieren vorhanden.');
-                        return;
-                    }
-
-                    if (confirm(msg)) {
-                        // Trigger download
-                        window.location.href = '/export';
-                    }
+                    showConfirm(msg).then(function(confirmed) {
+                        if (confirmed) {
+                            window.location.href = '/export';
+                        }
+                    });
                 })
                 .catch(error => {
                     console.error('Error getting export info:', error);
-                    alert('Fehler beim Abrufen der Export-Informationen');
+                    showToast('Fehler beim Abrufen der Export-Informationen', 'error');
                 });
         });
     }
@@ -287,48 +293,51 @@
             if (!file) return;
 
             if (!file.name.toLowerCase().endsWith('.zip')) {
-                alert('Bitte waehlen Sie eine ZIP-Datei aus.');
+                showToast('Bitte waehlen Sie eine ZIP-Datei aus.', 'error');
                 importFileInput.value = '';
                 return;
             }
 
-            if (!confirm(`Moechten Sie die Daten aus "${file.name}" importieren?`)) {
-                importFileInput.value = '';
-                return;
-            }
-
-            const formData = new FormData();
-            formData.append('file', file);
-
-            // Show loading state
-            importBtn.disabled = true;
-            importBtn.textContent = 'Importiere...';
-
-            fetch('/import', {
-                method: 'POST',
-                body: formData
-            })
-                .then(response => {
-                    if (!response.ok) {
-                        return response.json().then(data => {
-                            throw new Error(data.error || 'Fehler beim Importieren');
-                        });
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    alert(data.message || 'Import erfolgreich!');
-                    window.location.reload();
-                })
-                .catch(error => {
-                    console.error('Error importing data:', error);
-                    alert(`Fehler beim Importieren: ${error.message}`);
-                })
-                .finally(() => {
-                    importBtn.disabled = false;
-                    importBtn.textContent = 'Importieren';
+            showConfirm(`Moechten Sie die Daten aus "${file.name}" importieren?`).then(function(confirmed) {
+                if (!confirmed) {
                     importFileInput.value = '';
-                });
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append('file', file);
+
+                // Show loading state
+                importBtn.disabled = true;
+                importBtn.textContent = 'Importiere...';
+
+                fetch('/import', {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': csrfToken },
+                    body: formData
+                })
+                    .then(response => {
+                        if (!response.ok) {
+                            return response.json().then(data => {
+                                throw new Error(data.error || 'Fehler beim Importieren');
+                            });
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        showToast(data.message || 'Import erfolgreich!', 'success');
+                        setTimeout(function() { window.location.reload(); }, 1500);
+                    })
+                    .catch(error => {
+                        console.error('Error importing data:', error);
+                        showToast(`Fehler beim Importieren: ${error.message}`, 'error');
+                    })
+                    .finally(() => {
+                        importBtn.disabled = false;
+                        importBtn.textContent = 'Importieren';
+                        importFileInput.value = '';
+                    });
+            });
         });
     }
 })();

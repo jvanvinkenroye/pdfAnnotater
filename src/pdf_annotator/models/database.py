@@ -6,6 +6,7 @@ for documents and annotations.
 """
 
 import sqlite3
+import threading
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Optional
@@ -21,25 +22,29 @@ class DatabaseManager:
     """
 
     _instance: Optional["DatabaseManager"] = None
-    _db_path: Path | None = None
+    _db_path: str | Path | None = None
+    _lock = threading.Lock()
 
-    def __new__(cls, db_path: Path | None = None) -> "DatabaseManager":
+    def __new__(cls, db_path: str | Path | None = None) -> "DatabaseManager":
         """
         Create or return singleton instance.
 
+        Thread-safe via _lock to prevent race conditions during initialization.
+
         Args:
-            db_path: Path to SQLite database file
+            db_path: Path to SQLite database file (str for ':memory:', Path otherwise)
 
         Returns:
             DatabaseManager instance
         """
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            if db_path:
-                cls._db_path = db_path
-            elif cls._db_path is None:
-                # Default path
-                cls._db_path = Path(__file__).parents[3] / "data" / "annotations.db"
+        with cls._lock:
+            if cls._instance is None:
+                cls._instance = super().__new__(cls)
+                if db_path:
+                    cls._db_path = db_path
+                elif cls._db_path is None:
+                    # Default path
+                    cls._db_path = Path(__file__).parents[3] / "data" / "annotations.db"
         return cls._instance
 
     @contextmanager

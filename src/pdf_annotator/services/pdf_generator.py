@@ -101,7 +101,7 @@ def add_annotation_to_page(
             align=0,  # Left-aligned
         )
 
-        logger.debug(f"Added annotation to page {page.number + 1}")
+        logger.debug("Added annotation to page %d", page.number + 1)
         return True
 
     except Exception as e:

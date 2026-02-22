@@ -31,7 +31,7 @@ def validate_pdf(file_path: Path) -> bool:
     try:
         with fitz.open(str(file_path)) as doc:
             page_count = len(doc)
-            logger.debug(f"Validated PDF: {file_path.name} ({page_count} pages)")
+            logger.debug("Validated PDF: %s (%d pages)", file_path.name, page_count)
             return page_count > 0
     except Exception as e:
         logger.error(f"PDF validation failed for {file_path}: {e}")
@@ -118,7 +118,7 @@ def render_page_to_image(file_path: str, page_num: int, dpi: int = 300) -> bytes
                 f.write(image_bytes)
     """
     try:
-        logger.debug(f"Rendering page {page_num} from {Path(file_path).name}")
+        logger.debug("Rendering page %d from %s", page_num, Path(file_path).name)
         doc = fitz.open(file_path)
 
         if page_num < 1 or page_num > len(doc):
@@ -142,7 +142,10 @@ def render_page_to_image(file_path: str, page_num: int, dpi: int = 300) -> bytes
 
         doc.close()
         logger.debug(
-            f"Successfully rendered page {page_num} ({pix.width}x{pix.height} pixels)"
+            "Successfully rendered page %d (%dx%d pixels)",
+            page_num,
+            pix.width,
+            pix.height,
         )
         return png_bytes
 

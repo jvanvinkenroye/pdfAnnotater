@@ -45,7 +45,7 @@ def cleanup_old_exports() -> None:
                 age = now - file_path.stat().st_mtime
                 if age > EXPORT_MAX_AGE_SECONDS:
                     file_path.unlink(missing_ok=True)
-                    logger.debug(f"Cleaned up old export: {file_path.name}")
+                    logger.debug("Cleaned up old export: %s", file_path.name)
     except Exception as e:
         logger.warning(f"Export cleanup failed: {e}")
 

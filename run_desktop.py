@@ -10,15 +10,15 @@ Or make executable:
     ./run_desktop.py
 """
 
-import sys
-from pathlib import Path
+try:
+    from pdf_annotator.desktop import main
+except ImportError:
+    # Fallback for running without package installation (development)
+    import sys
+    from pathlib import Path
 
-# Add src to path if running directly
-src_path = Path(__file__).parent / "src"
-if src_path.exists():
-    sys.path.insert(0, str(src_path))
-
-from pdf_annotator.desktop import main  # noqa: E402
+    sys.path.insert(0, str(Path(__file__).parent / "src"))
+    from pdf_annotator.desktop import main
 
 if __name__ == "__main__":
     main()
