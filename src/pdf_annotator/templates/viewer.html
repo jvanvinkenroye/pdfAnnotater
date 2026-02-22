@@ -76,7 +76,7 @@
                 <span class="btn-icon" aria-hidden="true">◀</span> Zurück
             </button>
             <span class="page-indicator">
-                Seite <span id="current-page">1</span> von <span id="total-pages">{{ page_count }}</span>
+                Seite <input id="page-input" type="number" min="1" max="{{ page_count }}" value="1" class="page-input" aria-label="Seitennummer"> von <span id="total-pages">{{ page_count }}</span>
             </span>
             <button id="next-page" class="btn btn-secondary" aria-label="Naechste Seite">
                 Weiter <span class="btn-icon" aria-hidden="true">▶</span>
@@ -128,7 +128,7 @@
         <div class="editor-footer">
             <p class="editor-hint">
                 Notizen werden automatisch gespeichert.
-                Verwenden Sie Ctrl/Cmd + ←/→ Pfeiltasten für Navigation.
+                Ctrl/Cmd + Pfeiltasten: Navigation | Home/End: Erste/Letzte Seite | G: Gehe zu | Del: Seite löschen
             </p>
         </div>
     </div>

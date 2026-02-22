@@ -18,7 +18,7 @@
     const pdfPage = document.getElementById('pdf-page');
     const pageLoading = document.getElementById('page-loading');
     const noteField = document.getElementById('note-field');
-    const currentPageSpan = document.getElementById('current-page');
+    const pageInput = document.getElementById('page-input');
     const prevButton = document.getElementById('prev-page');
     const nextButton = document.getElementById('next-page');
     const saveProgressButton = document.getElementById('save-progress');
@@ -88,7 +88,7 @@
         loadAnnotation(pageNumber);
 
         // Update UI
-        currentPageSpan.textContent = pageNumber;
+        pageInput.value = pageNumber;
         updateNavigationButtons();
     }
 
@@ -208,6 +208,7 @@
         prevButton.disabled = currentPage <= 1;
         nextButton.disabled = currentPage >= pageCount;
         deletePageBtn.disabled = pageCount <= 1;
+        pageInput.max = pageCount;
     }
 
     /**
@@ -539,10 +540,58 @@
         }
     });
 
-    // Keyboard navigation with Ctrl/Cmd + Arrow keys
+    // Page input: navigate on Enter, restore on Escape
+    pageInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            var target = parseInt(pageInput.value);
+            if (target >= 1 && target <= pageCount) {
+                navigateToPage(target);
+            } else {
+                pageInput.value = currentPage;
+            }
+            pageInput.blur();
+        } else if (e.key === 'Escape') {
+            pageInput.value = currentPage;
+            pageInput.blur();
+        }
+    });
+
+    pageInput.addEventListener('blur', function() {
+        pageInput.value = currentPage;
+    });
+
+    // Keyboard shortcuts with Ctrl/Cmd
     document.addEventListener('keydown', function(e) {
-        // Only navigate with Ctrl (Windows/Linux) or Cmd (Mac) + Arrow keys
         if (!(e.ctrlKey || e.metaKey)) {
+            return;
+        }
+
+        // Ctrl+G: focus page input (go to page)
+        if (e.key === 'g') {
+            e.preventDefault();
+            pageInput.select();
+            return;
+        }
+
+        // Ctrl+Delete / Cmd+Backspace: delete current page
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+            e.preventDefault();
+            deleteCurrentPage();
+            return;
+        }
+
+        // Ctrl+Home: first page
+        if (e.key === 'Home') {
+            e.preventDefault();
+            navigateToPage(1);
+            return;
+        }
+
+        // Ctrl+End: last page
+        if (e.key === 'End') {
+            e.preventDefault();
+            navigateToPage(pageCount);
             return;
         }
 

@@ -464,9 +464,23 @@ body {
     font-weight: 500;
 }
 
-#current-page {
-    color: var(--text-primary);
+.page-input {
+    width: 3.5em;
+    text-align: center;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 0.15rem 0.25rem;
+    font-size: 0.95rem;
     font-weight: 700;
+    color: var(--text-primary);
+    background: var(--bg-primary);
+    -moz-appearance: textfield;
+}
+
+.page-input::-webkit-outer-spin-button,
+.page-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
 }
 
 /* Viewer Container (Split Screen) */
