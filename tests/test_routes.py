@@ -208,6 +208,77 @@ class TestMetadataApi:
         assert response.status_code == 400
 
 
+class TestDeletePage:
+    """Test page deletion API."""
+
+    def test_delete_page_success(self, app, client, uploaded_pdf_3pages):
+        """Deleting page 2 from a 3-page PDF leaves 2 pages."""
+        response = client.delete(
+            f"/viewer/api/page/{uploaded_pdf_3pages}/2"
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["success"] is True
+        assert data["page_count"] == 2
+
+    def test_delete_last_remaining_page_rejected(self, app, client, tmp_path):
+        """Cannot delete the only page in a 1-page PDF."""
+        import shutil
+        from pathlib import Path
+
+        import fitz
+
+        from pdf_annotator.models.database import DatabaseManager
+
+        with app.app_context():
+            pdf_path = tmp_path / "single.pdf"
+            doc = fitz.open()
+            page = doc.new_page(width=595, height=842)
+            page.insert_text((72, 72), "Single page", fontsize=24)
+            doc.save(str(pdf_path))
+            doc.close()
+
+            upload_path = Path(app.config["UPLOAD_FOLDER"]) / "single.pdf"
+            shutil.copy2(pdf_path, upload_path)
+
+            db = DatabaseManager()
+            doc_id = db.create_document(
+                filename="single.pdf",
+                file_path=str(upload_path),
+                page_count=1,
+            )
+
+            response = client.delete(f"/viewer/api/page/{doc_id}/1")
+            assert response.status_code == 400
+
+    def test_delete_page_renumbers_annotations(self, app, client, uploaded_pdf_3pages):
+        """Annotations for pages after deleted page are renumbered."""
+        from pdf_annotator.models.database import DatabaseManager
+
+        with app.app_context():
+            response = client.delete(
+                f"/viewer/api/page/{uploaded_pdf_3pages}/2"
+            )
+            assert response.status_code == 200
+
+            db = DatabaseManager()
+            # Old page 3 annotation should now be on page 2
+            ann = db.get_annotation(uploaded_pdf_3pages, 2)
+            assert ann is not None
+            assert ann["note_text"] == "Notiz Seite 3"
+
+            # Old page 2 annotation should be gone
+            annotations = db.get_all_annotations(uploaded_pdf_3pages)
+            assert len(annotations) == 2
+
+    def test_delete_page_invalid_page_number(self, app, client, uploaded_pdf_3pages):
+        """Invalid page number returns 400."""
+        response = client.delete(
+            f"/viewer/api/page/{uploaded_pdf_3pages}/99"
+        )
+        assert response.status_code == 400
+
+
 class TestExportRoutes:
     """Test PDF and Markdown export."""
 

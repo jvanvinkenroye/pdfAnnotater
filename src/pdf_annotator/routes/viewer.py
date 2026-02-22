@@ -7,6 +7,7 @@ Handles viewer page and API endpoints for PDF rendering and annotations.
 from pathlib import Path
 from typing import Any
 
+import fitz
 from flask import Blueprint, Response, current_app, jsonify, render_template, request
 
 from pdf_annotator.models.database import DatabaseManager
@@ -485,6 +486,84 @@ def replace_pdf(doc_id: str) -> Any:
     except Exception as e:
         logger.error(
             f"Error replacing PDF for document {doc_id}: {e}",
+            exc_info=True,
+        )
+        return jsonify({"error": "Interner Serverfehler"}), 500
+
+
+@viewer_bp.route("/api/page/<doc_id>/<int:page_number>", methods=["DELETE"])
+def delete_page(doc_id: str, page_number: int) -> Any:
+    """
+    Delete a page from the PDF document.
+
+    Removes the page from the PDF file, deletes its annotation,
+    and renumbers all subsequent annotations.
+
+    Args:
+        doc_id: UUID of document
+        page_number: Page number to delete (1-indexed)
+
+    Returns:
+        JSON response with new page_count or error
+    """
+    try:
+        is_valid, error_msg = validate_doc_id(doc_id)
+        if not is_valid:
+            return jsonify({"error": error_msg}), 400
+
+        db = DatabaseManager()
+        doc_info = db.get_document(doc_id)
+
+        if not doc_info:
+            logger.warning(f"Document not found: {doc_id}")
+            return jsonify({"error": "Dokument nicht gefunden"}), 404
+
+        # Validate page number
+        is_valid, error_msg = validate_page_number(page_number, doc_info["page_count"])
+        if not is_valid:
+            return jsonify({"error": error_msg}), 400
+
+        # Must have more than 1 page
+        if doc_info["page_count"] <= 1:
+            return (
+                jsonify({"error": "Die letzte Seite kann nicht gelöscht werden"}),
+                400,
+            )
+
+        # Delete page from PDF (fitz uses 0-indexed pages)
+        file_path = Path(doc_info["file_path"])
+        upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
+        is_valid, error_msg = validate_file_path(file_path, upload_folder)
+        if not is_valid:
+            logger.error(f"Path traversal attempt blocked in delete_page: {file_path}")
+            return jsonify({"error": "Ungültiger Dateipfad"}), 400
+
+        pdf_doc = fitz.open(str(file_path))
+        pdf_doc.delete_page(page_number - 1)
+        tmp_path = file_path.with_suffix(".tmp.pdf")
+        pdf_doc.save(str(tmp_path), deflate=True)
+        pdf_doc.close()
+        tmp_path.replace(file_path)
+
+        # Clear render cache
+        clear_render_cache()
+
+        # Delete annotation for this page and renumber subsequent ones
+        db.delete_annotation(doc_id, page_number)
+        db.renumber_annotations_after_delete(doc_id, page_number)
+
+        new_page_count = doc_info["page_count"] - 1
+
+        logger.info(
+            f"Deleted page {page_number} from document {doc_id}, "
+            f"new page count: {new_page_count}"
+        )
+
+        return jsonify({"success": True, "page_count": new_page_count})
+
+    except Exception as e:
+        logger.error(
+            f"Error deleting page {page_number} from {doc_id}: {e}",
             exc_info=True,
         )
         return jsonify({"error": "Interner Serverfehler"}), 500

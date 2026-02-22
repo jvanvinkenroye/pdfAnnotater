@@ -12,7 +12,7 @@
     // Get viewer data from HTML
     const viewerData = document.getElementById('viewer-data');
     const docId = viewerData.dataset.docId;
-    const pageCount = parseInt(viewerData.dataset.pageCount);
+    let pageCount = parseInt(viewerData.dataset.pageCount);
 
     // DOM elements
     const pdfPage = document.getElementById('pdf-page');
@@ -30,6 +30,9 @@
     const cancelMetadataBtn = document.getElementById('cancel-metadata-btn');
     const metadataDisplay = document.getElementById('metadata-display');
     const metadataForm = document.getElementById('metadata-form');
+
+    // Delete page element
+    const deletePageBtn = document.getElementById('delete-page-btn');
 
     // PDF replacement elements
     const replacePdfBtn = document.getElementById('replace-pdf-btn');
@@ -204,6 +207,7 @@
     function updateNavigationButtons() {
         prevButton.disabled = currentPage <= 1;
         nextButton.disabled = currentPage >= pageCount;
+        deletePageBtn.disabled = pageCount <= 1;
     }
 
     /**
@@ -428,7 +432,65 @@
         applyZoom();
     }
 
+    /**
+     * Delete the current page from the PDF
+     */
+    function deleteCurrentPage() {
+        if (pageCount <= 1) {
+            showToast('Die letzte Seite kann nicht gelöscht werden.', 'error');
+            return;
+        }
+
+        showConfirm('Möchten Sie Seite ' + currentPage + ' wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.').then(function(confirmed) {
+            if (!confirmed) {
+                return;
+            }
+
+            deletePageBtn.disabled = true;
+            deletePageBtn.textContent = 'Wird gelöscht...';
+
+            var deleteUrl = '/viewer/api/page/' + docId + '/' + currentPage;
+
+            fetch(deleteUrl, {
+                method: 'DELETE',
+                headers: { 'X-CSRFToken': csrfToken }
+            })
+                .then(function(response) {
+                    if (!response.ok) {
+                        return response.json().then(function(data) {
+                            throw new Error(data.error || 'Fehler beim Löschen');
+                        });
+                    }
+                    return response.json();
+                })
+                .then(function(data) {
+                    pageCount = data.page_count;
+                    document.getElementById('total-pages').textContent = pageCount;
+
+                    // Adjust current page if we deleted the last page
+                    if (currentPage > pageCount) {
+                        currentPage = pageCount;
+                    }
+
+                    loadPage(currentPage);
+                    showToast('Seite erfolgreich gelöscht.', 'success');
+
+                    deletePageBtn.disabled = false;
+                    deletePageBtn.textContent = 'Seite löschen';
+                })
+                .catch(function(error) {
+                    console.error('Error deleting page:', error);
+                    showToast('Fehler beim Löschen der Seite: ' + error.message, 'error');
+                    deletePageBtn.disabled = false;
+                    deletePageBtn.textContent = 'Seite löschen';
+                });
+        });
+    }
+
     // Event Listeners
+
+    // Delete page
+    deletePageBtn.addEventListener('click', deleteCurrentPage);
 
     // Zoom controls
     zoomInBtn.addEventListener('click', zoomIn);

@@ -143,3 +143,24 @@ def uploaded_pdf(app, client, sample_pdf):
         db.upsert_annotation(doc_id, 1, "")
         db.upsert_annotation(doc_id, 2, "")
         return doc_id
+
+
+@pytest.fixture()
+def uploaded_pdf_3pages(app, client, sample_pdf_3pages):
+    """Create a 3-page document with PDF in upload folder and return doc_id."""
+    with app.app_context():
+        upload_path = Path(app.config["UPLOAD_FOLDER"]) / "test_3pages.pdf"
+        shutil.copy2(sample_pdf_3pages, upload_path)
+
+        db = DatabaseManager()
+        doc_id = db.create_document(
+            filename="test_3pages.pdf",
+            file_path=str(upload_path),
+            page_count=3,
+            first_name="Test",
+            last_name="User",
+        )
+        db.upsert_annotation(doc_id, 1, "Notiz Seite 1")
+        db.upsert_annotation(doc_id, 2, "Notiz Seite 2")
+        db.upsert_annotation(doc_id, 3, "Notiz Seite 3")
+        return doc_id

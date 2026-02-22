@@ -415,6 +415,55 @@ class DatabaseManager:
             cursor.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
             return cursor.rowcount > 0
 
+    def delete_annotation(self, doc_id: str, page_number: int) -> bool:
+        """
+        Delete annotation for a specific page.
+
+        Args:
+            doc_id: UUID of document
+            page_number: Page number (1-indexed)
+
+        Returns:
+            bool: True if annotation was deleted, False if not found
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "DELETE FROM annotations WHERE doc_id = ? AND page_number = ?",
+                (doc_id, page_number),
+            )
+            return cursor.rowcount > 0
+
+    def renumber_annotations_after_delete(
+        self, doc_id: str, deleted_page: int
+    ) -> None:
+        """
+        Shift page numbers down by 1 for all annotations after a deleted page
+        and update page_count in documents table.
+
+        Args:
+            doc_id: UUID of document
+            deleted_page: The page number that was deleted (1-indexed)
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                UPDATE annotations
+                SET page_number = page_number - 1
+                WHERE doc_id = ? AND page_number > ?
+            """,
+                (doc_id, deleted_page),
+            )
+            cursor.execute(
+                """
+                UPDATE documents
+                SET page_count = page_count - 1
+                WHERE id = ?
+            """,
+                (doc_id,),
+            )
+
     def get_all_documents(self) -> list[dict[str, Any]]:
         """
         Retrieve all documents, sorted by upload timestamp (newest first).
