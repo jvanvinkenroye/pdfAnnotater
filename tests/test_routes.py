@@ -10,8 +10,8 @@ import json
 class TestUploadRoutes:
     """Test upload endpoints."""
 
-    def test_index_page(self, client):
-        response = client.get("/")
+    def test_index_page(self, logged_in_client):
+        response = logged_in_client.get("/")
         assert response.status_code == 200
         assert b"PDF Annotator" in response.data
 

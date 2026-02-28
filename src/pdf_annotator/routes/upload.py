@@ -37,6 +37,7 @@ upload_bp = Blueprint("upload", __name__)
 
 
 @upload_bp.route("/", methods=["GET"])
+@login_required
 def index() -> str:
     """
     Render upload page.
