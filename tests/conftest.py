@@ -9,6 +9,7 @@ from pathlib import Path
 
 import fitz
 import pytest
+from werkzeug.security import generate_password_hash
 
 from pdf_annotator.app import create_app
 from pdf_annotator.models.database import DatabaseManager
@@ -58,11 +59,53 @@ def client(app):
 
 @pytest.fixture()
 def db(tmp_path):
-    """DatabaseManager with file-based temp database."""
+    """DatabaseManager with file-based temp database and default test user."""
     db_path = tmp_path / "test.db"
     manager = DatabaseManager(db_path)
     manager.init_db()
+
+    # Create a default test user for tests that don't care about user_id
+    test_user_id = manager.create_user(
+        username="dbtest",
+        email="dbtest@example.com",
+        password_hash=generate_password_hash("password"),
+    )
+
+    # Store the test user ID on the manager for tests to access
+    manager.test_user_id = test_user_id
+
     return manager
+
+
+@pytest.fixture()
+def user(app, db):
+    """Create a test user in the database."""
+    with app.app_context():
+        user_id = db.create_user(
+            username="testuser",
+            email="test@example.com",
+            password_hash=generate_password_hash("testpassword"),
+        )
+    return user_id
+
+
+@pytest.fixture()
+def logged_in_client(app, client, user):
+    """Flask test client with authenticated user session."""
+    with app.app_context():
+        with client:
+            # Log in the user
+            response = client.post(
+                "/auth/login",
+                data={
+                    "username": "testuser",
+                    "password": "testpassword",
+                },
+                follow_redirects=True,
+            )
+            # Verify login was successful
+            assert response.status_code == 200
+            yield client
 
 
 @pytest.fixture()
@@ -92,9 +135,10 @@ def sample_pdf_3pages(tmp_path):
 
 
 @pytest.fixture()
-def sample_document(db, sample_pdf):
+def sample_document(db, sample_pdf, user):
     """Create a document with annotations in the database."""
     doc_id = db.create_document(
+        user_id=user,
         filename="test_document.pdf",
         file_path=str(sample_pdf),
         page_count=2,
@@ -126,14 +170,14 @@ def export_folder(tmp_path):
 
 
 @pytest.fixture()
-def uploaded_pdf(app, client, sample_pdf):
+def uploaded_pdf(app, db, sample_pdf, user):
     """Create a document with PDF in the upload folder and return doc_id."""
     with app.app_context():
         upload_path = Path(app.config["UPLOAD_FOLDER"]) / "test.pdf"
         shutil.copy2(sample_pdf, upload_path)
 
-        db = DatabaseManager()
         doc_id = db.create_document(
+            user_id=user,
             filename="test_document.pdf",
             file_path=str(upload_path),
             page_count=2,
@@ -146,14 +190,14 @@ def uploaded_pdf(app, client, sample_pdf):
 
 
 @pytest.fixture()
-def uploaded_pdf_3pages(app, client, sample_pdf_3pages):
+def uploaded_pdf_3pages(app, db, sample_pdf_3pages, user):
     """Create a 3-page document with PDF in upload folder and return doc_id."""
     with app.app_context():
         upload_path = Path(app.config["UPLOAD_FOLDER"]) / "test_3pages.pdf"
         shutil.copy2(sample_pdf_3pages, upload_path)
 
-        db = DatabaseManager()
         doc_id = db.create_document(
+            user_id=user,
             filename="test_3pages.pdf",
             file_path=str(upload_path),
             page_count=3,
@@ -164,3 +208,45 @@ def uploaded_pdf_3pages(app, client, sample_pdf_3pages):
         db.upsert_annotation(doc_id, 2, "Notiz Seite 2")
         db.upsert_annotation(doc_id, 3, "Notiz Seite 3")
         return doc_id
+
+
+@pytest.fixture()
+def admin_user(app, db):
+    """Create an admin user in the database."""
+    with app.app_context():
+        user_id = db.create_user(
+            username="adminuser",
+            email="admin@example.com",
+            password_hash=generate_password_hash("adminpassword"),
+        )
+        db.set_user_admin(user_id, True)
+    return user_id
+
+
+@pytest.fixture()
+def admin_client(app, client, admin_user):
+    """Flask test client with authenticated admin user session."""
+    with app.app_context():
+        with client:
+            response = client.post(
+                "/auth/login",
+                data={
+                    "username": "adminuser",
+                    "password": "adminpassword",
+                },
+                follow_redirects=True,
+            )
+            assert response.status_code == 200
+            yield client
+
+
+@pytest.fixture()
+def second_user(app, db):
+    """Create a second test user in the database."""
+    with app.app_context():
+        user_id = db.create_user(
+            username="seconduser",
+            email="second@example.com",
+            password_hash=generate_password_hash("secondpassword"),
+        )
+    return user_id

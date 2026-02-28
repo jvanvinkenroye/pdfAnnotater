@@ -114,7 +114,7 @@ def validate_uploaded_file(
 
 def sanitize_filename(filename: str) -> str:
     """
-    Sanitize filename by removing dangerous characters.
+    Sanitize filename by removing dangerous characters while preserving Unicode.
 
     Args:
         filename: Original filename
@@ -129,7 +129,7 @@ def sanitize_filename(filename: str) -> str:
     # Get just the filename, not the path
     filename = Path(filename).name
 
-    # Remove any remaining dangerous characters
+    # Remove dangerous characters
     dangerous_chars = ["<", ">", ":", '"', "/", "\\", "|", "?", "*"]
     for char in dangerous_chars:
         filename = filename.replace(char, "_")

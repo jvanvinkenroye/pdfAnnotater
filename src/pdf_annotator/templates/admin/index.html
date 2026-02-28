@@ -1,0 +1,320 @@
+{% extends "base.html" %}
+{% import "icons.html" as icons %}
+
+{% block title %}Admin - Benutzerverwaltung{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>Admin-Panel</h1>
+    <p>Benutzerverwaltung und Übersicht</p>
+
+    <div class="admin-table-wrapper">
+        <table class="admin-table" role="grid">
+            <thead>
+                <tr>
+                    <th>Benutzername</th>
+                    <th>E-Mail</th>
+                    <th>Registriert</th>
+                    <th>Status</th>
+                    <th>Admin</th>
+                    <th>Aktionen</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr data-user-id="{{ user.id }}">
+                    <td>{{ user.username }}</td>
+                    <td>{{ user.email }}</td>
+                    <td>
+                        {% if user.created_at %}
+                            {{ user.created_at.strftime('%d.%m.%Y') if user.created_at.strftime else user.created_at[:10] }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="status-badge {% if user.is_active %}active{% else %}inactive{% endif %}">
+                            {% if user.is_active %}Aktiv{% else %}Inaktiv{% endif %}
+                        </span>
+                    </td>
+                    <td>
+                        {% if user.is_admin %}
+                        <span class="admin-badge">Admin</span>
+                        {% else %}
+                        <span class="admin-badge-none">-</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="action-buttons">
+                            <button
+                                class="btn btn-sm toggle-active"
+                                data-user-id="{{ user.id }}"
+                                {% if user.id == current_user.id %}disabled title="Sie können sich nicht selbst deaktivieren"{% endif %}
+                            >
+                                {% if user.is_active %}Deaktivieren{% else %}Aktivieren{% endif %}
+                            </button>
+                            <button
+                                class="btn btn-sm toggle-admin"
+                                data-user-id="{{ user.id }}"
+                                {% if user.id == current_user.id %}disabled title="Sie können sich nicht selbst entziehen"{% endif %}
+                            >
+                                {% if user.is_admin %}Admin entziehen{% else %}Admin ernennen{% endif %}
+                            </button>
+                            <button
+                                class="btn btn-sm btn-danger delete-user"
+                                data-user-id="{{ user.id }}"
+                                data-username="{{ user.username }}"
+                                {% if user.id == current_user.id %}disabled title="Sie können sich nicht selbst löschen"{% endif %}
+                            >
+                                Löschen
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Toggle active status
+    document.querySelectorAll('.toggle-active').forEach(btn => {
+        btn.addEventListener('click', async function() {
+            const userId = this.dataset.userId;
+            const row = document.querySelector(`tr[data-user-id="${userId}"]`);
+            const username = row.querySelector('td:first-child').textContent;
+
+            const response = await fetch(`/admin/user/${userId}/toggle_active`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                }
+            });
+
+            const data = await response.json();
+            if (response.ok) {
+                // Update UI
+                const statusCell = row.querySelector('.status-badge');
+                if (data.is_active) {
+                    statusCell.className = 'status-badge active';
+                    statusCell.textContent = 'Aktiv';
+                    btn.textContent = 'Deaktivieren';
+                } else {
+                    statusCell.className = 'status-badge inactive';
+                    statusCell.textContent = 'Inaktiv';
+                    btn.textContent = 'Aktivieren';
+                }
+                showToast(data.message, 'success');
+            } else {
+                showAlert('Fehler', data.error || 'Fehler beim Aktualisieren');
+            }
+        });
+    });
+
+    // Toggle admin status
+    document.querySelectorAll('.toggle-admin').forEach(btn => {
+        btn.addEventListener('click', async function() {
+            const userId = this.dataset.userId;
+            const row = document.querySelector(`tr[data-user-id="${userId}"]`);
+
+            const response = await fetch(`/admin/user/${userId}/toggle_admin`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                }
+            });
+
+            const data = await response.json();
+            if (response.ok) {
+                // Update UI
+                const adminCell = row.querySelector('td:nth-child(5)');
+                if (data.is_admin) {
+                    adminCell.innerHTML = '<span class="admin-badge">Admin</span>';
+                    btn.textContent = 'Admin entziehen';
+                } else {
+                    adminCell.innerHTML = '<span class="admin-badge-none">-</span>';
+                    btn.textContent = 'Admin ernennen';
+                }
+                showToast(data.message, 'success');
+            } else {
+                showAlert('Fehler', data.error || 'Fehler beim Aktualisieren');
+            }
+        });
+    });
+
+    // Delete user
+    document.querySelectorAll('.delete-user').forEach(btn => {
+        btn.addEventListener('click', async function() {
+            const userId = this.dataset.userId;
+            const username = this.dataset.username;
+
+            const confirmed = await showConfirm(
+                'Benutzer löschen',
+                `Möchten Sie den Benutzer "${username}" wirklich löschen? Alle seine Dokumente werden ebenfalls gelöscht.`
+            );
+
+            if (!confirmed) return;
+
+            const response = await fetch(`/admin/user/${userId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                }
+            });
+
+            const data = await response.json();
+            if (response.ok) {
+                const row = document.querySelector(`tr[data-user-id="${userId}"]`);
+                row.style.opacity = '0';
+                setTimeout(() => row.remove(), 300);
+                showToast(data.message, 'success');
+            } else {
+                showAlert('Fehler', data.error || 'Fehler beim Löschen');
+            }
+        });
+    });
+});
+</script>
+
+<style>
+.admin-table-wrapper {
+    margin-top: 2rem;
+    overflow-x: auto;
+}
+
+.admin-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.admin-table thead {
+    background: var(--bg-tertiary);
+    border-bottom: 2px solid var(--border-color);
+}
+
+.admin-table th {
+    padding: 1rem;
+    text-align: left;
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.admin-table td {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-color);
+}
+
+.admin-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.admin-table tbody tr:hover {
+    background: var(--bg-tertiary);
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 0.375rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.status-badge.active {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.status-badge.inactive {
+    background-color: #e2e3e5;
+    color: #383d41;
+}
+
+.admin-badge {
+    display: inline-block;
+    padding: 0.375rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    background-color: #cce5ff;
+    color: #004085;
+}
+
+.admin-badge-none {
+    color: #999;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.btn-sm {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+}
+
+.btn-danger {
+    background-color: #dc3545;
+    color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+    background-color: #c82333;
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Dark mode adjustments */
+@media (prefers-color-scheme: dark) {
+    .status-badge.active {
+        background-color: #1e4620;
+        color: #90ee90;
+    }
+
+    .status-badge.inactive {
+        background-color: #333;
+        color: #aaa;
+    }
+
+    .admin-badge {
+        background-color: #1a3a52;
+        color: #87ceeb;
+    }
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .admin-table {
+        font-size: 0.875rem;
+    }
+
+    .admin-table th,
+    .admin-table td {
+        padding: 0.75rem 0.5rem;
+    }
+
+    .action-buttons {
+        flex-direction: column;
+    }
+
+    .btn-sm {
+        width: 100%;
+    }
+}
+</style>
+{% endblock %}

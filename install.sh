@@ -15,7 +15,13 @@ echo "Installing $APP_NAME..."
 # Check for Python 3.10+
 if ! command -v python3 &> /dev/null; then
     echo "Error: Python 3 is required but not found."
-    echo "Install via: brew install python@3.12"
+    echo "Install via:"
+    if [ "$(uname)" = "Darwin" ]; then
+        echo "  brew install python@3.12"
+    else
+        echo "  apt install python3 (Debian/Ubuntu)"
+        echo "  dnf install python3 (Fedora)"
+    fi
     exit 1
 fi
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 import secrets
 import sys
+import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -33,7 +34,8 @@ def get_data_dir() -> Path:
     elif sys.platform == "win32":  # Windows
         base = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
     else:  # Linux and others (XDG spec)
-        xdg_data = os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")
+        xdg_default = str(Path.home() / ".local" / "share")
+        xdg_data = os.environ.get("XDG_DATA_HOME", xdg_default)
         base = Path(xdg_data)
 
     return base / app_name
@@ -133,6 +135,12 @@ class ProductionConfig(Config):
         Args:
             app: Flask application instance
         """
+        if not os.environ.get("SECRET_KEY"):
+            warnings.warn(
+                "SECRET_KEY ist nicht gesetzt! Sessions werden nach Neustart ungültig. "
+                "Setzen Sie die Umgebungsvariable SECRET_KEY für Production.",
+                stacklevel=2,
+            )
         # Use ProductionConfig paths, not base Config
         app.config["UPLOAD_FOLDER"].mkdir(parents=True, exist_ok=True)
         app.config["EXPORT_FOLDER"].mkdir(parents=True, exist_ok=True)

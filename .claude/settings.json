@@ -1,0 +1,7 @@
+{
+  "enabledPlugins": {
+    "scientific-skills@claude-scientific-skills": false,
+    "claude-code-setup@claude-plugins-official": true,
+    "document-skills@anthropic-agent-skills": false
+  }
+}
