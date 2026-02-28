@@ -96,12 +96,45 @@ def get_page_dimensions(file_path: Path, page_num: int) -> tuple[float, float]:
 
 
 @lru_cache(maxsize=50)
+def _render_page_cached(file_path: str, page_num: int, dpi: int) -> bytes:
+    """
+    Internal cached page rendering. Raises on failure so errors are never cached.
+
+    File path must be a string (not Path) for LRU cache compatibility.
+    """
+    logger.debug("Rendering page %d from %s", page_num, Path(file_path).name)
+    doc = fitz.open(file_path)
+
+    if page_num < 1 or page_num > len(doc):
+        doc.close()
+        raise ValueError(f"Page {page_num} out of range (1-{len(doc)}) for {file_path}")
+
+    # Get page (0-indexed)
+    page = doc[page_num - 1]
+
+    # Calculate zoom factor from DPI (PyMuPDF default is 72 DPI)
+    zoom = dpi / 72
+    mat = fitz.Matrix(zoom, zoom)
+
+    pix = page.get_pixmap(matrix=mat)
+    png_bytes = pix.tobytes("png")
+    doc.close()
+
+    logger.debug(
+        "Successfully rendered page %d (%dx%d pixels)",
+        page_num,
+        pix.width,
+        pix.height,
+    )
+    return png_bytes
+
+
 def render_page_to_image(file_path: str, page_num: int, dpi: int = 300) -> bytes | None:
     """
     Render PDF page to PNG image.
 
-    Uses LRU cache to store last 50 rendered pages for performance.
-    File path must be string (not Path) for LRU cache compatibility.
+    Wraps the cached internal renderer. Returns None on error instead of raising,
+    so callers do not need to handle exceptions.
 
     Args:
         file_path: Path to PDF file (as string)
@@ -118,39 +151,9 @@ def render_page_to_image(file_path: str, page_num: int, dpi: int = 300) -> bytes
                 f.write(image_bytes)
     """
     try:
-        logger.debug("Rendering page %d from %s", page_num, Path(file_path).name)
-        doc = fitz.open(file_path)
-
-        if page_num < 1 or page_num > len(doc):
-            logger.error(f"Page {page_num} out of range (1-{len(doc)}) for {file_path}")
-            doc.close()
-            return None
-
-        # Get page (0-indexed)
-        page = doc[page_num - 1]
-
-        # Calculate zoom factor from DPI
-        # PyMuPDF default is 72 DPI
-        zoom = dpi / 72
-        mat = fitz.Matrix(zoom, zoom)
-
-        # Render page to pixmap
-        pix = page.get_pixmap(matrix=mat)
-
-        # Convert to PNG bytes
-        png_bytes = pix.tobytes("png")
-
-        doc.close()
-        logger.debug(
-            "Successfully rendered page %d (%dx%d pixels)",
-            page_num,
-            pix.width,
-            pix.height,
-        )
-        return png_bytes
-
+        return _render_page_cached(file_path, page_num, dpi)
     except Exception as e:
-        logger.error(f"Failed to render page {page_num} from {file_path}: {e}")
+        logger.error("Failed to render page %d from %s: %s", page_num, file_path, e)
         return None
 
 
@@ -164,7 +167,7 @@ def clear_render_cache() -> None:
         clear_render_cache()
         logger.info("Render cache cleared")
     """
-    render_page_to_image.cache_clear()
+    _render_page_cached.cache_clear()
     logger.info("PDF render cache cleared")
 
 
@@ -179,7 +182,7 @@ def get_cache_info() -> dict:
         info = get_cache_info()
         print(f"Cache hits: {info['hits']}, misses: {info['misses']}")
     """
-    cache_info = render_page_to_image.cache_info()
+    cache_info = _render_page_cached.cache_info()
     return {
         "hits": cache_info.hits,
         "misses": cache_info.misses,

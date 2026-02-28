@@ -118,15 +118,6 @@ class ProductionConfig(Config):
     """
 
     DEBUG = False
-
-    # Check SECRET_KEY configuration
-    if not os.environ.get("SECRET_KEY"):
-        warnings.warn(
-            "SECRET_KEY ist nicht gesetzt! Sessions werden nach Neustart ungültig. "
-            "Setzen Sie die Umgebungsvariable SECRET_KEY für Production.",
-            stacklevel=2,
-        )
-
     SECRET_KEY = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
 
     # Use platform-specific data directory
@@ -144,6 +135,12 @@ class ProductionConfig(Config):
         Args:
             app: Flask application instance
         """
+        if not os.environ.get("SECRET_KEY"):
+            warnings.warn(
+                "SECRET_KEY ist nicht gesetzt! Sessions werden nach Neustart ungültig. "
+                "Setzen Sie die Umgebungsvariable SECRET_KEY für Production.",
+                stacklevel=2,
+            )
         # Use ProductionConfig paths, not base Config
         app.config["UPLOAD_FOLDER"].mkdir(parents=True, exist_ok=True)
         app.config["EXPORT_FOLDER"].mkdir(parents=True, exist_ok=True)

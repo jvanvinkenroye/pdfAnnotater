@@ -22,6 +22,7 @@ from flask import (
 from flask_login import current_user, login_required
 
 from pdf_annotator.models.database import DatabaseManager
+from pdf_annotator.services.data_manager import DataManager
 from pdf_annotator.services.pdf_processor import get_page_count, validate_pdf
 from pdf_annotator.utils.logger import get_logger
 from pdf_annotator.utils.validators import (
@@ -291,8 +292,6 @@ def export_data() -> Any:
         Response: PDF_Annotator_Backup_20260123.zip
     """
     try:
-        from pdf_annotator.services.data_manager import DataManager
-
         db = DatabaseManager()
         upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
         manager = DataManager(upload_folder)
@@ -333,8 +332,6 @@ def export_info() -> Any:
         Response: {"document_count": 5, "annotation_count": 42, "estimated_size_mb": 12.5}
     """
     try:
-        from pdf_annotator.services.data_manager import DataManager
-
         db = DatabaseManager()
         upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
         manager = DataManager(upload_folder)
@@ -368,8 +365,6 @@ def import_data() -> Any:
         Response: {"documents_imported": 5, "annotations_imported": 42}
     """
     try:
-        from pdf_annotator.services.data_manager import DataManager
-
         # Check if file is in request
         if "file" not in request.files:
             return jsonify({"error": "Keine Datei gefunden"}), 400

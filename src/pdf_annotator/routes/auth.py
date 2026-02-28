@@ -4,6 +4,8 @@ Authentication routes for login, logout, and registration.
 Provides endpoints for user authentication and session management.
 """
 
+import sqlite3
+
 from flask import Blueprint, redirect, render_template, request, url_for
 from flask_login import login_required, login_user, logout_user
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -158,16 +160,16 @@ def register_post() -> str | tuple:
         )
 
     # Create user
+    password_hash = generate_password_hash(password)
     try:
-        password_hash = generate_password_hash(password)
         user_id = db.create_user(username, email, password_hash)
-    except Exception:
+    except sqlite3.IntegrityError:
         return (
             render_template(
                 "auth/register.html",
                 error="Registrierung fehlgeschlagen. E-Mail möglicherweise bereits verwendet.",
             ),
-            400,
+            409,
         )
 
     # Make first user an admin

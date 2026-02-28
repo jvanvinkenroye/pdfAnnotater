@@ -55,8 +55,7 @@ def toggle_active(user_id: str):
 
     # Don't allow deactivating the last admin
     if user_data["is_admin"]:
-        admin_count = sum(1 for u in db.get_all_users() if u["is_admin"])
-        if admin_count <= 1:
+        if db.count_admins() <= 1:
             return (
                 jsonify({"error": "Der letzte Admin kann nicht deaktiviert werden"}),
                 403,
@@ -97,8 +96,7 @@ def toggle_admin(user_id: str):
 
     # Don't allow removing the last admin
     if user_data["is_admin"]:
-        admin_count = sum(1 for u in db.get_all_users() if u["is_admin"])
-        if admin_count <= 1:
+        if db.count_admins() <= 1:
             return (
                 jsonify({"error": "Der letzte Admin kann nicht entrollt werden"}),
                 403,
@@ -136,8 +134,7 @@ def delete_user(user_id: str):
 
     # Don't allow deleting the last admin
     if user_data["is_admin"]:
-        admin_count = sum(1 for u in db.get_all_users() if u["is_admin"])
-        if admin_count <= 1:
+        if db.count_admins() <= 1:
             return jsonify(
                 {"error": "Der letzte Admin kann nicht gelöscht werden"}
             ), 403

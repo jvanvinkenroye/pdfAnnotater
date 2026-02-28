@@ -60,7 +60,7 @@ class DatabaseManager:
                 cursor = conn.cursor()
                 cursor.execute("SELECT * FROM documents")
         """
-        conn = sqlite3.connect(str(self._db_path), detect_types=sqlite3.PARSE_DECLTYPES)
+        conn = sqlite3.connect(str(self._db_path))
         conn.row_factory = sqlite3.Row  # Enable column access by name
         conn.execute("PRAGMA foreign_keys = ON")
         try:
@@ -184,8 +184,6 @@ class DatabaseManager:
             """
             )
 
-            conn.commit()
-
     def create_document(
         self,
         user_id: str,
@@ -197,6 +195,7 @@ class DatabaseManager:
         title: str = "",
         year: str = "",
         subject: str = "",
+        doc_id: str | None = None,
     ) -> str:
         """
         Create a new document entry.
@@ -211,6 +210,7 @@ class DatabaseManager:
             title: Document title (optional)
             year: Year (optional)
             subject: Subject/Theme (optional)
+            doc_id: UUID of document (optional, auto-generated if not provided)
 
         Returns:
             str: UUID of created document
@@ -221,7 +221,8 @@ class DatabaseManager:
                 "Max", "Mustermann", "Projektbericht", "2026", "IT-Sicherheit"
             )
         """
-        doc_id = str(uuid4())
+        if doc_id is None:
+            doc_id = str(uuid4())
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -322,7 +323,7 @@ class DatabaseManager:
         """
         Insert or update annotation for a specific page.
 
-        Uses INSERT OR REPLACE to handle both create and update operations.
+        Uses a single atomic INSERT ... ON CONFLICT DO UPDATE statement.
 
         Args:
             doc_id: UUID of document
@@ -334,35 +335,16 @@ class DatabaseManager:
         """
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            # Check if annotation exists
             cursor.execute(
                 """
-                SELECT id FROM annotations
-                WHERE doc_id = ? AND page_number = ?
-            """,
-                (doc_id, page_number),
+                INSERT INTO annotations (doc_id, page_number, note_text)
+                VALUES (?, ?, ?)
+                ON CONFLICT(doc_id, page_number) DO UPDATE SET
+                    note_text = excluded.note_text,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (doc_id, page_number, note_text),
             )
-            existing = cursor.fetchone()
-
-            if existing:
-                # Update existing annotation
-                cursor.execute(
-                    """
-                    UPDATE annotations
-                    SET note_text = ?, updated_at = CURRENT_TIMESTAMP
-                    WHERE doc_id = ? AND page_number = ?
-                """,
-                    (note_text, doc_id, page_number),
-                )
-            else:
-                # Insert new annotation
-                cursor.execute(
-                    """
-                    INSERT INTO annotations (doc_id, page_number, note_text)
-                    VALUES (?, ?, ?)
-                """,
-                    (doc_id, page_number, note_text),
-                )
 
     def get_annotation(self, doc_id: str, page_number: int) -> dict[str, Any] | None:
         """
@@ -442,6 +424,28 @@ class DatabaseManager:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
             return cursor.rowcount > 0
+
+    def update_page_count(self, doc_id: str, page_count: int) -> bool:
+        """
+        Update page count for a document.
+
+        Args:
+            doc_id: UUID of document
+            page_count: New page count
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "UPDATE documents SET page_count = ? WHERE id = ?",
+                    (page_count, doc_id),
+                )
+                return cursor.rowcount > 0
+        except sqlite3.Error:
+            return False
 
     def delete_annotation(self, doc_id: str, page_number: int) -> bool:
         """
@@ -736,5 +740,18 @@ class DatabaseManager:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM users")
+            row = cursor.fetchone()
+            return row[0] if row else 0
+
+    def count_admins(self) -> int:
+        """
+        Count users with admin privileges.
+
+        Returns:
+            int: Number of admin users in the database
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM users WHERE is_admin = 1")
             row = cursor.fetchone()
             return row[0] if row else 0

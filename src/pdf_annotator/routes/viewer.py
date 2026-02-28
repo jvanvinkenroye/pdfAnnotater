@@ -33,6 +33,35 @@ logger = get_logger(__name__)
 viewer_bp = Blueprint("viewer", __name__, url_prefix="/viewer")
 
 
+def _get_doc_or_error(doc_id: str) -> tuple[dict, None] | tuple[None, tuple]:
+    """
+    Validate doc_id, fetch document, and verify ownership.
+
+    Returns (doc_info, None) on success or (None, error_response_tuple) on failure.
+    Used by all API endpoints to avoid repeating the same auth/ownership boilerplate.
+    """
+    is_valid, error_msg = validate_doc_id(doc_id)
+    if not is_valid:
+        return None, (jsonify({"error": error_msg}), 400)
+
+    db = DatabaseManager()
+    doc_info = db.get_document(doc_id)
+
+    if not doc_info:
+        logger.warning("Document not found: %s", doc_id)
+        return None, (jsonify({"error": "Dokument nicht gefunden"}), 404)
+
+    if doc_info.get("user_id") != current_user.id:
+        logger.warning(
+            "Unauthorized access: user %s tried to access document owned by %s",
+            current_user.id,
+            doc_info.get("user_id"),
+        )
+        return None, (jsonify({"error": "Nicht berechtigt"}), 403)
+
+    return doc_info, None
+
+
 @viewer_bp.route("/<doc_id>", methods=["GET"])
 @login_required
 def view_document(doc_id: str) -> Any:
@@ -120,29 +149,14 @@ def get_page_image(doc_id: str, page_number: int) -> Response:
         GET /viewer/api/page/abc-123/1
     """
     try:
-        is_valid, error_msg = validate_doc_id(doc_id)
-        if not is_valid:
-            return jsonify({"error": error_msg}), 400
-
-        db = DatabaseManager()
-        doc_info = db.get_document(doc_id)
-
-        if not doc_info:
-            logger.warning(f"Document not found: {doc_id}")
-            return jsonify({"error": "Dokument nicht gefunden"}), 404
-
-        # Check ownership
-        if doc_info.get("user_id") != current_user.id:
-            logger.warning(
-                f"Unauthorized access: user {current_user.id} tried to access "
-                f"document owned by {doc_info.get('user_id')}"
-            )
-            return jsonify({"error": "Nicht berechtigt"}), 403
+        doc_info, err = _get_doc_or_error(doc_id)
+        if err is not None:
+            return err
 
         # Validate page number
         is_valid, error_msg = validate_page_number(page_number, doc_info["page_count"])
         if not is_valid:
-            logger.warning(f"Invalid page number {page_number} for document {doc_id}")
+            logger.warning("Invalid page number %d for document %s", page_number, doc_id)
             return jsonify({"error": error_msg}), 400
 
         # Render page
@@ -189,29 +203,16 @@ def get_annotation(doc_id: str, page_number: int) -> Any:
         }
     """
     try:
-        is_valid, error_msg = validate_doc_id(doc_id)
-        if not is_valid:
-            return jsonify({"error": error_msg}), 400
+        doc_info, err = _get_doc_or_error(doc_id)
+        if err is not None:
+            return err
 
         db = DatabaseManager()
-        doc_info = db.get_document(doc_id)
-
-        if not doc_info:
-            logger.warning(f"Document not found: {doc_id}")
-            return jsonify({"error": "Dokument nicht gefunden"}), 404
-
-        # Check ownership
-        if doc_info.get("user_id") != current_user.id:
-            logger.warning(
-                f"Unauthorized access: user {current_user.id} tried to access "
-                f"document owned by {doc_info.get('user_id')}"
-            )
-            return jsonify({"error": "Nicht berechtigt"}), 403
 
         # Validate page number
         is_valid, error_msg = validate_page_number(page_number, doc_info["page_count"])
         if not is_valid:
-            logger.warning(f"Invalid page number {page_number} for document {doc_id}")
+            logger.warning("Invalid page number %d for document %s", page_number, doc_id)
             return jsonify({"error": error_msg}), 400
 
         # Get annotation
@@ -265,29 +266,16 @@ def save_annotation(doc_id: str, page_number: int) -> Any:
         }
     """
     try:
-        is_valid, error_msg = validate_doc_id(doc_id)
-        if not is_valid:
-            return jsonify({"error": error_msg}), 400
+        doc_info, err = _get_doc_or_error(doc_id)
+        if err is not None:
+            return err
 
         db = DatabaseManager()
-        doc_info = db.get_document(doc_id)
-
-        if not doc_info:
-            logger.warning(f"Document not found: {doc_id}")
-            return jsonify({"error": "Dokument nicht gefunden"}), 404
-
-        # Check ownership
-        if doc_info.get("user_id") != current_user.id:
-            logger.warning(
-                f"Unauthorized access: user {current_user.id} tried to access "
-                f"document owned by {doc_info.get('user_id')}"
-            )
-            return jsonify({"error": "Nicht berechtigt"}), 403
 
         # Validate page number
         is_valid, error_msg = validate_page_number(page_number, doc_info["page_count"])
         if not is_valid:
-            logger.warning(f"Invalid page number {page_number} for document {doc_id}")
+            logger.warning("Invalid page number %d for document %s", page_number, doc_id)
             return jsonify({"error": error_msg}), 400
 
         # Get note text from request
@@ -339,24 +327,11 @@ def update_metadata(doc_id: str) -> Any:
         Body: {"first_name": "Max", "last_name": "Mustermann", ...}
     """
     try:
-        is_valid, error_msg = validate_doc_id(doc_id)
-        if not is_valid:
-            return jsonify({"error": error_msg}), 400
+        doc_info, err = _get_doc_or_error(doc_id)
+        if err is not None:
+            return err
 
         db = DatabaseManager()
-        doc_info = db.get_document(doc_id)
-
-        if not doc_info:
-            logger.warning(f"Document not found: {doc_id}")
-            return jsonify({"error": "Dokument nicht gefunden"}), 404
-
-        # Check ownership
-        if doc_info.get("user_id") != current_user.id:
-            logger.warning(
-                f"Unauthorized access: user {current_user.id} tried to access "
-                f"document owned by {doc_info.get('user_id')}"
-            )
-            return jsonify({"error": "Nicht berechtigt"}), 403
 
         # Get metadata from request
         data = request.get_json()
@@ -461,24 +436,11 @@ def replace_pdf(doc_id: str) -> Any:
         File: new_version.pdf
     """
     try:
-        is_valid, error_msg = validate_doc_id(doc_id)
-        if not is_valid:
-            return jsonify({"error": error_msg}), 400
+        doc_info, err = _get_doc_or_error(doc_id)
+        if err is not None:
+            return err
 
         db = DatabaseManager()
-        doc_info = db.get_document(doc_id)
-
-        if not doc_info:
-            logger.warning(f"Document not found: {doc_id}")
-            return jsonify({"error": "Dokument nicht gefunden"}), 404
-
-        # Check ownership
-        if doc_info.get("user_id") != current_user.id:
-            logger.warning(
-                f"Unauthorized access: user {current_user.id} tried to access "
-                f"document owned by {doc_info.get('user_id')}"
-            )
-            return jsonify({"error": "Nicht berechtigt"}), 403
 
         # Check if file was uploaded
         if "file" not in request.files:
@@ -516,29 +478,21 @@ def replace_pdf(doc_id: str) -> Any:
         upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
         is_valid, error_msg = validate_file_path(file_path, upload_folder)
         if not is_valid:
-            logger.error(f"Path traversal attempt blocked in replace: {file_path}")
+            logger.error("Path traversal attempt blocked in replace: %s", file_path)
             return jsonify({"error": "Ungültiger Dateipfad"}), 400
 
         # Save new file (overwrites old one)
         file.save(file_path)
-        logger.info(f"Saved new PDF to: {file_path}")
+        logger.info("Saved new PDF to: %s", file_path)
 
         # Clear render cache so stale images are not served
         clear_render_cache()
 
-        # Get new page count
+        # Get new page count and update database
         new_page_count = get_page_count(file_path)
-        logger.info(f"New PDF has {new_page_count} pages")
+        db.update_page_count(doc_id, new_page_count)
 
-        # Update page count in database
-        with db.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                "UPDATE documents SET page_count = ? WHERE id = ?",
-                (new_page_count, doc_id),
-            )
-
-        logger.info(f"Successfully replaced PDF for document {doc_id}")
+        logger.info("Successfully replaced PDF for document %s", doc_id)
 
         return jsonify({"success": True, "page_count": new_page_count})
 
@@ -567,24 +521,11 @@ def append_pdf(doc_id: str) -> Any:
         File: additional_pages.pdf
     """
     try:
-        is_valid, error_msg = validate_doc_id(doc_id)
-        if not is_valid:
-            return jsonify({"error": error_msg}), 400
+        doc_info, err = _get_doc_or_error(doc_id)
+        if err is not None:
+            return err
 
         db = DatabaseManager()
-        doc_info = db.get_document(doc_id)
-
-        if not doc_info:
-            logger.warning(f"Document not found: {doc_id}")
-            return jsonify({"error": "Dokument nicht gefunden"}), 404
-
-        # Check ownership
-        if doc_info.get("user_id") != current_user.id:
-            logger.warning(
-                f"Unauthorized access: user {current_user.id} tried to access "
-                f"document owned by {doc_info.get('user_id')}"
-            )
-            return jsonify({"error": "Nicht berechtigt"}), 403
 
         if "file" not in request.files:
             logger.warning("No file in request")
@@ -643,13 +584,7 @@ def append_pdf(doc_id: str) -> Any:
         clear_render_cache()
 
         new_page_count = get_page_count(file_path)
-
-        with db.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                "UPDATE documents SET page_count = ? WHERE id = ?",
-                (new_page_count, doc_id),
-            )
+        db.update_page_count(doc_id, new_page_count)
 
         logger.info(
             f"Appended {added_pages} pages to document {doc_id}, "
@@ -689,24 +624,11 @@ def delete_page(doc_id: str, page_number: int) -> Any:
         JSON response with new page_count or error
     """
     try:
-        is_valid, error_msg = validate_doc_id(doc_id)
-        if not is_valid:
-            return jsonify({"error": error_msg}), 400
+        doc_info, err = _get_doc_or_error(doc_id)
+        if err is not None:
+            return err
 
         db = DatabaseManager()
-        doc_info = db.get_document(doc_id)
-
-        if not doc_info:
-            logger.warning(f"Document not found: {doc_id}")
-            return jsonify({"error": "Dokument nicht gefunden"}), 404
-
-        # Check ownership
-        if doc_info.get("user_id") != current_user.id:
-            logger.warning(
-                f"Unauthorized access: user {current_user.id} tried to access "
-                f"document owned by {doc_info.get('user_id')}"
-            )
-            return jsonify({"error": "Nicht berechtigt"}), 403
 
         # Validate page number
         is_valid, error_msg = validate_page_number(page_number, doc_info["page_count"])

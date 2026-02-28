@@ -12,6 +12,9 @@ from pathlib import Path
 from typing import Any
 
 from pdf_annotator.models.database import DatabaseManager
+from pdf_annotator.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class DataManager:
@@ -190,39 +193,28 @@ class DataManager:
             for doc_idx, doc_data in enumerate(metadata.get("documents", []), 1):
                 from uuid import uuid4
 
-                # IMPORTANT: Always generate a new UUID for imports
-                # This allows multiple users to import the same backup independently
-                # Each user gets their own copy with a unique doc_id
+                # IMPORTANT: Always generate a new UUID for imports.
+                # This allows multiple users to import the same backup independently;
+                # each user gets their own copy with a unique doc_id.
                 original_doc_id = doc_data.get("id")
                 doc_id = str(uuid4())
 
-                if debug:
-                    print(f"[Import] Doc #{doc_idx}: {original_doc_id} → {doc_id}")
+                logger.debug("[Import] Doc #%d: %s → %s", doc_idx, original_doc_id, doc_id)
 
-                # No existence check needed - every import creates a new document
-                # This allows different users to have independent copies
-
-                # Extract PDF file - try original doc_id first, then search
+                # Extract PDF file - try original doc_id first, then new doc_id
                 pdf_content = None
-                original_doc_id = doc_data.get("id")
-
-                # Try to find PDF with original ID first
                 pdf_archive_path = f"{self.PDFS_FOLDER}/{original_doc_id}.pdf"
                 try:
                     pdf_content = zf.read(pdf_archive_path)
                 except KeyError:
-                    # If not found, try with sanitized doc_id
                     pdf_archive_path = f"{self.PDFS_FOLDER}/{doc_id}.pdf"
                     try:
                         pdf_content = zf.read(pdf_archive_path)
                     except KeyError:
-                        # PDF not in archive - create empty placeholder
                         pdf_content = None
 
                 if pdf_content is None:
-                    # Skip if no PDF can be found
-                    if debug:
-                        print("[Import]   → Übersprungen (PDF nicht gefunden)")
+                    logger.debug("[Import] Skipped doc %s: PDF not found in archive", original_doc_id)
                     stats["documents_skipped"] += 1
                     continue
 
@@ -230,21 +222,14 @@ class DataManager:
                     pdf_dest = self.upload_folder / f"{doc_id}.pdf"
 
                     # Ensure destination is safe (no path traversal)
-                    pdf_dest_resolved = pdf_dest.resolve()
-                    upload_folder_resolved = self.upload_folder.resolve()
-
-                    # Check if paths are on the same filesystem
-                    if pdf_dest_resolved.parts[0] != upload_folder_resolved.parts[0]:
-                        if debug:
-                            print("[Import]   → Übersprungen (Path traversal check failed)")
+                    if not pdf_dest.resolve().is_relative_to(self.upload_folder.resolve()):
+                        logger.warning("[Import] Path traversal blocked for doc %s", original_doc_id)
                         stats["documents_skipped"] += 1
                         continue
 
                     pdf_dest.write_bytes(pdf_content)
                 except OSError as e:
-                    # File write error - skip this document
-                    if debug:
-                        print(f"[Import]   → Übersprungen (File write error: {e})")
+                    logger.warning("[Import] File write error for doc %s: %s", original_doc_id, e)
                     stats["documents_skipped"] += 1
                     continue
 
@@ -264,8 +249,7 @@ class DataManager:
                 )
 
                 stats["documents_imported"] += 1
-                if debug:
-                    print("[Import]   ✓ Importiert")
+                logger.debug("[Import] Imported doc %s successfully", doc_id)
 
                 # Import annotations
                 for ann_data in doc_data.get("annotations", []):
