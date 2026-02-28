@@ -44,6 +44,25 @@ brew install pdf-annotator
 
 Nach der Installation: `pdf-annotator` im Terminal eingeben.
 
+### Linux (Debian/Ubuntu)
+
+```bash
+# Python 3.10+ installieren (falls nicht vorhanden)
+sudo apt install python3 python3-pip
+
+# uv installieren (einmalig)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# PDF Annotator installieren
+uv tool install git+https://github.com/jvanvinkenroye/pdfAnnotater.git
+
+# Oder direkt aus dem geklonten Repository:
+cd /path/to/pdfAnnotater
+uv tool install .
+```
+
+Nach der Installation: `pdf-annotator` im Terminal eingeben.
+
 ### uv tool (plattformuebergreifend)
 
 ```bash
