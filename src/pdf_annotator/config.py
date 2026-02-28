@@ -33,7 +33,8 @@ def get_data_dir() -> Path:
     elif sys.platform == "win32":  # Windows
         base = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
     else:  # Linux and others (XDG spec)
-        xdg_data = os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")
+        xdg_default = str(Path.home() / ".local" / "share")
+        xdg_data = os.environ.get("XDG_DATA_HOME", xdg_default)
         base = Path(xdg_data)
 
     return base / app_name
