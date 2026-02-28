@@ -130,6 +130,7 @@ class DataManager:
         zip_path: Path,
         user_id: str | None = None,
         merge: bool = False,
+        debug: bool = False,
     ) -> dict[str, Any]:
         """
         Import data from a ZIP archive.
@@ -138,6 +139,7 @@ class DataManager:
             zip_path: Path to ZIP file to import
             user_id: Optional user ID to assign to imported documents (multi-user mode)
             merge: If True, merge with existing data. If False, skip existing documents.
+            debug: If True, print debug information (for testing)
 
         Returns:
             dict with import statistics:
@@ -185,28 +187,20 @@ class DataManager:
                 raise ValueError(f"Incompatible backup version: {version}")
 
             # Process each document
-            for doc_data in metadata.get("documents", []):
-                doc_id = doc_data.get("id")
+            for doc_idx, doc_data in enumerate(metadata.get("documents", []), 1):
+                from uuid import uuid4
 
-                # Validate and sanitize doc_id
-                from uuid import UUID, uuid4
+                # IMPORTANT: Always generate a new UUID for imports
+                # This allows multiple users to import the same backup independently
+                # Each user gets their own copy with a unique doc_id
+                original_doc_id = doc_data.get("id")
+                doc_id = str(uuid4())
 
-                try:
-                    if doc_id:
-                        # Try to parse as UUID (accepts various formats)
-                        UUID(doc_id)
-                    else:
-                        # Generate new UUID if missing
-                        doc_id = str(uuid4())
-                except (ValueError, TypeError):
-                    # Invalid UUID format - generate a new one
-                    doc_id = str(uuid4())
+                if debug:
+                    print(f"[Import] Doc #{doc_idx}: {original_doc_id} → {doc_id}")
 
-                # Check if document already exists
-                existing = self.db.get_document(doc_id)
-                if existing and not merge:
-                    stats["documents_skipped"] += 1
-                    continue
+                # No existence check needed - every import creates a new document
+                # This allows different users to have independent copies
 
                 # Extract PDF file - try original doc_id first, then search
                 pdf_content = None
@@ -227,6 +221,8 @@ class DataManager:
 
                 if pdf_content is None:
                     # Skip if no PDF can be found
+                    if debug:
+                        print("[Import]   → Übersprungen (PDF nicht gefunden)")
                     stats["documents_skipped"] += 1
                     continue
 
@@ -239,34 +235,37 @@ class DataManager:
 
                     # Check if paths are on the same filesystem
                     if pdf_dest_resolved.parts[0] != upload_folder_resolved.parts[0]:
+                        if debug:
+                            print("[Import]   → Übersprungen (Path traversal check failed)")
                         stats["documents_skipped"] += 1
                         continue
 
                     pdf_dest.write_bytes(pdf_content)
-                except (OSError, IOError) as e:
+                except OSError as e:
                     # File write error - skip this document
+                    if debug:
+                        print(f"[Import]   → Übersprungen (File write error: {e})")
                     stats["documents_skipped"] += 1
                     continue
 
-                # Create or update document in database
-                if not existing:
-                    # Use provided user_id or a default placeholder
-                    target_user_id = user_id or "imported"
-                    self.db.create_document(
-                        user_id=target_user_id,
-                        filename=doc_data["original_filename"],
-                        file_path=str(pdf_dest),
-                        page_count=doc_data["page_count"],
-                        first_name=doc_data.get("first_name", ""),
-                        last_name=doc_data.get("last_name", ""),
-                        title=doc_data.get("title", ""),
-                        year=doc_data.get("year", ""),
-                        subject=doc_data.get("subject", ""),
-                    )
-                    # Update with original doc_id
-                    self._update_document_id(doc_data, pdf_dest)
+                # Create document in database with new UUID
+                target_user_id = user_id or "imported"
+                self.db.create_document(
+                    user_id=target_user_id,
+                    filename=doc_data["original_filename"],
+                    file_path=str(pdf_dest),
+                    page_count=doc_data["page_count"],
+                    first_name=doc_data.get("first_name", ""),
+                    last_name=doc_data.get("last_name", ""),
+                    title=doc_data.get("title", ""),
+                    year=doc_data.get("year", ""),
+                    subject=doc_data.get("subject", ""),
+                    doc_id=doc_id,
+                )
 
                 stats["documents_imported"] += 1
+                if debug:
+                    print("[Import]   ✓ Importiert")
 
                 # Import annotations
                 for ann_data in doc_data.get("annotations", []):

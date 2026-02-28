@@ -398,7 +398,9 @@ def import_data() -> Any:
             manager = DataManager(upload_folder)
 
             # Import data and assign to current user
+            logger.info(f"Starting import for user {current_user.id} from {tmp_path}")
             stats = manager.import_data(tmp_path, current_user.id)
+            logger.info(f"Import completed: {stats}")
 
             # Check if anything was imported
             if (
@@ -434,8 +436,9 @@ def import_data() -> Any:
             tmp_path.unlink(missing_ok=True)
 
     except ValueError as e:
-        logger.warning(f"Import validation failed: {e}")
+        logger.warning(f"Import validation failed: {e}", exc_info=True)
         error_msg = str(e)
+        logger.warning(f"Original error message: {error_msg}")
         # Provide user-friendly error messages
         if "nicht gefunden" in error_msg.lower() or "metadata" in error_msg.lower():
             error_msg = "Ungültiges Backup-Format: metadata.json fehlt"
@@ -446,7 +449,7 @@ def import_data() -> Any:
         ):
             error_msg = "Backup-Datei ist beschädigt oder ungültig"
         elif "version" in error_msg.lower():
-            error_msg = f"Inkompatible Backup-Version"
+            error_msg = "Inkompatible Backup-Version"
         elif "groß" in error_msg.lower() or "size" in error_msg.lower():
             error_msg = "Backup-Datei ist zu groß (max. 500 MB)"
         return jsonify({"error": error_msg}), 400
