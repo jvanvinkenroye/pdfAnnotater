@@ -72,7 +72,9 @@
       "Bash(/tmp/reset_password.py:*)",
       "Bash(/tmp/list_users.py:*)",
       "Bash(/tmp/check_storage.py:*)",
-      "Bash(uv run:*)"
+      "Bash(uv run:*)",
+      "Bash(unzip:*)",
+      "Bash(/tmp/test_import.py:*)"
     ],
     "defaultMode": "acceptEdits"
   },

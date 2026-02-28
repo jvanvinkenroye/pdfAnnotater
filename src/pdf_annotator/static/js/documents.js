@@ -290,26 +290,38 @@
 
         importFileInput.addEventListener('change', function(event) {
             const file = event.target.files[0];
-            if (!file) return;
+            if (!file) {
+                console.log('No file selected');
+                return;
+            }
+
+            console.log('File selected:', file.name, 'Size:', file.size);
 
             if (!file.name.toLowerCase().endsWith('.zip')) {
+                console.error('Invalid file type:', file.name);
                 showToast('Bitte waehlen Sie eine ZIP-Datei aus.', 'error');
                 importFileInput.value = '';
                 return;
             }
 
-            showConfirm(`Moechten Sie die Daten aus "${file.name}" importieren?`).then(function(confirmed) {
+            showConfirm(`Moechten Sie die Daten aus "${file.name}" importieren?\n\nDateigröße: ${(file.size / (1024 * 1024)).toFixed(1)} MB`).then(function(confirmed) {
                 if (!confirmed) {
+                    console.log('Import cancelled by user');
                     importFileInput.value = '';
                     return;
                 }
 
+                console.log('Starting import...');
                 const formData = new FormData();
                 formData.append('file', file);
 
                 // Show loading state
                 importBtn.disabled = true;
                 importBtn.textContent = 'Importiere...';
+                importBtn.style.opacity = '0.6';
+
+                console.log('CSRF Token:', csrfToken ? 'Present' : 'Missing');
+                console.log('Fetch URL: /import');
 
                 fetch('/import', {
                     method: 'POST',
@@ -317,24 +329,28 @@
                     body: formData
                 })
                     .then(response => {
+                        console.log('Response status:', response.status);
                         if (!response.ok) {
                             return response.json().then(data => {
+                                console.error('Import error response:', data);
                                 throw new Error(data.error || 'Fehler beim Importieren');
                             });
                         }
                         return response.json();
                     })
                     .then(data => {
+                        console.log('Import successful:', data);
                         showToast(data.message || 'Import erfolgreich!', 'success');
                         setTimeout(function() { window.location.reload(); }, 1500);
                     })
                     .catch(error => {
-                        console.error('Error importing data:', error);
+                        console.error('Import error:', error.message);
                         showToast(`Fehler beim Importieren: ${error.message}`, 'error');
                     })
                     .finally(() => {
                         importBtn.disabled = false;
                         importBtn.textContent = 'Importieren';
+                        importBtn.style.opacity = '1';
                         importFileInput.value = '';
                     });
             });

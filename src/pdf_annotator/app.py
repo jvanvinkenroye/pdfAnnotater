@@ -130,7 +130,7 @@ def create_app(config_name: str | None = None) -> Flask:
             "script-src 'self' 'unsafe-inline'; "
             "style-src 'self' 'unsafe-inline'; "
             "img-src 'self' data: blob:; "
-            "font-src 'self'"
+            "font-src 'self' data:"
         )
         return response
 
