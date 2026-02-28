@@ -160,7 +160,7 @@ def register_post() -> str | tuple:
     try:
         password_hash = generate_password_hash(password)
         user_id = db.create_user(username, email, password_hash)
-    except Exception as e:
+    except Exception:
         return (
             render_template(
                 "auth/register.html",

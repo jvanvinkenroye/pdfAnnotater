@@ -13,7 +13,6 @@ from werkzeug.security import generate_password_hash
 
 from pdf_annotator.app import create_app
 from pdf_annotator.models.database import DatabaseManager
-from pdf_annotator.models.user import User
 
 
 @pytest.fixture(autouse=True)
