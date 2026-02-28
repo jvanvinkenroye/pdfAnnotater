@@ -171,13 +171,12 @@ def export_folder(tmp_path):
 
 
 @pytest.fixture()
-def uploaded_pdf(app, client, sample_pdf, user):
+def uploaded_pdf(app, db, sample_pdf, user):
     """Create a document with PDF in the upload folder and return doc_id."""
     with app.app_context():
         upload_path = Path(app.config["UPLOAD_FOLDER"]) / "test.pdf"
         shutil.copy2(sample_pdf, upload_path)
 
-        db = DatabaseManager()
         doc_id = db.create_document(
             user_id=user,
             filename="test_document.pdf",
@@ -192,13 +191,12 @@ def uploaded_pdf(app, client, sample_pdf, user):
 
 
 @pytest.fixture()
-def uploaded_pdf_3pages(app, client, sample_pdf_3pages, user):
+def uploaded_pdf_3pages(app, db, sample_pdf_3pages, user):
     """Create a 3-page document with PDF in upload folder and return doc_id."""
     with app.app_context():
         upload_path = Path(app.config["UPLOAD_FOLDER"]) / "test_3pages.pdf"
         shutil.copy2(sample_pdf_3pages, upload_path)
 
-        db = DatabaseManager()
         doc_id = db.create_document(
             user_id=user,
             filename="test_3pages.pdf",
