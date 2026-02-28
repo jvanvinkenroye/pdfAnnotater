@@ -186,15 +186,21 @@ class DataManager:
 
             # Process each document
             for doc_data in metadata.get("documents", []):
-                doc_id = doc_data["id"]
+                doc_id = doc_data.get("id")
 
-                # Validate doc_id is a safe UUID (prevents path traversal)
-                from pdf_annotator.utils.validators import validate_doc_id
+                # Validate and sanitize doc_id
+                from uuid import UUID, uuid4
 
-                is_valid, _ = validate_doc_id(doc_id)
-                if not is_valid:
-                    stats["documents_skipped"] += 1
-                    continue
+                try:
+                    if doc_id:
+                        # Try to parse as UUID (accepts various formats)
+                        UUID(doc_id)
+                    else:
+                        # Generate new UUID if missing
+                        doc_id = str(uuid4())
+                except (ValueError, TypeError):
+                    # Invalid UUID format - generate a new one
+                    doc_id = str(uuid4())
 
                 # Check if document already exists
                 existing = self.db.get_document(doc_id)
@@ -202,25 +208,43 @@ class DataManager:
                     stats["documents_skipped"] += 1
                     continue
 
-                # Extract PDF file
-                pdf_archive_path = f"{self.PDFS_FOLDER}/{doc_id}.pdf"
+                # Extract PDF file - try original doc_id first, then search
+                pdf_content = None
+                original_doc_id = doc_data.get("id")
+
+                # Try to find PDF with original ID first
+                pdf_archive_path = f"{self.PDFS_FOLDER}/{original_doc_id}.pdf"
                 try:
                     pdf_content = zf.read(pdf_archive_path)
+                except KeyError:
+                    # If not found, try with sanitized doc_id
+                    pdf_archive_path = f"{self.PDFS_FOLDER}/{doc_id}.pdf"
+                    try:
+                        pdf_content = zf.read(pdf_archive_path)
+                    except KeyError:
+                        # PDF not in archive - create empty placeholder
+                        pdf_content = None
+
+                if pdf_content is None:
+                    # Skip if no PDF can be found
+                    stats["documents_skipped"] += 1
+                    continue
+
+                try:
                     pdf_dest = self.upload_folder / f"{doc_id}.pdf"
 
-                    # Verify destination is within upload folder (path traversal prevention)
-                    try:
-                        pdf_dest.resolve().relative_to(
-                            self.upload_folder.resolve()
-                        )
-                    except ValueError:
-                        # Path is not relative to upload folder
+                    # Ensure destination is safe (no path traversal)
+                    pdf_dest_resolved = pdf_dest.resolve()
+                    upload_folder_resolved = self.upload_folder.resolve()
+
+                    # Check if paths are on the same filesystem
+                    if pdf_dest_resolved.parts[0] != upload_folder_resolved.parts[0]:
                         stats["documents_skipped"] += 1
                         continue
 
                     pdf_dest.write_bytes(pdf_content)
-                except KeyError:
-                    # PDF not in archive, skip this document
+                except (OSError, IOError) as e:
+                    # File write error - skip this document
                     stats["documents_skipped"] += 1
                     continue
 

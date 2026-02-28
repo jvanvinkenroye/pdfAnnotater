@@ -386,8 +386,12 @@ def import_data() -> Any:
         import tempfile
 
         with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as tmp:
-            file.save(tmp.name)
-            tmp_path = Path(tmp.name)
+            try:
+                file.save(tmp.name)
+                tmp_path = Path(tmp.name)
+            except Exception as e:
+                logger.error(f"Failed to save uploaded file: {e}")
+                return jsonify({"error": "Fehler beim Hochladen der Datei"}), 400
 
         try:
             upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
@@ -395,6 +399,21 @@ def import_data() -> Any:
 
             # Import data and assign to current user
             stats = manager.import_data(tmp_path, current_user.id)
+
+            # Check if anything was imported
+            if (
+                stats["documents_imported"] == 0
+                and stats["annotations_imported"] == 0
+            ):
+                logger.warning(
+                    f"Import resulted in no data: {stats}"
+                )
+                return jsonify(
+                    {
+                        "success": False,
+                        "error": "Keine gültigen Dokumente in der Backup-Datei gefunden",
+                    }
+                ), 400
 
             logger.info(
                 f"Data imported: {stats['documents_imported']} docs, "
@@ -418,15 +437,21 @@ def import_data() -> Any:
         logger.warning(f"Import validation failed: {e}")
         error_msg = str(e)
         # Provide user-friendly error messages
-        if "nicht gefunden" in error_msg.lower():
+        if "nicht gefunden" in error_msg.lower() or "metadata" in error_msg.lower():
             error_msg = "Ungültiges Backup-Format: metadata.json fehlt"
-        elif "corrupted" in error_msg.lower() or "json" in error_msg.lower():
+        elif (
+            "corrupted" in error_msg.lower()
+            or "json" in error_msg.lower()
+            or "decode" in error_msg.lower()
+        ):
             error_msg = "Backup-Datei ist beschädigt oder ungültig"
         elif "version" in error_msg.lower():
-            error_msg = f"Inkompatible Backup-Version: {error_msg}"
+            error_msg = f"Inkompatible Backup-Version"
+        elif "groß" in error_msg.lower() or "size" in error_msg.lower():
+            error_msg = "Backup-Datei ist zu groß (max. 500 MB)"
         return jsonify({"error": error_msg}), 400
     except Exception as e:
         logger.error(f"Import failed: {e}", exc_info=True)
         return jsonify(
-            {"error": f"Fehler beim Importieren: {str(e)[:100]}"}
+            {"error": "Fehler beim Importieren der Daten. Bitte versuchen Sie es später."}
         ), 500
