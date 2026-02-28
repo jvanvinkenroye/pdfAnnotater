@@ -65,10 +65,8 @@ class TestAddAnnotationToPage:
 class TestCreateAnnotatedPdf:
     """Test full annotated PDF creation (requires app context)."""
 
-    def test_create_annotated_pdf(self, app, sample_pdf):
+    def test_create_annotated_pdf(self, app, db, sample_pdf):
         with app.app_context():
-            db = DatabaseManager()
-
             # Store PDF in upload folder
             import shutil
 
@@ -76,9 +74,10 @@ class TestCreateAnnotatedPdf:
             shutil.copy2(sample_pdf, upload_path)
 
             doc_id = db.create_document(
-                "test.pdf",
-                str(upload_path),
-                2,
+                user_id=db.test_user_id,
+                filename="test.pdf",
+                file_path=str(upload_path),
+                page_count=2,
             )
             db.upsert_annotation(doc_id, 1, "Annotation page 1")
             db.upsert_annotation(doc_id, 2, "Annotation page 2")
@@ -97,16 +96,14 @@ class TestCreateAnnotatedPdf:
             assert len(out_doc) == 2
             out_doc.close()
 
-    def test_create_annotated_pdf_empty_annotations(self, app, sample_pdf):
+    def test_create_annotated_pdf_empty_annotations(self, app, db, sample_pdf):
         with app.app_context():
-            db = DatabaseManager()
-
             import shutil
 
             upload_path = Path(app.config["UPLOAD_FOLDER"]) / "test.pdf"
             shutil.copy2(sample_pdf, upload_path)
 
-            doc_id = db.create_document("test.pdf", str(upload_path), 2)
+            doc_id = db.create_document(user_id=db.test_user_id, filename="test.pdf", file_path=str(upload_path), page_count=2)
             # Only empty annotations
             db.upsert_annotation(doc_id, 1, "")
             db.upsert_annotation(doc_id, 2, "   ")

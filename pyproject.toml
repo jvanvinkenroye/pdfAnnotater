@@ -11,10 +11,12 @@ dependencies = [
     "flaskwebgui>=1.1.8",
     "flask-wtf>=1.2.2",
     "flask-limiter>=4.1.1",
+    "flask-login>=0.6.3",
 ]
 
 [project.scripts]
 pdf-annotator = "pdf_annotator.desktop:main"
+pdf-annotator-server = "pdf_annotator.app:run_server"
 
 [project.optional-dependencies]
 dev = [

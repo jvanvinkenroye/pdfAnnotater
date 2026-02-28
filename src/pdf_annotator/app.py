@@ -8,12 +8,15 @@ import os
 from typing import Any
 
 from flask import Flask
+from flask_login import LoginManager
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import CSRFProtect
 
 from pdf_annotator.config import config
 from pdf_annotator.models.database import DatabaseManager
+from pdf_annotator.models.user import User
+from pdf_annotator.routes.auth import auth_bp
 from pdf_annotator.routes.export import export_bp
 from pdf_annotator.routes.upload import upload_bp
 from pdf_annotator.routes.viewer import viewer_bp
@@ -55,6 +58,21 @@ def create_app(config_name: str | None = None) -> Flask:
 
     logger.info(f"Starting PDF Annotator in {config_name} mode")
 
+    # Initialize Flask-Login
+    login_manager = LoginManager()
+    login_manager.login_view = "auth.login"
+    login_manager.login_message = "Bitte zuerst einloggen."
+    login_manager.init_app(app)
+
+    @login_manager.user_loader
+    def load_user(user_id: str) -> User | None:
+        """Load user from database by ID."""
+        db = DatabaseManager()
+        data = db.get_user_by_id(user_id)
+        if data:
+            return User(data["id"], data["username"], data["email"], bool(data["is_active"]))
+        return None
+
     # Initialize CSRF protection
     csrf = CSRFProtect(app)
 
@@ -76,6 +94,7 @@ def create_app(config_name: str | None = None) -> Flask:
     logger.info("Database initialized")
 
     # Register blueprints
+    app.register_blueprint(auth_bp)
     app.register_blueprint(upload_bp)
     app.register_blueprint(viewer_bp)
     app.register_blueprint(export_bp)
@@ -83,6 +102,7 @@ def create_app(config_name: str | None = None) -> Flask:
     logger.info("All blueprints registered")
 
     # Apply stricter rate limits to resource-intensive endpoints
+    limiter.limit("5 per minute")(app.view_functions["auth.login_post"])  # Brute-force protection
     limiter.limit("10 per minute")(app.view_functions["upload.upload_file"])
     limiter.limit("60 per minute")(app.view_functions["viewer.get_page_image"])
     limiter.limit("10 per minute")(app.view_functions["upload.import_data"])
@@ -150,6 +170,21 @@ def create_app(config_name: str | None = None) -> Flask:
         )
 
     return app
+
+
+def run_server(host: str = "0.0.0.0", port: int = 8000) -> None:
+    """
+    Run Gunicorn-compatible server entry point.
+
+    Args:
+        host: Host to bind to (default: 0.0.0.0)
+        port: Port to bind to (default: 8000)
+
+    Note:
+        Use with Gunicorn: gunicorn --workers 4 --bind 0.0.0.0:8000 pdf_annotator.app:run_server
+    """
+    app = create_app("production")
+    app.run(host=host, port=port, debug=False)
 
 
 if __name__ == "__main__":

@@ -38,6 +38,10 @@
     const replacePdfBtn = document.getElementById('replace-pdf-btn');
     const replacePdfInput = document.getElementById('replace-pdf-input');
 
+    // PDF append elements
+    const appendPdfBtn = document.getElementById('append-pdf-btn');
+    const appendPdfInput = document.getElementById('append-pdf-input');
+
     // Zoom elements
     const zoomInBtn = document.getElementById('zoom-in');
     const zoomOutBtn = document.getElementById('zoom-out');
@@ -380,6 +384,76 @@
     }
 
     /**
+     * Handle PDF append file selection
+     */
+    function handlePdfAppend(event) {
+        var file = event.target.files[0];
+        if (!file) {
+            return;
+        }
+
+        if (!file.name.toLowerCase().endsWith('.pdf')) {
+            showToast('Bitte wählen Sie eine PDF-Datei aus.', 'error');
+            appendPdfInput.value = '';
+            return;
+        }
+
+        var maxSize = 50 * 1024 * 1024;
+        if (file.size > maxSize) {
+            showToast('Die Datei ist zu groß. Maximum: 50 MB', 'error');
+            appendPdfInput.value = '';
+            return;
+        }
+
+        showConfirm('Möchten Sie die Seiten aus "' + file.name + '" an das Dokument anhängen?').then(function(confirmed) {
+            if (!confirmed) {
+                appendPdfInput.value = '';
+                return;
+            }
+            doAppendPdf(file);
+        });
+    }
+
+    /**
+     * Perform the actual PDF append upload
+     * @param {File} file - PDF file to append
+     */
+    function doAppendPdf(file) {
+        appendPdfBtn.disabled = true;
+        appendPdfBtn.textContent = 'Seiten werden angehängt...';
+
+        var formData = new FormData();
+        formData.append('file', file);
+
+        var appendUrl = '/viewer/api/append/' + docId;
+
+        fetch(appendUrl, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrfToken },
+            body: formData
+        })
+            .then(function(response) {
+                if (!response.ok) {
+                    return response.json().then(function(data) {
+                        throw new Error(data.error || 'Fehler beim Anhängen');
+                    });
+                }
+                return response.json();
+            })
+            .then(function(data) {
+                showToast(data.added_pages + ' Seite(n) angehängt. Neue Seitenanzahl: ' + data.page_count, 'success');
+                setTimeout(function() { window.location.reload(); }, 1500);
+            })
+            .catch(function(error) {
+                console.error('Error appending PDF:', error);
+                showToast('Fehler beim Anhängen: ' + error.message, 'error');
+                appendPdfBtn.disabled = false;
+                appendPdfBtn.textContent = 'Seiten anhängen';
+                appendPdfInput.value = '';
+            });
+    }
+
+    /**
      * Apply zoom level to PDF image
      */
     function applyZoom() {
@@ -520,6 +594,12 @@
         replacePdfInput.click();
     });
     replacePdfInput.addEventListener('change', handlePdfReplace);
+
+    // PDF append
+    appendPdfBtn.addEventListener('click', function() {
+        appendPdfInput.click();
+    });
+    appendPdfInput.addEventListener('change', handlePdfAppend);
 
     // Note field auto-save
     noteField.addEventListener('input', function() {

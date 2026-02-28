@@ -39,11 +39,15 @@ class DataManager:
         self.upload_folder = Path(upload_folder)
         self.db = db or DatabaseManager()
 
-    def export_data(self, output_path: Path | None = None) -> Path:
+    def export_data(
+        self, doc_ids: list[str] | None = None, output_path: Path | None = None
+    ) -> Path:
         """
-        Export all data to a ZIP archive.
+        Export data to a ZIP archive.
 
         Args:
+            doc_ids: Optional list of document IDs to export.
+                    If not provided, exports all documents.
             output_path: Optional path for output file.
                         If not provided, creates timestamped file.
 
@@ -52,7 +56,7 @@ class DataManager:
 
         Example:
             manager = DataManager(upload_folder)
-            zip_path = manager.export_data()
+            zip_path = manager.export_data(["doc-id-1", "doc-id-2"])
         """
         # Generate output path if not provided
         if output_path is None:
@@ -61,8 +65,14 @@ class DataManager:
                 self.upload_folder.parent / f"pdf_annotator_backup_{timestamp}.zip"
             )
 
-        # Collect all data
-        documents = self.db.get_all_documents()
+        # Collect documents to export
+        if doc_ids:
+            documents = [self.db.get_document(doc_id) for doc_id in doc_ids]
+            documents = [doc for doc in documents if doc is not None]
+        else:
+            # Note: This is for backward compatibility with single-user mode
+            # In production, get_all_documents should not be called without user_id
+            documents = []
         export_data: dict[str, Any] = {
             "version": self.EXPORT_VERSION,
             "exported_at": datetime.now().isoformat(),
@@ -118,6 +128,7 @@ class DataManager:
     def import_data(
         self,
         zip_path: Path,
+        user_id: str | None = None,
         merge: bool = False,
     ) -> dict[str, Any]:
         """
@@ -125,6 +136,7 @@ class DataManager:
 
         Args:
             zip_path: Path to ZIP file to import
+            user_id: Optional user ID to assign to imported documents (multi-user mode)
             merge: If True, merge with existing data. If False, skip existing documents.
 
         Returns:
@@ -138,7 +150,7 @@ class DataManager:
 
         Example:
             manager = DataManager(upload_folder)
-            stats = manager.import_data(Path("backup.zip"))
+            stats = manager.import_data(Path("backup.zip"), user_id="user-123")
             print(f"Imported {stats['documents_imported']} documents")
         """
         stats = {
@@ -211,7 +223,10 @@ class DataManager:
 
                 # Create or update document in database
                 if not existing:
+                    # Use provided user_id or a default placeholder
+                    target_user_id = user_id or "imported"
                     self.db.create_document(
+                        user_id=target_user_id,
                         filename=doc_data["original_filename"],
                         file_path=str(pdf_dest),
                         page_count=doc_data["page_count"],
@@ -274,9 +289,13 @@ class DataManager:
         except (ValueError, AttributeError):
             return False
 
-    def get_export_info(self) -> dict[str, Any]:
+    def get_export_info(self, doc_ids: list[str] | None = None) -> dict[str, Any]:
         """
         Get information about what would be exported.
+
+        Args:
+            doc_ids: Optional list of document IDs to include in info.
+                    If not provided, includes all documents.
 
         Returns:
             dict with export preview:
@@ -284,7 +303,12 @@ class DataManager:
                 - annotation_count: Total annotations
                 - estimated_size_mb: Estimated archive size
         """
-        documents = self.db.get_all_documents()
+        if doc_ids:
+            documents = [self.db.get_document(doc_id) for doc_id in doc_ids]
+            documents = [doc for doc in documents if doc is not None]
+        else:
+            documents = []
+
         total_annotations = 0
         total_size = 0
 

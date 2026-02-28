@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 import secrets
 import sys
+import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -117,6 +118,15 @@ class ProductionConfig(Config):
     """
 
     DEBUG = False
+
+    # Check SECRET_KEY configuration
+    if not os.environ.get("SECRET_KEY"):
+        warnings.warn(
+            "SECRET_KEY ist nicht gesetzt! Sessions werden nach Neustart ungültig. "
+            "Setzen Sie die Umgebungsvariable SECRET_KEY für Production.",
+            stacklevel=2,
+        )
+
     SECRET_KEY = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
 
     # Use platform-specific data directory

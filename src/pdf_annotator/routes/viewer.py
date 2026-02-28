@@ -9,6 +9,7 @@ from typing import Any
 
 import fitz
 from flask import Blueprint, Response, current_app, jsonify, render_template, request
+from flask_login import current_user, login_required
 
 from pdf_annotator.models.database import DatabaseManager
 from pdf_annotator.services.pdf_processor import (
@@ -33,6 +34,7 @@ viewer_bp = Blueprint("viewer", __name__, url_prefix="/viewer")
 
 
 @viewer_bp.route("/<doc_id>", methods=["GET"])
+@login_required
 def view_document(doc_id: str) -> Any:
     """
     Render viewer page for document.
@@ -66,6 +68,18 @@ def view_document(doc_id: str) -> Any:
                 error_message="Das Dokument wurde nicht gefunden.",
             ), 404
 
+        # Check ownership
+        if doc_info.get("user_id") != current_user.id:
+            logger.warning(
+                f"Unauthorized access: user {current_user.id} tried to view "
+                f"document owned by {doc_info.get('user_id')}"
+            )
+            return render_template(
+                "error.html",
+                error_title="Nicht berechtigt",
+                error_message="Sie haben keine Berechtigung für dieses Dokument.",
+            ), 403
+
         logger.info(f"Viewing document: {doc_id} ({doc_info['original_filename']})")
 
         return render_template(
@@ -90,6 +104,7 @@ def view_document(doc_id: str) -> Any:
 
 
 @viewer_bp.route("/api/page/<doc_id>/<int:page_number>", methods=["GET"])
+@login_required
 def get_page_image(doc_id: str, page_number: int) -> Response:
     """
     Render PDF page as PNG image.
@@ -115,6 +130,14 @@ def get_page_image(doc_id: str, page_number: int) -> Response:
         if not doc_info:
             logger.warning(f"Document not found: {doc_id}")
             return jsonify({"error": "Dokument nicht gefunden"}), 404
+
+        # Check ownership
+        if doc_info.get("user_id") != current_user.id:
+            logger.warning(
+                f"Unauthorized access: user {current_user.id} tried to access "
+                f"document owned by {doc_info.get('user_id')}"
+            )
+            return jsonify({"error": "Nicht berechtigt"}), 403
 
         # Validate page number
         is_valid, error_msg = validate_page_number(page_number, doc_info["page_count"])
@@ -144,6 +167,7 @@ def get_page_image(doc_id: str, page_number: int) -> Response:
 
 
 @viewer_bp.route("/api/annotation/<doc_id>/<int:page_number>", methods=["GET"])
+@login_required
 def get_annotation(doc_id: str, page_number: int) -> Any:
     """
     Get annotation for specific page.
@@ -176,6 +200,14 @@ def get_annotation(doc_id: str, page_number: int) -> Any:
             logger.warning(f"Document not found: {doc_id}")
             return jsonify({"error": "Dokument nicht gefunden"}), 404
 
+        # Check ownership
+        if doc_info.get("user_id") != current_user.id:
+            logger.warning(
+                f"Unauthorized access: user {current_user.id} tried to access "
+                f"document owned by {doc_info.get('user_id')}"
+            )
+            return jsonify({"error": "Nicht berechtigt"}), 403
+
         # Validate page number
         is_valid, error_msg = validate_page_number(page_number, doc_info["page_count"])
         if not is_valid:
@@ -205,6 +237,7 @@ def get_annotation(doc_id: str, page_number: int) -> Any:
 
 
 @viewer_bp.route("/api/annotation/<doc_id>/<int:page_number>", methods=["POST"])
+@login_required
 def save_annotation(doc_id: str, page_number: int) -> Any:
     """
     Save or update annotation for specific page.
@@ -242,6 +275,14 @@ def save_annotation(doc_id: str, page_number: int) -> Any:
         if not doc_info:
             logger.warning(f"Document not found: {doc_id}")
             return jsonify({"error": "Dokument nicht gefunden"}), 404
+
+        # Check ownership
+        if doc_info.get("user_id") != current_user.id:
+            logger.warning(
+                f"Unauthorized access: user {current_user.id} tried to access "
+                f"document owned by {doc_info.get('user_id')}"
+            )
+            return jsonify({"error": "Nicht berechtigt"}), 403
 
         # Validate page number
         is_valid, error_msg = validate_page_number(page_number, doc_info["page_count"])
@@ -282,6 +323,7 @@ def save_annotation(doc_id: str, page_number: int) -> Any:
 
 
 @viewer_bp.route("/api/metadata/<doc_id>", methods=["POST"])
+@login_required
 def update_metadata(doc_id: str) -> Any:
     """
     Update document metadata.
@@ -307,6 +349,14 @@ def update_metadata(doc_id: str) -> Any:
         if not doc_info:
             logger.warning(f"Document not found: {doc_id}")
             return jsonify({"error": "Dokument nicht gefunden"}), 404
+
+        # Check ownership
+        if doc_info.get("user_id") != current_user.id:
+            logger.warning(
+                f"Unauthorized access: user {current_user.id} tried to access "
+                f"document owned by {doc_info.get('user_id')}"
+            )
+            return jsonify({"error": "Nicht berechtigt"}), 403
 
         # Get metadata from request
         data = request.get_json()
@@ -393,6 +443,7 @@ def update_metadata(doc_id: str) -> Any:
 
 
 @viewer_bp.route("/api/replace/<doc_id>", methods=["POST"])
+@login_required
 def replace_pdf(doc_id: str) -> Any:
     """
     Replace existing PDF with a new version.
@@ -420,6 +471,14 @@ def replace_pdf(doc_id: str) -> Any:
         if not doc_info:
             logger.warning(f"Document not found: {doc_id}")
             return jsonify({"error": "Dokument nicht gefunden"}), 404
+
+        # Check ownership
+        if doc_info.get("user_id") != current_user.id:
+            logger.warning(
+                f"Unauthorized access: user {current_user.id} tried to access "
+                f"document owned by {doc_info.get('user_id')}"
+            )
+            return jsonify({"error": "Nicht berechtigt"}), 403
 
         # Check if file was uploaded
         if "file" not in request.files:
@@ -491,7 +550,130 @@ def replace_pdf(doc_id: str) -> Any:
         return jsonify({"error": "Interner Serverfehler"}), 500
 
 
+@viewer_bp.route("/api/append/<doc_id>", methods=["POST"])
+@login_required
+def append_pdf(doc_id: str) -> Any:
+    """
+    Append pages from another PDF to the end of an existing document.
+
+    Args:
+        doc_id: UUID of document
+
+    Returns:
+        JSON response with new page count and number of added pages
+
+    Example:
+        POST /viewer/api/append/abc-123
+        File: additional_pages.pdf
+    """
+    try:
+        is_valid, error_msg = validate_doc_id(doc_id)
+        if not is_valid:
+            return jsonify({"error": error_msg}), 400
+
+        db = DatabaseManager()
+        doc_info = db.get_document(doc_id)
+
+        if not doc_info:
+            logger.warning(f"Document not found: {doc_id}")
+            return jsonify({"error": "Dokument nicht gefunden"}), 404
+
+        # Check ownership
+        if doc_info.get("user_id") != current_user.id:
+            logger.warning(
+                f"Unauthorized access: user {current_user.id} tried to access "
+                f"document owned by {doc_info.get('user_id')}"
+            )
+            return jsonify({"error": "Nicht berechtigt"}), 403
+
+        if "file" not in request.files:
+            logger.warning("No file in request")
+            return jsonify({"error": "Keine Datei hochgeladen"}), 400
+
+        file = request.files["file"]
+
+        if file.filename == "":
+            logger.warning("Empty filename")
+            return jsonify({"error": "Kein Dateiname"}), 400
+
+        is_valid, error_msg = validate_file_type(file.filename)
+        if not is_valid:
+            logger.warning(f"Invalid file type: {file.filename}")
+            return jsonify({"error": error_msg}), 400
+
+        file.seek(0, 2)
+        file_size = file.tell()
+        file.seek(0)
+
+        is_valid, error_msg = validate_file_size(
+            file_size, current_app.config["MAX_CONTENT_LENGTH"]
+        )
+        if not is_valid:
+            logger.warning(f"File too large: {file_size} bytes")
+            return jsonify({"error": error_msg}), 400
+
+        file_path = Path(doc_info["file_path"])
+        upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
+        is_valid, error_msg = validate_file_path(file_path, upload_folder)
+        if not is_valid:
+            logger.error(f"Path traversal attempt blocked in append: {file_path}")
+            return jsonify({"error": "Ungültiger Dateipfad"}), 400
+
+        # Save uploaded PDF to temp file
+        tmp_new = file_path.with_suffix(".append.pdf")
+        file.save(tmp_new)
+
+        try:
+            original_doc = fitz.open(str(file_path))
+            new_doc = fitz.open(str(tmp_new))
+            added_pages = len(new_doc)
+
+            original_doc.insert_pdf(new_doc)
+
+            tmp_save = file_path.with_suffix(".tmp.pdf")
+            original_doc.save(str(tmp_save), deflate=True)
+            original_doc.close()
+            new_doc.close()
+
+            tmp_save.replace(file_path)
+        finally:
+            if tmp_new.exists():
+                tmp_new.unlink()
+
+        clear_render_cache()
+
+        new_page_count = get_page_count(file_path)
+
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE documents SET page_count = ? WHERE id = ?",
+                (new_page_count, doc_id),
+            )
+
+        logger.info(
+            f"Appended {added_pages} pages to document {doc_id}, "
+            f"new page count: {new_page_count}"
+        )
+
+        return jsonify(
+            {
+                "success": True,
+                "page_count": new_page_count,
+                "added_pages": added_pages,
+            }
+        )
+
+    except Exception as e:
+        logger.error(
+            f"Error appending PDF to document {doc_id}: {e}",
+            exc_info=True,
+        )
+        return jsonify({"error": "Interner Serverfehler"}), 500
+
+
 @viewer_bp.route("/api/page/<doc_id>/<int:page_number>", methods=["DELETE"])
+@login_required
 def delete_page(doc_id: str, page_number: int) -> Any:
     """
     Delete a page from the PDF document.
@@ -517,6 +699,14 @@ def delete_page(doc_id: str, page_number: int) -> Any:
         if not doc_info:
             logger.warning(f"Document not found: {doc_id}")
             return jsonify({"error": "Dokument nicht gefunden"}), 404
+
+        # Check ownership
+        if doc_info.get("user_id") != current_user.id:
+            logger.warning(
+                f"Unauthorized access: user {current_user.id} tried to access "
+                f"document owned by {doc_info.get('user_id')}"
+            )
+            return jsonify({"error": "Nicht berechtigt"}), 403
 
         # Validate page number
         is_valid, error_msg = validate_page_number(page_number, doc_info["page_count"])

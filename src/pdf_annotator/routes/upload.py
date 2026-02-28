@@ -19,6 +19,7 @@ from flask import (
     send_file,
     url_for,
 )
+from flask_login import current_user, login_required
 
 from pdf_annotator.models.database import DatabaseManager
 from pdf_annotator.services.pdf_processor import get_page_count, validate_pdf
@@ -47,29 +48,31 @@ def index() -> str:
 
 
 @upload_bp.route("/documents", methods=["GET"])
+@login_required
 def list_documents() -> str:
     """
     Render document list page.
 
-    Shows all uploaded documents with metadata.
+    Shows all uploaded documents for current user with metadata.
 
     Returns:
         str: Rendered HTML template
     """
     db = DatabaseManager()
-    documents = db.get_all_documents()
+    documents = db.get_all_documents(current_user.id)
 
-    logger.info(f"Listing {len(documents)} documents")
+    logger.info(f"Listing {len(documents)} documents for user {current_user.username}")
 
     return render_template("documents.html", documents=documents)
 
 
 @upload_bp.route("/upload", methods=["POST"])
+@login_required
 def upload_file() -> Any:
     """
     Handle PDF file upload.
 
-    Validates file, saves to uploads directory, and creates database entry.
+    Validates file, saves to uploads directory, and creates database entry for current user.
 
     Request:
         - Form data with 'file' field containing PDF
@@ -167,6 +170,7 @@ def upload_file() -> Any:
         # Create database entry
         db = DatabaseManager()
         doc_id = db.create_document(
+            current_user.id,
             original_filename,
             str(storage_path),
             page_count,
@@ -205,9 +209,10 @@ def upload_file() -> Any:
 
 
 @upload_bp.route("/delete/<doc_id>", methods=["DELETE"])
+@login_required
 def delete_document(doc_id: str) -> Any:
     """
-    Delete document, annotations, and PDF file.
+    Delete document, annotations, and PDF file for current user.
 
     Args:
         doc_id: UUID of document to delete
@@ -232,6 +237,14 @@ def delete_document(doc_id: str) -> Any:
         if not doc_info:
             logger.warning(f"Delete attempt for non-existent document: {doc_id}")
             return jsonify({"error": "Dokument nicht gefunden"}), 404
+
+        # Check ownership
+        if doc_info.get("user_id") != current_user.id:
+            logger.warning(
+                f"Unauthorized delete attempt: user {current_user.id} tried to delete "
+                f"document owned by {doc_info.get('user_id')}"
+            )
+            return jsonify({"error": "Nicht berechtigt"}), 403
 
         # Delete from database first (CASCADE deletes annotations)
         # This prevents data loss if database deletion fails
@@ -264,9 +277,10 @@ def delete_document(doc_id: str) -> Any:
 
 
 @upload_bp.route("/export", methods=["GET"])
+@login_required
 def export_data() -> Any:
     """
-    Export all data as ZIP archive.
+    Export all user's documents and annotations as ZIP archive.
 
     Returns:
         ZIP file download
@@ -278,11 +292,16 @@ def export_data() -> Any:
     try:
         from pdf_annotator.services.data_manager import DataManager
 
+        db = DatabaseManager()
         upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
         manager = DataManager(upload_folder)
 
+        # Get user's documents
+        user_docs = db.get_all_documents(current_user.id)
+        doc_ids = [doc["id"] for doc in user_docs]
+
         # Create export
-        zip_path = manager.export_data()
+        zip_path = manager.export_data(doc_ids)
 
         logger.info(f"Data exported to: {zip_path}")
 
@@ -300,9 +319,10 @@ def export_data() -> Any:
 
 
 @upload_bp.route("/export/info", methods=["GET"])
+@login_required
 def export_info() -> Any:
     """
-    Get information about what would be exported.
+    Get information about current user's data for export.
 
     Returns:
         JSON with document count, annotation count, estimated size
@@ -314,10 +334,15 @@ def export_info() -> Any:
     try:
         from pdf_annotator.services.data_manager import DataManager
 
+        db = DatabaseManager()
         upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
         manager = DataManager(upload_folder)
 
-        info = manager.get_export_info()
+        # Get user's documents
+        user_docs = db.get_all_documents(current_user.id)
+        doc_ids = [doc["id"] for doc in user_docs]
+
+        info = manager.get_export_info(doc_ids)
         return jsonify(info)
 
     except Exception as e:
@@ -326,9 +351,10 @@ def export_info() -> Any:
 
 
 @upload_bp.route("/import", methods=["POST"])
+@login_required
 def import_data() -> Any:
     """
-    Import data from ZIP archive.
+    Import data from ZIP archive and associate with current user.
 
     Request:
         - Form data with 'file' field containing ZIP backup
@@ -366,8 +392,8 @@ def import_data() -> Any:
             upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
             manager = DataManager(upload_folder)
 
-            # Import data
-            stats = manager.import_data(tmp_path)
+            # Import data and assign to current user
+            stats = manager.import_data(tmp_path, current_user.id)
 
             logger.info(
                 f"Data imported: {stats['documents_imported']} docs, "

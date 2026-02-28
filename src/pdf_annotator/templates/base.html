@@ -16,13 +16,21 @@
             <h1 class="logo"><a href="{{ url_for('upload.index') }}">PDF Annotator</a></h1>
             <nav class="nav" aria-label="Hauptnavigation">
                 {% block nav %}
+                {% if current_user.is_authenticated %}
                 <a href="{{ url_for('upload.list_documents') }}" class="nav-link">Meine Dokumente</a>
                 <a href="{{ url_for('upload.index') }}" class="nav-link">Neues PDF</a>
+                {% endif %}
                 {% endblock %}
                 <button id="theme-toggle" class="btn-theme-toggle" type="button" aria-label="Farbmodus wechseln">
                     <span class="theme-icon" aria-hidden="true">&#9790;</span>
                     <span class="theme-label">Dunkel</span>
                 </button>
+                {% if current_user.is_authenticated %}
+                <span class="nav-user">{{ current_user.username }}</span>
+                <a href="{{ url_for('auth.logout') }}" class="nav-link">Abmelden</a>
+                {% else %}
+                <a href="{{ url_for('auth.login') }}" class="nav-link">Einloggen</a>
+                {% endif %}
             </nav>
         </div>
     </header>

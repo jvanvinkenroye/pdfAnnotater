@@ -82,11 +82,26 @@ class DatabaseManager:
         with self.get_connection() as conn:
             cursor = conn.cursor()
 
+            # Create users table
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS users (
+                    id TEXT PRIMARY KEY,
+                    username TEXT NOT NULL UNIQUE,
+                    email TEXT NOT NULL UNIQUE,
+                    password_hash TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    is_active INTEGER DEFAULT 1
+                )
+            """
+            )
+
             # Create documents table
             cursor.execute(
                 """
                 CREATE TABLE IF NOT EXISTS documents (
                     id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
                     original_filename TEXT NOT NULL,
                     file_path TEXT NOT NULL,
                     page_count INTEGER NOT NULL,
@@ -95,7 +110,8 @@ class DatabaseManager:
                     title TEXT DEFAULT '',
                     year TEXT DEFAULT '',
                     subject TEXT DEFAULT '',
-                    upload_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    upload_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
                 )
             """
             )
@@ -107,6 +123,7 @@ class DatabaseManager:
                 "title TEXT DEFAULT ''",
                 "year TEXT DEFAULT ''",
                 "subject TEXT DEFAULT ''",
+                "user_id TEXT",
             ]
             for col_def in migration_columns:
                 try:
@@ -163,6 +180,7 @@ class DatabaseManager:
 
     def create_document(
         self,
+        user_id: str,
         filename: str,
         file_path: str,
         page_count: int,
@@ -176,6 +194,7 @@ class DatabaseManager:
         Create a new document entry.
 
         Args:
+            user_id: UUID of document owner
             filename: Original filename of uploaded PDF
             file_path: Path where PDF is stored
             page_count: Number of pages in PDF
@@ -190,7 +209,7 @@ class DatabaseManager:
 
         Example:
             doc_id = db.create_document(
-                "report.pdf", "/data/uploads/abc.pdf", 10,
+                "user-id-123", "report.pdf", "/data/uploads/abc.pdf", 10,
                 "Max", "Mustermann", "Projektbericht", "2026", "IT-Sicherheit"
             )
         """
@@ -199,12 +218,13 @@ class DatabaseManager:
             cursor = conn.cursor()
             cursor.execute(
                 """
-                INSERT INTO documents (id, original_filename, file_path, page_count,
+                INSERT INTO documents (id, user_id, original_filename, file_path, page_count,
                                        first_name, last_name, title, year, subject)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
                     doc_id,
+                    user_id,
                     filename,
                     file_path,
                     page_count,
@@ -464,15 +484,113 @@ class DatabaseManager:
                 (doc_id,),
             )
 
-    def get_all_documents(self) -> list[dict[str, Any]]:
+    def create_user(
+        self, username: str, email: str, password_hash: str
+    ) -> str:
         """
-        Retrieve all documents, sorted by upload timestamp (newest first).
+        Create a new user account.
+
+        Args:
+            username: Username (must be unique)
+            email: Email address (must be unique)
+            password_hash: Hashed password from werkzeug.security
+
+        Returns:
+            str: UUID of created user
+
+        Raises:
+            sqlite3.IntegrityError: If username or email already exists
+
+        Example:
+            user_id = db.create_user(
+                "jdoe", "john@example.com",
+                generate_password_hash("secure_password")
+            )
+        """
+        user_id = str(uuid4())
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO users (id, username, email, password_hash)
+                VALUES (?, ?, ?, ?)
+            """,
+                (user_id, username, email, password_hash),
+            )
+        return user_id
+
+    def get_user_by_id(self, user_id: str) -> dict[str, Any] | None:
+        """
+        Retrieve user by ID.
+
+        Args:
+            user_id: UUID of user
+
+        Returns:
+            dict with user data or None if not found
+
+        Example:
+            user = db.get_user_by_id("user-id-123")
+            if user:
+                print(user["username"], user["email"])
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT id, username, email, password_hash, created_at, is_active
+                FROM users
+                WHERE id = ?
+            """,
+                (user_id,),
+            )
+            row = cursor.fetchone()
+            if row:
+                return dict(row)
+        return None
+
+    def get_user_by_username(self, username: str) -> dict[str, Any] | None:
+        """
+        Retrieve user by username.
+
+        Args:
+            username: Username to search for
+
+        Returns:
+            dict with user data or None if not found
+
+        Example:
+            user = db.get_user_by_username("jdoe")
+            if user:
+                print(user["email"])
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT id, username, email, password_hash, created_at, is_active
+                FROM users
+                WHERE username = ?
+            """,
+                (username,),
+            )
+            row = cursor.fetchone()
+            if row:
+                return dict(row)
+        return None
+
+    def get_all_documents(self, user_id: str) -> list[dict[str, Any]]:
+        """
+        Retrieve all documents for a user, sorted by upload timestamp (newest first).
+
+        Args:
+            user_id: UUID of user
 
         Returns:
             List of document dicts
 
         Example:
-            docs = db.get_all_documents()
+            docs = db.get_all_documents("user-id-123")
             for doc in docs:
                 print(doc["original_filename"], doc["page_count"])
         """
@@ -480,15 +598,17 @@ class DatabaseManager:
             cursor = conn.cursor()
             cursor.execute(
                 """
-                SELECT d.id, d.original_filename, d.file_path, d.page_count,
+                SELECT d.id, d.user_id, d.original_filename, d.file_path, d.page_count,
                        d.upload_timestamp, d.first_name, d.last_name, d.title,
                        d.year, d.subject,
                        MAX(a.updated_at) as last_edited
                 FROM documents d
                 LEFT JOIN annotations a ON d.id = a.doc_id
+                WHERE d.user_id = ?
                 GROUP BY d.id
                 ORDER BY d.upload_timestamp DESC
-            """
+            """,
+                (user_id,),
             )
             rows = cursor.fetchall()
             return [dict(row) for row in rows]

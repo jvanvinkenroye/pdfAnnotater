@@ -10,6 +10,7 @@ from typing import Any
 from uuid import uuid4
 
 from flask import Blueprint, current_app, jsonify, send_file
+from flask_login import current_user, login_required
 
 from pdf_annotator.models.database import DatabaseManager
 from pdf_annotator.services.markdown_exporter import (
@@ -51,6 +52,7 @@ def cleanup_old_exports() -> None:
 
 
 @export_bp.route("/original/<doc_id>", methods=["GET"])
+@login_required
 def download_original_pdf(doc_id: str) -> Any:
     """
     Download original PDF file.
@@ -79,6 +81,14 @@ def download_original_pdf(doc_id: str) -> Any:
         if not doc_info:
             logger.warning(f"Document not found: {doc_id}")
             return jsonify({"error": "Dokument nicht gefunden"}), 404
+
+        # Check ownership
+        if doc_info.get("user_id") != current_user.id:
+            logger.warning(
+                f"Unauthorized access: user {current_user.id} tried to access "
+                f"document owned by {doc_info.get('user_id')}"
+            )
+            return jsonify({"error": "Nicht berechtigt"}), 403
 
         logger.info(f"Downloading original PDF for document {doc_id}")
 
@@ -115,6 +125,7 @@ def download_original_pdf(doc_id: str) -> Any:
 
 
 @export_bp.route("/pdf/<doc_id>", methods=["POST"])
+@login_required
 def export_pdf(doc_id: str) -> Any:
     """
     Export annotated PDF.
@@ -143,6 +154,14 @@ def export_pdf(doc_id: str) -> Any:
         if not doc_info:
             logger.warning(f"Document not found: {doc_id}")
             return jsonify({"error": "Dokument nicht gefunden"}), 404
+
+        # Check ownership
+        if doc_info.get("user_id") != current_user.id:
+            logger.warning(
+                f"Unauthorized access: user {current_user.id} tried to access "
+                f"document owned by {doc_info.get('user_id')}"
+            )
+            return jsonify({"error": "Nicht berechtigt"}), 403
 
         logger.info(f"Exporting annotated PDF for document {doc_id}")
 
@@ -200,6 +219,7 @@ def export_pdf(doc_id: str) -> Any:
 
 
 @export_bp.route("/markdown/<doc_id>", methods=["POST"])
+@login_required
 def export_markdown(doc_id: str) -> Any:
     """
     Export annotations as Markdown.
@@ -228,6 +248,14 @@ def export_markdown(doc_id: str) -> Any:
         if not doc_info:
             logger.warning(f"Document not found: {doc_id}")
             return jsonify({"error": "Dokument nicht gefunden"}), 404
+
+        # Check ownership
+        if doc_info.get("user_id") != current_user.id:
+            logger.warning(
+                f"Unauthorized access: user {current_user.id} tried to access "
+                f"document owned by {doc_info.get('user_id')}"
+            )
+            return jsonify({"error": "Nicht berechtigt"}), 403
 
         logger.info(f"Exporting Markdown for document {doc_id}")
 
