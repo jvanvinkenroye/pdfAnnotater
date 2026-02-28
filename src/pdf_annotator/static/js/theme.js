@@ -25,15 +25,18 @@
         var btn = document.getElementById('theme-toggle');
         if (!btn) return;
 
-        var icon = btn.querySelector('.theme-icon');
+        var sunIcon = btn.querySelector('.theme-icon-sun');
+        var moonIcon = btn.querySelector('.theme-icon-moon');
         var label = btn.querySelector('.theme-label');
 
         if (theme === 'dark') {
-            if (icon) icon.textContent = '\u2600'; // sun
+            if (sunIcon) sunIcon.style.display = 'inline-block';
+            if (moonIcon) moonIcon.style.display = 'none';
             if (label) label.textContent = 'Hell';
             btn.setAttribute('aria-label', 'Zum hellen Modus wechseln');
         } else {
-            if (icon) icon.textContent = '\u263E'; // moon
+            if (sunIcon) sunIcon.style.display = 'none';
+            if (moonIcon) moonIcon.style.display = 'inline-block';
             if (label) label.textContent = 'Dunkel';
             btn.setAttribute('aria-label', 'Zum dunklen Modus wechseln');
         }

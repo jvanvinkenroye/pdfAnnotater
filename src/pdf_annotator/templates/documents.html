@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "icons.html" as icons %}
 
 {% block title %}Dokumente - PDF Annotator{% endblock %}
 
@@ -17,19 +18,11 @@
         </div>
         <div class="data-actions">
             <button class="btn btn-secondary" id="btn-export-data" title="Alle Daten als ZIP exportieren">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                    <polyline points="7 10 12 15 17 10"></polyline>
-                    <line x1="12" y1="15" x2="12" y2="3"></line>
-                </svg>
+                {{ icons.icon('download', 16) }}
                 Exportieren
             </button>
             <button class="btn btn-secondary" id="btn-import-data" title="Daten aus ZIP importieren">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                    <polyline points="17 8 12 3 7 8"></polyline>
-                    <line x1="12" y1="3" x2="12" y2="15"></line>
-                </svg>
+                {{ icons.icon('upload', 16) }}
                 Importieren
             </button>
             <input type="file" id="import-file-input" accept=".zip" style="display: none;">
@@ -92,10 +85,7 @@
     </div>
     {% else %}
     <div class="empty-state">
-        <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-            <polyline points="14 2 14 8 20 8"></polyline>
-        </svg>
+        {{ icons.icon('file', 80, 1.5) }}
         <h2>Noch keine Dokumente</h2>
         <p>Laden Sie Ihr erstes PDF hoch, um zu beginnen.</p>
         <a href="{{ url_for('upload.index') }}" class="btn btn-primary">

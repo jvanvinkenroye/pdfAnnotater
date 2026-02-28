@@ -68,7 +68,11 @@
       "WebFetch(domain:pypi.org)",
       "Bash(pdf-annotator:*)",
       "Bash(head:*)",
-      "Bash(shellcheck:*)"
+      "Bash(shellcheck:*)",
+      "Bash(/tmp/reset_password.py:*)",
+      "Bash(/tmp/list_users.py:*)",
+      "Bash(/tmp/check_storage.py:*)",
+      "Bash(uv run:*)"
     ],
     "defaultMode": "acceptEdits"
   },
