@@ -208,10 +208,13 @@ class DataManager:
                     pdf_content = zf.read(pdf_archive_path)
                     pdf_dest = self.upload_folder / f"{doc_id}.pdf"
 
-                    # Verify destination is within upload folder
-                    if not pdf_dest.resolve().is_relative_to(
-                        self.upload_folder.resolve()
-                    ):
+                    # Verify destination is within upload folder (path traversal prevention)
+                    try:
+                        pdf_dest.resolve().relative_to(
+                            self.upload_folder.resolve()
+                        )
+                    except ValueError:
+                        # Path is not relative to upload folder
                         stats["documents_skipped"] += 1
                         continue
 

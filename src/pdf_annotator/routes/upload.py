@@ -416,7 +416,17 @@ def import_data() -> Any:
 
     except ValueError as e:
         logger.warning(f"Import validation failed: {e}")
-        return jsonify({"error": str(e)}), 400
+        error_msg = str(e)
+        # Provide user-friendly error messages
+        if "nicht gefunden" in error_msg.lower():
+            error_msg = "Ungültiges Backup-Format: metadata.json fehlt"
+        elif "corrupted" in error_msg.lower() or "json" in error_msg.lower():
+            error_msg = "Backup-Datei ist beschädigt oder ungültig"
+        elif "version" in error_msg.lower():
+            error_msg = f"Inkompatible Backup-Version: {error_msg}"
+        return jsonify({"error": error_msg}), 400
     except Exception as e:
         logger.error(f"Import failed: {e}", exc_info=True)
-        return jsonify({"error": "Fehler beim Importieren der Daten"}), 500
+        return jsonify(
+            {"error": f"Fehler beim Importieren: {str(e)[:100]}"}
+        ), 500
