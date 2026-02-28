@@ -62,6 +62,7 @@ def login_post() -> str | tuple:
         user_data["username"],
         user_data["email"],
         bool(user_data["is_active"]),
+        bool(user_data.get("is_admin", False)),
     )
     login_user(user)
 
@@ -169,8 +170,13 @@ def register_post() -> str | tuple:
             400,
         )
 
+    # Make first user an admin
+    is_first_user = db.count_users() == 1
+    if is_first_user:
+        db.set_user_admin(user_id, True)
+
     # Log in automatically
-    user = User(user_id, username, email, True)
+    user = User(user_id, username, email, True, is_first_user)
     login_user(user)
 
     return redirect(url_for("upload.list_documents"))

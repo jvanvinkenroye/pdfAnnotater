@@ -39,7 +39,12 @@ class TestExportToMarkdown:
         assert "Notiz Seite zwei" in content
 
     def test_export_empty_annotations_skipped(self, db, sample_pdf, tmp_path):
-        doc_id = db.create_document(user_id=db.test_user_id, filename="test.pdf", file_path=str(sample_pdf), page_count=2)
+        doc_id = db.create_document(
+            user_id=db.test_user_id,
+            filename="test.pdf",
+            file_path=str(sample_pdf),
+            page_count=2,
+        )
         db.upsert_annotation(doc_id, 1, "")
         db.upsert_annotation(doc_id, 2, "   ")
 
@@ -51,7 +56,12 @@ class TestExportToMarkdown:
         assert "Keine Notizen vorhanden" in content
 
     def test_export_page_references_correct(self, db, sample_pdf, tmp_path):
-        doc_id = db.create_document(user_id=db.test_user_id, filename="test.pdf", file_path=str(sample_pdf), page_count=2)
+        doc_id = db.create_document(
+            user_id=db.test_user_id,
+            filename="test.pdf",
+            file_path=str(sample_pdf),
+            page_count=2,
+        )
         # Only annotate page 2
         db.upsert_annotation(doc_id, 2, "Nur Seite 2 hat Notizen")
 
@@ -63,7 +73,12 @@ class TestExportToMarkdown:
         assert "Seite 1" not in content
 
     def test_export_utf8_encoding(self, db, sample_pdf, tmp_path):
-        doc_id = db.create_document(user_id=db.test_user_id, filename="test.pdf", file_path=str(sample_pdf), page_count=2)
+        doc_id = db.create_document(
+            user_id=db.test_user_id,
+            filename="test.pdf",
+            file_path=str(sample_pdf),
+            page_count=2,
+        )
         db.upsert_annotation(doc_id, 1, "Umlaute: ae oe ue ss und Sonderzeichen")
 
         output = tmp_path / "notes.md"

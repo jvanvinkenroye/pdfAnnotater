@@ -213,15 +213,15 @@ class TestDeletePage:
 
     def test_delete_page_success(self, app, logged_in_client, uploaded_pdf_3pages):
         """Deleting page 2 from a 3-page PDF leaves 2 pages."""
-        response = logged_in_client.delete(
-            f"/viewer/api/page/{uploaded_pdf_3pages}/2"
-        )
+        response = logged_in_client.delete(f"/viewer/api/page/{uploaded_pdf_3pages}/2")
         assert response.status_code == 200
         data = response.get_json()
         assert data["success"] is True
         assert data["page_count"] == 2
 
-    def test_delete_last_remaining_page_rejected(self, app, logged_in_client, tmp_path, user, db):
+    def test_delete_last_remaining_page_rejected(
+        self, app, logged_in_client, tmp_path, user, db
+    ):
         """Cannot delete the only page in a 1-page PDF."""
         import shutil
         from pathlib import Path
@@ -248,11 +248,11 @@ class TestDeletePage:
         response = logged_in_client.delete(f"/viewer/api/page/{doc_id}/1")
         assert response.status_code == 400
 
-    def test_delete_page_renumbers_annotations(self, app, logged_in_client, uploaded_pdf_3pages, db):
+    def test_delete_page_renumbers_annotations(
+        self, app, logged_in_client, uploaded_pdf_3pages, db
+    ):
         """Annotations for pages after deleted page are renumbered."""
-        response = logged_in_client.delete(
-            f"/viewer/api/page/{uploaded_pdf_3pages}/2"
-        )
+        response = logged_in_client.delete(f"/viewer/api/page/{uploaded_pdf_3pages}/2")
         assert response.status_code == 200
 
         # Old page 3 annotation should now be on page 2
@@ -264,11 +264,11 @@ class TestDeletePage:
         annotations = db.get_all_annotations(uploaded_pdf_3pages)
         assert len(annotations) == 2
 
-    def test_delete_page_invalid_page_number(self, app, logged_in_client, uploaded_pdf_3pages):
+    def test_delete_page_invalid_page_number(
+        self, app, logged_in_client, uploaded_pdf_3pages
+    ):
         """Invalid page number returns 400."""
-        response = logged_in_client.delete(
-            f"/viewer/api/page/{uploaded_pdf_3pages}/99"
-        )
+        response = logged_in_client.delete(f"/viewer/api/page/{uploaded_pdf_3pages}/99")
         assert response.status_code == 400
 
 

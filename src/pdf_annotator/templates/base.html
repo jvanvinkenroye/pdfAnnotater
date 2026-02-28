@@ -19,6 +19,9 @@
                 {% if current_user.is_authenticated %}
                 <a href="{{ url_for('upload.list_documents') }}" class="nav-link">Meine Dokumente</a>
                 <a href="{{ url_for('upload.index') }}" class="nav-link">Neues PDF</a>
+                {% if current_user.is_admin %}
+                <a href="{{ url_for('admin.index') }}" class="nav-link">Admin</a>
+                {% endif %}
                 {% endif %}
                 {% endblock %}
                 <button id="theme-toggle" class="btn-theme-toggle" type="button" aria-label="Farbmodus wechseln">

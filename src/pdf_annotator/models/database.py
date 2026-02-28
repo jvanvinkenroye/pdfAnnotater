@@ -131,6 +131,14 @@ class DatabaseManager:
                 except sqlite3.OperationalError:
                     pass  # Column already exists
 
+            # Add is_admin column to users table if it doesn't exist
+            try:
+                cursor.execute(
+                    "ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0"
+                )
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+
             # Create annotations table
             cursor.execute(
                 """
@@ -454,9 +462,7 @@ class DatabaseManager:
             )
             return cursor.rowcount > 0
 
-    def renumber_annotations_after_delete(
-        self, doc_id: str, deleted_page: int
-    ) -> None:
+    def renumber_annotations_after_delete(self, doc_id: str, deleted_page: int) -> None:
         """
         Shift page numbers down by 1 for all annotations after a deleted page
         and update page_count in documents table.
@@ -484,9 +490,7 @@ class DatabaseManager:
                 (doc_id,),
             )
 
-    def create_user(
-        self, username: str, email: str, password_hash: str
-    ) -> str:
+    def create_user(self, username: str, email: str, password_hash: str) -> str:
         """
         Create a new user account.
 
@@ -538,7 +542,7 @@ class DatabaseManager:
             cursor = conn.cursor()
             cursor.execute(
                 """
-                SELECT id, username, email, password_hash, created_at, is_active
+                SELECT id, username, email, password_hash, created_at, is_active, is_admin
                 FROM users
                 WHERE id = ?
             """,
@@ -568,7 +572,7 @@ class DatabaseManager:
             cursor = conn.cursor()
             cursor.execute(
                 """
-                SELECT id, username, email, password_hash, created_at, is_active
+                SELECT id, username, email, password_hash, created_at, is_active, is_admin
                 FROM users
                 WHERE username = ?
             """,
@@ -612,3 +616,125 @@ class DatabaseManager:
             )
             rows = cursor.fetchall()
             return [dict(row) for row in rows]
+
+    def get_all_users(self) -> list[dict[str, Any]]:
+        """
+        Retrieve all users, sorted by creation date.
+
+        Returns:
+            List of user dicts
+
+        Example:
+            users = db.get_all_users()
+            for user in users:
+                print(user["username"], user["is_active"], user["is_admin"])
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT id, username, email, is_active, is_admin, created_at
+                FROM users
+                ORDER BY created_at ASC
+            """
+            )
+            rows = cursor.fetchall()
+            return [dict(row) for row in rows]
+
+    def set_user_active(self, user_id: str, is_active: bool) -> bool:
+        """
+        Set user active/inactive status.
+
+        Args:
+            user_id: UUID of user
+            is_active: True to activate, False to deactivate
+
+        Returns:
+            bool: True if successful, False otherwise
+
+        Example:
+            success = db.set_user_active("user-id-123", False)
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    UPDATE users
+                    SET is_active = ?
+                    WHERE id = ?
+                """,
+                    (1 if is_active else 0, user_id),
+                )
+                return cursor.rowcount > 0
+        except sqlite3.Error:
+            return False
+
+    def set_user_admin(self, user_id: str, is_admin: bool) -> bool:
+        """
+        Set user admin status.
+
+        Args:
+            user_id: UUID of user
+            is_admin: True to make admin, False to remove admin privileges
+
+        Returns:
+            bool: True if successful, False otherwise
+
+        Example:
+            success = db.set_user_admin("user-id-123", True)
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    UPDATE users
+                    SET is_admin = ?
+                    WHERE id = ?
+                """,
+                    (1 if is_admin else 0, user_id),
+                )
+                return cursor.rowcount > 0
+        except sqlite3.Error:
+            return False
+
+    def delete_user(self, user_id: str) -> bool:
+        """
+        Delete user and all their documents/annotations (CASCADE).
+
+        Args:
+            user_id: UUID of user
+
+        Returns:
+            bool: True if user was deleted, False if not found
+
+        Example:
+            if db.delete_user("user-id-123"):
+                print("User and all documents deleted")
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
+                return cursor.rowcount > 0
+        except sqlite3.Error:
+            return False
+
+    def count_users(self) -> int:
+        """
+        Count total number of users.
+
+        Returns:
+            int: Number of users in the database
+
+        Example:
+            count = db.count_users()
+            if count == 1:
+                print("First user should be admin")
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM users")
+            row = cursor.fetchone()
+            return row[0] if row else 0

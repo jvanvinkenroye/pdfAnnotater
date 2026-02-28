@@ -103,7 +103,12 @@ class TestCreateAnnotatedPdf:
             upload_path = Path(app.config["UPLOAD_FOLDER"]) / "test.pdf"
             shutil.copy2(sample_pdf, upload_path)
 
-            doc_id = db.create_document(user_id=db.test_user_id, filename="test.pdf", file_path=str(upload_path), page_count=2)
+            doc_id = db.create_document(
+                user_id=db.test_user_id,
+                filename="test.pdf",
+                file_path=str(upload_path),
+                page_count=2,
+            )
             # Only empty annotations
             db.upsert_annotation(doc_id, 1, "")
             db.upsert_annotation(doc_id, 2, "   ")

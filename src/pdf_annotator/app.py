@@ -8,14 +8,15 @@ import os
 from typing import Any
 
 from flask import Flask
-from flask_login import LoginManager
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
 
 from pdf_annotator.config import config
 from pdf_annotator.models.database import DatabaseManager
 from pdf_annotator.models.user import User
+from pdf_annotator.routes.admin import admin_bp
 from pdf_annotator.routes.auth import auth_bp
 from pdf_annotator.routes.export import export_bp
 from pdf_annotator.routes.upload import upload_bp
@@ -70,7 +71,13 @@ def create_app(config_name: str | None = None) -> Flask:
         db = DatabaseManager()
         data = db.get_user_by_id(user_id)
         if data:
-            return User(data["id"], data["username"], data["email"], bool(data["is_active"]))
+            return User(
+                data["id"],
+                data["username"],
+                data["email"],
+                bool(data["is_active"]),
+                bool(data.get("is_admin", False)),
+            )
         return None
 
     # Initialize CSRF protection
@@ -98,11 +105,14 @@ def create_app(config_name: str | None = None) -> Flask:
     app.register_blueprint(upload_bp)
     app.register_blueprint(viewer_bp)
     app.register_blueprint(export_bp)
+    app.register_blueprint(admin_bp, url_prefix="/admin")
 
     logger.info("All blueprints registered")
 
     # Apply stricter rate limits to resource-intensive endpoints
-    limiter.limit("5 per minute")(app.view_functions["auth.login_post"])  # Brute-force protection
+    limiter.limit("5 per minute")(
+        app.view_functions["auth.login_post"]
+    )  # Brute-force protection
     limiter.limit("10 per minute")(app.view_functions["upload.upload_file"])
     limiter.limit("60 per minute")(app.view_functions["viewer.get_page_image"])
     limiter.limit("10 per minute")(app.view_functions["upload.import_data"])

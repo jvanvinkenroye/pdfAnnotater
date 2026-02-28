@@ -208,3 +208,45 @@ def uploaded_pdf_3pages(app, db, sample_pdf_3pages, user):
         db.upsert_annotation(doc_id, 2, "Notiz Seite 2")
         db.upsert_annotation(doc_id, 3, "Notiz Seite 3")
         return doc_id
+
+
+@pytest.fixture()
+def admin_user(app, db):
+    """Create an admin user in the database."""
+    with app.app_context():
+        user_id = db.create_user(
+            username="adminuser",
+            email="admin@example.com",
+            password_hash=generate_password_hash("adminpassword"),
+        )
+        db.set_user_admin(user_id, True)
+    return user_id
+
+
+@pytest.fixture()
+def admin_client(app, client, admin_user):
+    """Flask test client with authenticated admin user session."""
+    with app.app_context():
+        with client:
+            response = client.post(
+                "/auth/login",
+                data={
+                    "username": "adminuser",
+                    "password": "adminpassword",
+                },
+                follow_redirects=True,
+            )
+            assert response.status_code == 200
+            yield client
+
+
+@pytest.fixture()
+def second_user(app, db):
+    """Create a second test user in the database."""
+    with app.app_context():
+        user_id = db.create_user(
+            username="seconduser",
+            email="second@example.com",
+            password_hash=generate_password_hash("secondpassword"),
+        )
+    return user_id
