@@ -8,7 +8,7 @@ ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     UV_PYTHON_DOWNLOADS=never
 
-WORKDIR /build
+WORKDIR /app
 
 # Install dependencies (cached separately from source)
 COPY pyproject.toml uv.lock ./
@@ -35,9 +35,11 @@ RUN mkdir -p /data && chown appuser:appuser /data
 WORKDIR /app
 
 # Copy virtual environment and application from builder
-COPY --from=builder --chown=appuser:appuser /build/.venv /app/.venv
-COPY --from=builder --chown=appuser:appuser /build/src    /app/src
-COPY --from=builder --chown=appuser:appuser /build/wsgi.py /app/wsgi.py
+# Builder uses WORKDIR /app so .venv shebangs and editable-install .pth
+# files already reference /app — the same path used at runtime.
+COPY --from=builder --chown=appuser:appuser /app/.venv /app/.venv
+COPY --from=builder --chown=appuser:appuser /app/src    /app/src
+COPY --from=builder --chown=appuser:appuser /app/wsgi.py /app/wsgi.py
 
 USER appuser
 
@@ -56,4 +58,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
 
 # exec replaces the shell so gunicorn receives SIGTERM directly (graceful shutdown).
 # Shell form is needed only for ${GUNICORN_WORKERS:-2} expansion.
-CMD ["sh", "-c", "exec gunicorn --workers ${GUNICORN_WORKERS:-2} --bind 0.0.0.0:8000 --timeout 120 --access-logfile - --error-logfile - wsgi:app"]
+CMD ["sh", "-c", "exec python -m gunicorn --workers ${GUNICORN_WORKERS:-2} --bind 0.0.0.0:8000 --timeout 120 --access-logfile - --error-logfile - wsgi:app"]

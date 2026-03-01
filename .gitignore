@@ -12,6 +12,9 @@ venv/
 instance/
 .webassets-cache
 
+# Secrets
+.env
+
 # Database & Runtime Data
 data/uploads/*
 data/exports/*
