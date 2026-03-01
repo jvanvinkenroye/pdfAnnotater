@@ -1172,6 +1172,15 @@ body {
     background-color: #1e293b;
 }
 
+/* Fix 1: White (#fff) on #3b82f6 = ~3.1:1 fails AA — use darker blue for button bg */
+[data-theme="dark"] .btn-primary {
+    background-color: #1d4ed8;
+}
+
+[data-theme="dark"] .btn-primary:hover:not(:disabled) {
+    background-color: #2563eb;
+}
+
 [data-theme="dark"] .upload-area.dragover {
     border-color: var(--primary-color);
     background-color: #1e3a5f;
@@ -1436,4 +1445,636 @@ body {
         color: #000;
         text-decoration: none;
     }
+}
+
+/* ==========================================================================
+   BRUTALIST THEME — "Ink & Ochre"
+   Palette: warm ivory · deep ink-brown · terracotta orange
+   Typography: Bebas Neue (display) + Space Mono (body)
+   ========================================================================== */
+
+[data-theme="brutalist"] {
+    --primary-color:    #9E4906;
+    --primary-hover:    #7A3B04;
+    --secondary-color:  #1C1107;
+    --secondary-hover:  #3A2810;
+    --success-color:    #2D7D1A;
+    --error-color:      #B91C1C;
+    --border-color:     #1C1107;
+    --bg-light:         #EDE8DA;
+    --bg-white:         #F7F3EA;
+    --text-primary:     #1C1107;
+    --text-secondary:   #4A3820;
+    --shadow:           4px 4px 0 #1C1107;
+    --shadow-lg:        7px 7px 0 #1C1107;
+}
+
+/* ── Typography ── */
+[data-theme="brutalist"] body {
+    font-family: 'Space Mono', monospace;
+    background-color: var(--bg-light);
+}
+
+[data-theme="brutalist"] h1,
+[data-theme="brutalist"] h2,
+[data-theme="brutalist"] h3 {
+    font-family: 'Bebas Neue', sans-serif;
+    letter-spacing: 0.04em;
+}
+
+/* ── Header & Nav ── */
+[data-theme="brutalist"] .header {
+    border-bottom: 4px solid #1C1107;
+    box-shadow: 0 4px 0 #C75E08;
+    background-color: #F7F3EA;
+}
+
+[data-theme="brutalist"] .logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 2rem;
+    letter-spacing: 0.04em;
+    color: #1C1107;
+}
+
+[data-theme="brutalist"] .logo a {
+    color: inherit;
+}
+
+[data-theme="brutalist"] .nav-link {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #1C1107;
+    font-weight: 700;
+    padding: 0.25rem 0.5rem;
+    border: 2px solid transparent;
+    transition: border-color 0.1s, color 0.1s;
+}
+
+[data-theme="brutalist"] .nav-link:hover {
+    color: #9E4906;
+    border-color: #1C1107;
+}
+
+[data-theme="brutalist"] .nav-user {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #4A3820;
+}
+
+[data-theme="brutalist"] .doc-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.82rem;
+    color: #4A3820;
+    border-left: 4px solid #C75E08;
+    padding-left: 0.5rem;
+}
+
+/* ── Theme Toggle ── */
+[data-theme="brutalist"] .btn-theme-toggle {
+    border-radius: 0;
+    border: 2px solid #1C1107;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+    box-shadow: 2px 2px 0 #1C1107;
+    background: #1C1107;
+    color: #F7F3EA;
+    transition: transform 0.1s, box-shadow 0.1s, background 0.1s;
+}
+
+[data-theme="brutalist"] .btn-theme-toggle:hover {
+    background: #9E4906;
+    border-color: #1C1107;
+    color: #F7F3EA;
+    transform: translate(1px, 1px);
+    box-shadow: 1px 1px 0 #1C1107;
+}
+
+/* ── Buttons (all variants) ── */
+[data-theme="brutalist"] .btn {
+    border-radius: 0;
+    border: 3px solid #1C1107;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 700;
+    box-shadow: 3px 3px 0 #1C1107;
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+[data-theme="brutalist"] .btn:hover:not(:disabled) {
+    transform: translate(2px, 2px);
+    box-shadow: 1px 1px 0 #1C1107;
+}
+
+[data-theme="brutalist"] .btn-primary {
+    background-color: #9E4906;
+    color: #F7F3EA;
+    border-color: #1C1107;
+}
+
+[data-theme="brutalist"] .btn-primary:hover:not(:disabled) {
+    background-color: #7A3B04;
+}
+
+[data-theme="brutalist"] .btn-secondary {
+    background-color: #1C1107;
+    color: #F7F3EA;
+    border-color: #1C1107;
+}
+
+[data-theme="brutalist"] .btn-secondary:hover:not(:disabled) {
+    background-color: #9E4906;
+    border-color: #1C1107;
+}
+
+[data-theme="brutalist"] .btn-danger {
+    background-color: #B91C1C;
+    color: #F7F3EA;
+    border-color: #1C1107;
+    box-shadow: 3px 3px 0 #1C1107;
+}
+
+[data-theme="brutalist"] .btn-danger:hover:not(:disabled) {
+    background-color: #991B1B;
+}
+
+[data-theme="brutalist"] .btn-sm {
+    font-size: 0.72rem;
+    padding: 0.35rem 0.7rem;
+}
+
+/* ── Zoom controls ── */
+[data-theme="brutalist"] .btn-zoom {
+    border-radius: 0;
+    border: 2px solid #1C1107;
+    font-weight: 700;
+    box-shadow: 2px 2px 0 #1C1107;
+    background: #F7F3EA;
+    color: #1C1107;
+}
+
+[data-theme="brutalist"] .btn-zoom:hover {
+    background: #1C1107;
+    color: #F7F3EA;
+    transform: translate(1px, 1px);
+    box-shadow: 1px 1px 0 #1C1107;
+}
+
+[data-theme="brutalist"] .btn-zoom-fit {
+    border-radius: 0;
+    border: 2px solid #1C1107;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 700;
+    box-shadow: 2px 2px 0 #1C1107;
+    background: #F7F3EA;
+    color: #1C1107;
+}
+
+[data-theme="brutalist"] .btn-zoom-fit:hover {
+    transform: translate(1px, 1px);
+    box-shadow: 1px 1px 0 #1C1107;
+    background: #EDE8DA;
+}
+
+[data-theme="brutalist"] .btn-zoom-fit.active {
+    background: #9E4906;
+    color: #F7F3EA;
+    border-color: #1C1107;
+    box-shadow: 2px 2px 0 #1C1107;
+}
+
+/* ── Form inputs ── */
+[data-theme="brutalist"] .form-input {
+    border-radius: 0;
+    border: 3px solid #1C1107;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.85rem;
+    background: #F7F3EA;
+    color: #1C1107;
+}
+
+[data-theme="brutalist"] .form-input:focus {
+    border-color: #C75E08;
+    box-shadow: 3px 3px 0 #C75E08;
+    outline: none;
+}
+
+[data-theme="brutalist"] .form-input::placeholder {
+    color: #7A6248;
+}
+
+[data-theme="brutalist"] .form-group label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+    color: #1C1107;
+}
+
+[data-theme="brutalist"] .page-input {
+    border-radius: 0;
+    border: 2px solid #1C1107;
+    font-family: 'Space Mono', monospace;
+    background: #F7F3EA;
+    color: #1C1107;
+}
+
+/* ── Upload page ── */
+[data-theme="brutalist"] .upload-content {
+    border-radius: 0;
+    border: 3px solid #1C1107;
+    box-shadow: 7px 7px 0 #1C1107;
+    background: #F7F3EA;
+}
+
+[data-theme="brutalist"] .upload-content h1 {
+    font-size: 3.5rem;
+    letter-spacing: 0.03em;
+    color: #1C1107;
+}
+
+[data-theme="brutalist"] .upload-area {
+    border: 3px dashed #1C1107;
+    border-radius: 0;
+    background: #EDE8DA;
+}
+
+[data-theme="brutalist"] .upload-area:hover {
+    border-style: solid;
+    border-color: #C75E08;
+    background: #F0E8D6;
+}
+
+[data-theme="brutalist"] .upload-area.dragover {
+    border-style: solid;
+    border-color: #C75E08;
+    background: #F0E8D6;
+    box-shadow: inset 3px 3px 0 #C75E08;
+}
+
+[data-theme="brutalist"] .upload-highlight {
+    color: #9E4906;
+}
+
+[data-theme="brutalist"] .progress-bar {
+    border-radius: 0;
+    border: 2px solid #1C1107;
+    background: #EDE8DA;
+}
+
+[data-theme="brutalist"] .progress-fill {
+    border-radius: 0;
+    background-color: #C75E08;
+}
+
+/* ── Viewer controls ── */
+[data-theme="brutalist"] .viewer-controls {
+    border-bottom: 3px solid #1C1107;
+    box-shadow: 0 3px 0 #C75E08;
+    background: #F7F3EA;
+}
+
+[data-theme="brutalist"] .page-indicator {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #1C1107;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+/* ── Metadata section ── */
+[data-theme="brutalist"] .metadata-section {
+    border-bottom: 3px solid #1C1107;
+    background: #F7F3EA;
+}
+
+[data-theme="brutalist"] .metadata-header h3 {
+    font-size: 1.5rem;
+    letter-spacing: 0.04em;
+    color: #1C1107;
+}
+
+[data-theme="brutalist"] .metadata-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+    color: #4A3820;
+}
+
+[data-theme="brutalist"] .metadata-value {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.82rem;
+    color: #1C1107;
+}
+
+/* ── PDF Viewer + Note Editor ── */
+[data-theme="brutalist"] .pdf-viewer {
+    border-radius: 0;
+    border: 3px solid #1C1107;
+    box-shadow: var(--shadow);
+    background: #EDE8DA;
+}
+
+[data-theme="brutalist"] .note-editor {
+    border-radius: 0;
+    border: 3px solid #1C1107;
+    box-shadow: var(--shadow);
+    background: #F7F3EA;
+}
+
+[data-theme="brutalist"] .editor-header {
+    border-bottom: 3px solid #1C1107;
+    background: #EDE8DA;
+}
+
+[data-theme="brutalist"] .editor-header h2 {
+    font-size: 1.6rem;
+    letter-spacing: 0.04em;
+    color: #1C1107;
+}
+
+[data-theme="brutalist"] .save-status {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #2D7D1A;
+    font-weight: 700;
+}
+
+[data-theme="brutalist"] .save-status.saving {
+    color: #4A3820;
+}
+
+[data-theme="brutalist"] .save-status.error {
+    color: #B91C1C;
+}
+
+[data-theme="brutalist"] .note-textarea {
+    background: #F7F3EA;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.88rem;
+    line-height: 1.75;
+    color: #1C1107;
+    border: none;
+    border-left: 4px solid #C75E08;
+    padding-left: 1.25rem;
+}
+
+[data-theme="brutalist"] .note-textarea::placeholder {
+    color: #7A6248;
+}
+
+[data-theme="brutalist"] .editor-footer {
+    border-top: 3px solid #1C1107;
+    background: #EDE8DA;
+}
+
+[data-theme="brutalist"] .editor-hint {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #4A3820;
+}
+
+[data-theme="brutalist"] .spinner {
+    border-color: #EDE8DA;
+    border-top-color: #C75E08;
+}
+
+/* ── Documents list ── */
+[data-theme="brutalist"] .documents-container h1 {
+    font-size: 4rem;
+    letter-spacing: 0.03em;
+    color: #1C1107;
+}
+
+[data-theme="brutalist"] .documents-container .subtitle {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #4A3820;
+}
+
+[data-theme="brutalist"] .table-container {
+    border-radius: 0;
+    border: 3px solid #1C1107;
+    box-shadow: var(--shadow-lg);
+    background: #F7F3EA;
+}
+
+[data-theme="brutalist"] .documents-table thead {
+    background-color: #1C1107;
+    border-bottom: 4px solid #C75E08;
+}
+
+[data-theme="brutalist"] .documents-table th {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 700;
+    color: #F7F3EA;
+}
+
+[data-theme="brutalist"] .documents-table th.sortable:hover {
+    background-color: #3A2810;
+}
+
+[data-theme="brutalist"] .documents-table th.active-sort {
+    background-color: #9E4906;
+    color: #F7F3EA;
+}
+
+[data-theme="brutalist"] .documents-table tbody tr {
+    border-bottom: 2px solid #1C1107;
+}
+
+[data-theme="brutalist"] .documents-table tbody tr:hover {
+    background-color: #EDE8DA;
+}
+
+[data-theme="brutalist"] .documents-table td {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.8rem;
+    color: #1C1107;
+}
+
+[data-theme="brutalist"] .filename-cell {
+    font-weight: 700;
+}
+
+/* Mobile card layout overrides */
+[data-theme="brutalist"] .documents-table tr {
+    border-radius: 0;
+    border: 3px solid #1C1107;
+    box-shadow: 4px 4px 0 #1C1107;
+}
+
+/* ── Empty state ── */
+[data-theme="brutalist"] .empty-state {
+    border-radius: 0;
+    border: 3px solid #1C1107;
+    box-shadow: var(--shadow-lg);
+    background: #F7F3EA;
+}
+
+[data-theme="brutalist"] .empty-state h2 {
+    font-size: 2.8rem;
+    letter-spacing: 0.04em;
+    color: #1C1107;
+}
+
+[data-theme="brutalist"] .empty-state p {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.82rem;
+    color: #4A3820;
+}
+
+/* ── Flash messages ── */
+[data-theme="brutalist"] .flash {
+    border-radius: 0;
+    border-width: 3px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.82rem;
+}
+
+[data-theme="brutalist"] .flash-success {
+    background: #DCFCE7;
+    color: #166534;
+    border-color: #1C1107;
+    box-shadow: 3px 3px 0 #1C1107;
+}
+
+[data-theme="brutalist"] .flash-error {
+    background: #FEE2E2;
+    color: #991B1B;
+    border-color: #1C1107;
+    box-shadow: 3px 3px 0 #1C1107;
+}
+
+/* ── Modal ── */
+[data-theme="brutalist"] .modal-content {
+    border-radius: 0;
+    border: 3px solid #1C1107;
+    box-shadow: 9px 9px 0 #1C1107;
+    background: #F7F3EA;
+}
+
+[data-theme="brutalist"] .modal-overlay {
+    background: rgba(28, 17, 7, 0.55);
+}
+
+[data-theme="brutalist"] .modal-message {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.88rem;
+    color: #1C1107;
+}
+
+/* ── Toast notifications ── */
+[data-theme="brutalist"] .toast {
+    border-radius: 0;
+    border: 2px solid #1C1107;
+    box-shadow: 3px 3px 0 #1C1107;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.8rem;
+}
+
+[data-theme="brutalist"] .toast-success {
+    background: #DCFCE7;
+    color: #166534;
+    border-color: #1C1107;
+}
+
+[data-theme="brutalist"] .toast-error {
+    background: #FEE2E2;
+    color: #991B1B;
+    border-color: #1C1107;
+}
+
+[data-theme="brutalist"] .toast-info {
+    background: #FEF3C7;
+    color: #92400E;
+    border-color: #1C1107;
+}
+
+/* ── Error page ── */
+[data-theme="brutalist"] .error-content {
+    border-radius: 0;
+    border: 3px solid #1C1107;
+    box-shadow: var(--shadow-lg);
+    background: #F7F3EA;
+}
+
+[data-theme="brutalist"] .error-title {
+    font-size: 3rem;
+    color: #B91C1C;
+    letter-spacing: 0.04em;
+}
+
+[data-theme="brutalist"] .error-message {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.9rem;
+    color: #4A3820;
+}
+
+/* ── Error box (inline) ── */
+[data-theme="brutalist"] .error-box {
+    border-radius: 0;
+    border: 3px solid #B91C1C;
+    box-shadow: 3px 3px 0 #1C1107;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.82rem;
+}
+
+/* ── Footer ── */
+[data-theme="brutalist"] .footer {
+    border-top: 4px solid #1C1107;
+    box-shadow: 0 -3px 0 #C75E08;
+    background: #F7F3EA;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #4A3820;
+}
+
+/* ── Auth pages (login/register) ── */
+[data-theme="brutalist"] .upload-content .subtitle {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+/* ── Decorative accent line on the main content area ── */
+[data-theme="brutalist"] .main {
+    border-top: 2px solid #C75E08;
+}
+
+/* ── Skip nav ── */
+[data-theme="brutalist"] .skip-nav {
+    background: #9E4906;
+    border-radius: 0;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
 }
