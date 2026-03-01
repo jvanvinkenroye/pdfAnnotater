@@ -3,12 +3,6 @@
 
 {% block title %}Dokumente - PDF Annotator{% endblock %}
 
-{% block nav %}
-<a href="{{ url_for('upload.index') }}" class="btn btn-primary btn-sm">
-    Neues PDF hochladen
-</a>
-{% endblock %}
-
 {% block content %}
 <div class="documents-container">
     <div class="documents-header">
@@ -17,6 +11,9 @@
             <p class="subtitle">Wählen Sie ein Dokument aus, um es zu bearbeiten oder fortzufahren.</p>
         </div>
         <div class="data-actions">
+            <a href="{{ url_for('upload.index') }}" class="btn btn-primary btn-sm">
+                Neues PDF hochladen
+            </a>
             <button class="btn btn-secondary" id="btn-export-data" title="Alle Daten als ZIP exportieren">
                 {{ icons.icon('download', 16) }}
                 Exportieren

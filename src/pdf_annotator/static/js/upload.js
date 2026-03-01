@@ -102,12 +102,11 @@
         const formData = new FormData();
         formData.append('file', file);
 
-        // Include metadata fields from the form
-        const metadataFields = ['first_name', 'last_name', 'title', 'year', 'subject'];
-        metadataFields.forEach(field => {
-            const input = document.getElementById(field);
+        // Include metadata fields from the form (query by name attribute, not id)
+        ['first_name', 'last_name', 'title', 'year', 'subject'].forEach(fieldName => {
+            const input = uploadForm.querySelector(`[name="${fieldName}"]`);
             if (input) {
-                formData.append(field, input.value.trim());
+                formData.append(fieldName, input.value.trim());
             }
         });
 

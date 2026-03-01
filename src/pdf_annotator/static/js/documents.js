@@ -330,18 +330,27 @@
                 })
                     .then(response => {
                         console.log('Response status:', response.status);
+                        console.log('Response headers:', response.headers);
                         if (!response.ok) {
-                            return response.json().then(data => {
-                                console.error('Import error response:', data);
-                                throw new Error(data.error || 'Fehler beim Importieren');
+                            return response.text().then(text => {
+                                console.error('Import error response text:', text);
+                                try {
+                                    const data = JSON.parse(text);
+                                    throw new Error(data.error || 'Fehler beim Importieren');
+                                } catch (e) {
+                                    throw new Error('Fehler beim Importieren: ' + text.substring(0, 100));
+                                }
                             });
                         }
-                        return response.json();
+                        return response.text().then(text => {
+                            console.log('Response text:', text.substring(0, 200));
+                            return JSON.parse(text);
+                        });
                     })
                     .then(data => {
                         console.log('Import successful:', data);
                         showToast(data.message || 'Import erfolgreich!', 'success');
-                        setTimeout(function() { window.location.reload(); }, 1500);
+                        setTimeout(function() { window.location.reload(); }, 2000);
                     })
                     .catch(error => {
                         console.error('Import error:', error.message);
