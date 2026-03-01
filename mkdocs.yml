@@ -1,0 +1,71 @@
+site_name: PDF Annotator
+site_description: Flask-basierte Web-Applikation zum Annotieren von PDF-Dokumenten
+site_url: https://jvanvinkenroye.github.io/pdfAnnotater/
+repo_url: https://github.com/jvanvinkenroye/pdfAnnotater
+repo_name: jvanvinkenroye/pdfAnnotater
+
+theme:
+  name: material
+  language: de
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/weather-night
+        name: Dark Mode aktivieren
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/weather-sunny
+        name: Light Mode aktivieren
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+    - content.code.annotate
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - tables
+  - attr_list
+  - def_list
+  - toc:
+      permalink: true
+
+nav:
+  - Start: index.md
+  - Installation: installation.md
+  - Benutzerhandbuch:
+    - Uebersicht: benutzerhandbuch/index.md
+    - PDF hochladen: benutzerhandbuch/upload.md
+    - Viewer & Navigation: benutzerhandbuch/viewer.md
+    - Annotationen: benutzerhandbuch/annotationen.md
+    - Export: benutzerhandbuch/export.md
+  - Admin:
+    - Benutzerverwaltung: admin/benutzerverwaltung.md
+  - Deployment:
+    - Docker: deployment/docker.md
+    - Produktion: deployment/produktion.md
+  - Entwicklung:
+    - Architektur: entwicklung/architektur.md
+    - API-Referenz: entwicklung/api.md
+    - Tests & Qualitaet: entwicklung/testing.md

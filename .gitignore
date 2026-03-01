@@ -15,6 +15,9 @@ instance/
 # Secrets
 .env
 
+# MkDocs
+site/
+
 # Database & Runtime Data
 data/uploads/*
 data/exports/*
