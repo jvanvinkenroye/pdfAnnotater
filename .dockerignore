@@ -1,0 +1,50 @@
+# Version control
+.git/
+.gitignore
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Build artefacts
+*.egg-info/
+dist/
+build/
+
+# Runtime data (not baked into image)
+data/
+uploads/
+
+# Tests
+tests/
+
+# Development / CI config
+.claude/
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+ruff.toml
+*.cfg
+*.ini
+
+# Documentation and extras
+docs/
+homebrew/
+*.md
+!README.md
+
+# Misc
+theme_showcase.html
+todo.md
+import_berichte.py
+run_desktop.py
+install.sh
+DEPLOYMENT_CHECKLIST.md

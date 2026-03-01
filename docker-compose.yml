@@ -1,0 +1,30 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: pdf-annotator:latest
+    container_name: pdf-annotator
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persists SQLite DB, uploads, exports and logs across container restarts.
+      # Maps to $XDG_DATA_HOME/PDF-Annotator/ inside the container.
+      - pdf_annotator_data:/data
+    environment:
+      # Required: set a stable secret key so sessions survive restarts.
+      # Generate one with: python -c "import secrets; print(secrets.token_hex(32))"
+      SECRET_KEY: "${SECRET_KEY:?SECRET_KEY env variable is required}"
+      GUNICORN_WORKERS: "${GUNICORN_WORKERS:-2}"
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/auth/login')"]
+      interval: 30s
+      timeout: 10s
+      start_period: 15s
+      retries: 3
+
+volumes:
+  pdf_annotator_data:
+    driver: local
