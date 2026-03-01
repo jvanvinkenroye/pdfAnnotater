@@ -6,8 +6,8 @@ Provides endpoints for user authentication and session management.
 
 import sqlite3
 
-from flask import Blueprint, redirect, render_template, request, url_for
-from flask_login import login_required, login_user, logout_user
+from flask import Blueprint, jsonify, redirect, render_template, request, url_for
+from flask_login import current_user, login_required, login_user, logout_user
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from pdf_annotator.models.database import DatabaseManager
@@ -65,6 +65,7 @@ def login_post() -> str | tuple:
         user_data["email"],
         bool(user_data["is_active"]),
         bool(user_data.get("is_admin", False)),
+        user_data.get("theme"),
     )
     login_user(user)
 
@@ -182,3 +183,20 @@ def register_post() -> str | tuple:
     login_user(user)
 
     return redirect(url_for("upload.list_documents"))
+
+
+@auth_bp.route("/theme", methods=["POST"])
+@login_required
+def set_theme():
+    """
+    Save theme preference for the current user.
+
+    Accepts JSON body with 'theme' key (light/dark/brutalist).
+    """
+    data = request.get_json(silent=True) or {}
+    theme = data.get("theme")
+    if theme not in ("light", "dark", "brutalist"):
+        return jsonify({"error": "Ungültiges Theme"}), 400
+    db = DatabaseManager()
+    db.set_user_theme(current_user.id, theme)
+    return jsonify({"success": True})

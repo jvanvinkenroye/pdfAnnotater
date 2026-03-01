@@ -21,6 +21,7 @@ class User(UserMixin):
         email: str,
         is_active: bool = True,
         is_admin: bool = False,
+        theme: str | None = None,
     ) -> None:
         """
         Initialize User instance.
@@ -31,12 +32,14 @@ class User(UserMixin):
             email: User email address
             is_active: Whether user account is active (default: True)
             is_admin: Whether user is an administrator (default: False)
+            theme: Preferred theme ('light', 'dark', 'brutalist') or None
         """
         self.id = user_id
         self.username = username
         self.email = email
         self._is_active = is_active
         self._is_admin = is_admin
+        self.theme = theme
 
     @property
     def is_active(self) -> bool:

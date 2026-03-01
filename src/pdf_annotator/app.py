@@ -77,6 +77,7 @@ def create_app(config_name: str | None = None) -> Flask:
                 data["email"],
                 bool(data["is_active"]),
                 bool(data.get("is_admin", False)),
+                data.get("theme"),
             )
         return None
 
@@ -116,6 +117,7 @@ def create_app(config_name: str | None = None) -> Flask:
     limiter.limit("10 per minute")(app.view_functions["upload.upload_file"])
     limiter.limit("60 per minute")(app.view_functions["viewer.get_page_image"])
     limiter.limit("10 per minute")(app.view_functions["upload.import_data"])
+    limiter.limit("30 per minute")(app.view_functions["auth.set_theme"])
 
     # Security headers
     @app.after_request

@@ -139,6 +139,14 @@ class DatabaseManager:
             except sqlite3.OperationalError:
                 pass  # Column already exists
 
+            # Add theme column to users table if it doesn't exist
+            try:
+                cursor.execute(
+                    "ALTER TABLE users ADD COLUMN theme TEXT DEFAULT NULL"
+                )
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+
             # Create annotations table
             cursor.execute(
                 """
@@ -546,7 +554,7 @@ class DatabaseManager:
             cursor = conn.cursor()
             cursor.execute(
                 """
-                SELECT id, username, email, password_hash, created_at, is_active, is_admin
+                SELECT id, username, email, password_hash, created_at, is_active, is_admin, theme
                 FROM users
                 WHERE id = ?
             """,
@@ -576,7 +584,7 @@ class DatabaseManager:
             cursor = conn.cursor()
             cursor.execute(
                 """
-                SELECT id, username, email, password_hash, created_at, is_active, is_admin
+                SELECT id, username, email, password_hash, created_at, is_active, is_admin, theme
                 FROM users
                 WHERE username = ?
             """,
@@ -755,3 +763,25 @@ class DatabaseManager:
             cursor.execute("SELECT COUNT(*) FROM users WHERE is_admin = 1")
             row = cursor.fetchone()
             return row[0] if row else 0
+
+    def set_user_theme(self, user_id: str, theme: str) -> bool:
+        """
+        Set theme preference for a user.
+
+        Args:
+            user_id: UUID of user
+            theme: Theme name ('light', 'dark', 'brutalist') or None to reset
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "UPDATE users SET theme = ? WHERE id = ?",
+                    (theme, user_id),
+                )
+                return cursor.rowcount > 0
+        except sqlite3.Error:
+            return False
