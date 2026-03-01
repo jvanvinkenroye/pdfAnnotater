@@ -6,145 +6,191 @@ Eine Flask-basierte Web-Applikation zum Annotieren von PDF-Dokumenten mit Side-b
 
 - **Split-Screen View:** PDF-Anzeige links, Notizen-Editor rechts
 - **Seitenweise Navigation:** Vor/Zurueck-Buttons, Seiteneingabe und Tastatur-Shortcuts
-- **Seite loeschen:** Einzelne Seiten aus dem PDF entfernen (z.B. leere Seiten, falsche Scans)
-- **PDF ersetzen:** PDF-Datei austauschen, alle Notizen bleiben erhalten
 - **Auto-Save:** Notizen werden automatisch gespeichert (debounced, 500ms)
+- **Seite loeschen:** Einzelne Seiten aus dem PDF entfernen
+- **PDF ersetzen:** PDF-Datei austauschen, alle Notizen bleiben erhalten
 - **Metadaten:** Vorname, Nachname, Titel, Jahr, Thema pro Dokument
 - **Export-Funktionen:**
   - **Annotiertes PDF:** Original-PDF mit Notizen in gruener Courier-Schrift + Zeitstempel
   - **Markdown-Export:** Alle Notizen als strukturiertes Markdown-Dokument
 - **Zoom:** Stufenweises Zoomen (50%-200%) und Breitenanpassung
-- **Dark Mode:** Automatische Erkennung der System-Einstellung
-- **Dokument-Verwaltung:** Liste aller Dokumente mit Loeschfunktion
-- **Single-User:** Lokale Applikation ohne Session-Management
+- **Themes:** Light, Dark und Brutalist — Einstellung wird pro Account serverseitig gespeichert
+- **Multi-User:** Registrierung und Login mit eigenem Dokumenten-Bereich
+- **Admin Panel:** Benutzerverwaltung (Aktivieren/Deaktivieren, Admin-Rechte, Loeschen)
 - **Persistente Speicherung:** Dokumente bleiben bis zur manuellen Loeschung erhalten
 - **Max. 50 MB:** Upload-Limit fuer PDF-Dateien
 
-## Screenshots
+## Deployment als Web-Dienst (Docker)
 
-### Upload-Seite
-Drag & Drop oder Datei-Auswahl für PDF-Upload mit Client-seitiger Validierung.
-
-### Viewer
-Split-Screen mit PDF-Rendering links und Notizen-Editor rechts. Auto-Save und Keyboard-Navigation.
-
-## Installation
+Die empfohlene Methode fuer den produktiven Betrieb auf einem Server.
 
 ### Voraussetzungen
 
-- Python 3.10 oder höher
+- Docker 24+ und Docker Compose v2+
+
+### Schnellstart
+
+```bash
+# Repository klonen
+git clone https://github.com/jvanvinkenroye/pdfAnnotater.git
+cd pdfAnnotater
+
+# Secret Key generieren
+export SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+
+# Container starten
+docker compose up -d
+```
+
+Die App ist unter `http://localhost:8000` erreichbar.
+
+### Persistenz
+
+Alle Daten (Datenbank, hochgeladene PDFs, Exporte) werden in einem Docker-Volume gespeichert und ueberleben Container-Neustarts:
+
+```
+pdf_annotator_data:/data
+```
+
+### Konfiguration
+
+Umgebungsvariablen in einer `.env`-Datei oder direkt in der Shell:
+
+| Variable | Pflicht | Standard | Beschreibung |
+|---|---|---|---|
+| `SECRET_KEY` | **Ja** | — | Flask Session-Key (min. 32 zufaellige Bytes) |
+| `GUNICORN_WORKERS` | Nein | `2` | Anzahl Gunicorn Worker-Prozesse |
+
+Empfohlene Worker-Anzahl: `2 * CPU-Kerne + 1`.
+
+### Mit .env-Datei
+
+```bash
+# .env anlegen (nicht committen!)
+cat > .env <<EOF
+SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+GUNICORN_WORKERS=4
+EOF
+
+docker compose up -d
+```
+
+### Reverse Proxy (nginx)
+
+Fuer HTTPS-Betrieb hinter nginx:
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name annotations.example.com;
+
+    location / {
+        proxy_pass         http://localhost:8000;
+        proxy_set_header   Host $host;
+        proxy_set_header   X-Real-IP $remote_addr;
+        proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        client_max_body_size 50M;
+    }
+}
+```
+
+### Nuetzliche Docker-Befehle
+
+```bash
+# Status pruefen
+docker compose ps
+
+# Logs ansehen
+docker compose logs -f
+
+# Container neu starten
+docker compose restart
+
+# Stoppen
+docker compose down
+
+# Daten-Volume auflisten
+docker volume ls | grep pdf_annotator
+```
+
+### Image selbst bauen
+
+```bash
+docker build -t pdf-annotator:latest .
+```
+
+---
+
+## Lokale Installation (Entwickler / Desktop)
+
+### Voraussetzungen
+
+- Python 3.10 oder hoeher
 - macOS oder Linux
 
-### Homebrew (macOS, empfohlen)
+### Homebrew (macOS)
 
 ```bash
 brew tap jvanvinkenroye/pdf-annotator
 brew install pdf-annotator
+pdf-annotator
 ```
-
-Nach der Installation: `pdf-annotator` im Terminal eingeben.
-
-### Linux (Debian/Ubuntu)
-
-```bash
-# Python 3.10+ installieren (falls nicht vorhanden)
-sudo apt install python3 python3-pip
-
-# uv installieren (einmalig)
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# PDF Annotator installieren
-uv tool install git+https://github.com/jvanvinkenroye/pdfAnnotater.git
-
-# Oder direkt aus dem geklonten Repository:
-cd /path/to/pdfAnnotater
-uv tool install .
-```
-
-Nach der Installation: `pdf-annotator` im Terminal eingeben.
 
 ### uv tool (plattformuebergreifend)
 
 ```bash
 uv tool install git+https://github.com/jvanvinkenroye/pdfAnnotater.git
+pdf-annotator
 ```
 
-### Manuelle Installation (Entwickler)
-
-```bash
-# Repository klonen
-cd /path/to/pdfAnnotater
-
-# Virtual Environment erstellen
-uv venv --seed
-source .venv/bin/activate
-
-# Dependencies installieren
-uv pip install -e .
-
-# Dev-Dependencies installieren (optional)
-uv pip install -e ".[dev]"
-```
-
-### Manuelle Installation (aus Source)
+### Aus Source (Entwicklung)
 
 ```bash
 git clone https://github.com/jvanvinkenroye/pdfAnnotater.git
 cd pdfAnnotater
-uv venv --seed && source .venv/bin/activate
-uv pip install -e .
+uv sync
 ```
 
-## Verwendung
-
-### Desktop-App starten
-
-Nach der Installation einfach im Terminal:
+**Als Web-Server starten (Entwicklungsmodus):**
 
 ```bash
-pdf-annotator
+uv run flask --app src/pdf_annotator/app:create_app run --port 8000
 ```
 
-Die App startet in einem eigenen Fenster (1400x900 Pixel) ohne Browser-Chrome.
+**Als Desktop-App starten** (eigenes Fenster via flaskwebgui):
 
-### Datenspeicherung
+```bash
+uv run pdf-annotator
+```
 
-Die App speichert alle Daten platform-konform:
+**Als Produktions-Server starten** (Gunicorn, ohne Docker):
+
+```bash
+SECRET_KEY=<dein-key> uv run pdf-annotator-server
+```
+
+### Datenspeicherung (lokal)
 
 | Plattform | Speicherort |
 |-----------|-------------|
 | **macOS** | `~/Library/Application Support/PDF-Annotator/` |
-| **Linux** | `~/.local/share/pdf-annotator/` |
+| **Linux** | `~/.local/share/PDF-Annotator/` |
+| **Docker** | `/data/PDF-Annotator/` (Volume `pdf_annotator_data`) |
 
-Unterordner:
-- `uploads/` - Hochgeladene PDF-Dateien
-- `exports/` - Generierte annotierte PDFs
-- `annotations.db` - Datenbank mit Notizen
+---
 
-### Entwicklungsmodus
+## Workflow
 
-Für Entwicklung (Daten im Projektordner):
+1. **Registrieren / Einloggen:** Ersten Account anlegen (wird automatisch Admin)
+2. **PDF hochladen:** Drag & Drop oder Datei-Auswahl (max. 50 MB)
+3. **Notizen hinzufuegen:** Durch Seiten navigieren, Notizen im rechten Editor erfassen
+4. **Auto-Save:** Speichert automatisch beim Tippen (500 ms Debounce)
+5. **Exportieren:**
+   - **PDF generieren:** Annotiertes PDF mit Notizen in gruener Courier-Schrift + Zeitstempel
+   - **Markdown exportieren:** Alle Notizen als Markdown-Datei (mit Seitenzahlen)
 
-```bash
-source .venv/bin/activate
-FLASK_ENV=development python run_desktop.py
-
-# Oder als Web-Server:
-python src/pdf_annotator/app.py
-```
-
-### Workflow
-
-1. **PDF hochladen:** Öffne `http://127.0.0.1:5000` und lade eine PDF-Datei hoch (max. 50 MB)
-2. **Notizen hinzufügen:** Navigiere durch die Seiten und füge Notizen im rechten Editor hinzu
-3. **Auto-Save:** Notizen werden automatisch gespeichert beim Tippen oder Seitenwechsel
-4. **Exportieren:**
-   - **PDF generieren:** Erstellt annotiertes PDF mit Notizen in grüner Courier-Schrift + Zeitstempel
-   - **Markdown exportieren:** Erstellt Markdown-Datei mit allen Notizen
-
-### Tastatur-Shortcuts
-
-Alle Shortcuts erfordern **Ctrl** (Windows/Linux) bzw. **Cmd** (Mac):
+## Tastatur-Shortcuts
 
 | Shortcut | Funktion |
 |---|---|
@@ -155,28 +201,34 @@ Alle Shortcuts erfordern **Ctrl** (Windows/Linux) bzw. **Cmd** (Mac):
 | Ctrl/Cmd + G | Zu Seite springen |
 | Ctrl/Cmd + Delete/Backspace | Seite loeschen |
 
+---
+
 ## Projektstruktur
 
 ```
 pdfAnnotater/
-├── run_desktop.py              # Desktop-App Launcher
+├── Dockerfile
+├── docker-compose.yml
+├── wsgi.py                     # Gunicorn Entry Point
 ├── src/pdf_annotator/
-│   ├── app.py                  # Flask Entry Point
-│   ├── desktop.py              # Desktop-App Wrapper (flaskwebgui)
+│   ├── app.py                  # Flask App Factory
 │   ├── config.py               # Konfiguration (Dev/Prod/Test)
 │   │
 │   ├── models/
-│   │   └── database.py         # SQLite Schema & CRUD
+│   │   ├── database.py         # SQLite Schema & CRUD
+│   │   └── user.py             # User-Modell (Flask-Login)
 │   │
 │   ├── services/
 │   │   ├── pdf_processor.py    # PDF → PNG Rendering
 │   │   ├── pdf_generator.py    # Annotiertes PDF erstellen
-│   │   └── markdown_exporter.py # Markdown-Export
+│   │   ├── data_manager.py     # Import/Export ZIP
+│   │   └── markdown_exporter.py
 │   │
 │   ├── routes/
-│   │   ├── upload.py           # PDF-Upload
-│   │   ├── viewer.py           # Viewer & API
-│   │   └── export.py           # PDF/Markdown-Download
+│   │   ├── auth.py             # Login, Logout, Registrierung, Theme-API
+│   │   ├── admin.py            # Admin Panel (Benutzerverwaltung)
+│   │   ├── upload.py           # PDF-Upload, Delete, Export, Import
+│   │   └── viewer.py           # Viewer & Annotations-API
 │   │
 │   ├── utils/
 │   │   ├── validators.py       # Input-Validierung
@@ -184,30 +236,40 @@ pdfAnnotater/
 │   │
 │   ├── static/
 │   │   ├── css/styles.css
-│   │   └── js/{upload,viewer}.js
+│   │   └── js/{upload,viewer,documents,theme,modal}.js
 │   │
 │   └── templates/
 │       ├── base.html
-│       ├── index.html          # Upload-Seite
-│       ├── viewer.html         # Viewer
-│       └── error.html
+│       ├── documents.html
+│       ├── viewer.html
+│       ├── auth/{login,register}.html
+│       ├── admin/
+│       └── icons.html          # Lucide SVG Icon-Library
 │
-├── data/                       # Runtime (nicht in Git)
-│   ├── uploads/                # Hochgeladene PDFs
-│   ├── exports/                # Generierte PDFs
-│   └── annotations.db          # SQLite-DB
-│
-├── tests/                      # Pytest Tests
-├── pyproject.toml              # Projekt-Config
-└── ruff.toml                   # Linting-Config
+├── tests/                      # Pytest Tests (114 Tests)
+├── pyproject.toml
+└── ruff.toml
 ```
+
+---
 
 ## Datenbank-Schema
 
 ```sql
--- Dokumente
+CREATE TABLE users (
+    id TEXT PRIMARY KEY,            -- UUID4
+    username TEXT UNIQUE NOT NULL,
+    email TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_active INTEGER DEFAULT 1,
+    is_admin INTEGER DEFAULT 0,
+    theme TEXT DEFAULT NULL         -- 'light' | 'dark' | 'brutalist' | NULL
+);
+
 CREATE TABLE documents (
-    id TEXT PRIMARY KEY,                    -- UUID4
+    id TEXT PRIMARY KEY,            -- UUID4
+    user_id TEXT NOT NULL,
     original_filename TEXT NOT NULL,
     file_path TEXT NOT NULL,
     page_count INTEGER NOT NULL,
@@ -216,10 +278,10 @@ CREATE TABLE documents (
     title TEXT DEFAULT '',
     year TEXT DEFAULT '',
     subject TEXT DEFAULT '',
-    upload_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    upload_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- Notizen
 CREATE TABLE annotations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     doc_id TEXT NOT NULL,
@@ -231,117 +293,94 @@ CREATE TABLE annotations (
 );
 ```
 
+---
+
 ## API-Endpunkte
 
-### Upload
-- `POST /upload` - PDF-Upload mit Validierung
+### Auth
+- `GET/POST /auth/login` - Login
+- `GET/POST /auth/register` - Registrierung
+- `GET /auth/logout` - Logout
+- `POST /auth/theme` - Theme serverseitig speichern (Login erforderlich)
+
+### Dokumente
+- `GET /documents` - Dokumentenliste
+- `POST /upload` - PDF hochladen
+- `DELETE /delete/<doc_id>` - Dokument loeschen
+- `GET /export/backup` - Backup ZIP herunterladen
+- `POST /import` - Backup importieren
 
 ### Viewer
-- `GET /viewer/<doc_id>` - Viewer-Seite laden
-- `GET /viewer/api/page/<doc_id>/<page>` - PDF-Seite als PNG
-- `DELETE /viewer/api/page/<doc_id>/<page>` - Seite aus PDF loeschen
+- `GET /viewer/<doc_id>` - Viewer-Seite
+- `GET /viewer/api/page/<doc_id>/<page>` - Seite als PNG
+- `DELETE /viewer/api/page/<doc_id>/<page>` - Seite loeschen
 - `GET /viewer/api/annotation/<doc_id>/<page>` - Notiz laden
 - `POST /viewer/api/annotation/<doc_id>/<page>` - Notiz speichern
 - `POST /viewer/api/metadata/<doc_id>` - Metadaten aktualisieren
 - `POST /viewer/api/replace/<doc_id>` - PDF ersetzen
 
-### Dokumente
-- `GET /documents` - Dokumentenliste
-- `DELETE /delete/<doc_id>` - Dokument loeschen
-
 ### Export
-- `POST /export/pdf/<doc_id>` - Annotiertes PDF herunterladen
-- `POST /export/markdown/<doc_id>` - Markdown-Datei herunterladen
-- `GET /export/original/<doc_id>` - Original-PDF herunterladen
+- `POST /export/pdf/<doc_id>` - Annotiertes PDF
+- `POST /export/markdown/<doc_id>` - Markdown-Datei
+- `GET /export/original/<doc_id>` - Original-PDF
+
+### Admin
+- `GET /admin/` - Benutzeruebersicht (nur Admins)
+- `POST /admin/user/<id>/toggle-active` - Benutzer aktivieren/deaktivieren
+- `POST /admin/user/<id>/toggle-admin` - Admin-Rechte vergeben/entziehen
+- `DELETE /admin/user/<id>` - Benutzer loeschen
+
+---
 
 ## Entwicklung
 
-### Code-Qualität prüfen
+### Tests
 
 ```bash
-# Linting
-ruff check src/
-
-# Automatische Fixes
-ruff check --fix src/
-
-# Formatierung
-ruff format src/
+uv run pytest tests/ -v
 ```
 
-### Tests ausführen
+### Code-Qualitaet
 
 ```bash
-pytest tests/
+uv run ruff check src/ tests/
+uv run ruff format src/ tests/
 ```
 
-### Type-Checking
-
-```bash
-mypy src/
-```
-
-## Konfiguration
-
-Die Applikation kann über Umgebungsvariablen konfiguriert werden:
-
-- `FLASK_ENV`: `development`, `production`, oder `testing` (Standard: `development`)
-- `SECRET_KEY`: Flask Secret Key (in Produktion setzen!)
-
-Weitere Konfigurationsoptionen in `src/pdf_annotator/config.py`:
-
-- `MAX_CONTENT_LENGTH`: Max. Upload-Größe (Standard: 50 MB)
-- `PDF_RENDER_DPI`: DPI für PDF-Rendering (Standard: 300)
-- `PDF_ANNOTATION_FONTSIZE`: Schriftgröße für Notizen (Standard: 9)
-- `PDF_ANNOTATION_COLOR`: Farbe für Notizen (Standard: Grün `(0, 0.5, 0)`)
+---
 
 ## Technologie-Stack
 
-- **Backend:** Python 3.10+ mit Flask 3.0+
-- **Desktop-Wrapper:** flaskwebgui (natives Fenster ohne Browser-Chrome)
-- **PDF-Handling:** PyMuPDF (fitz) 1.23+ für Rendering und Text-Injektion
+- **Backend:** Python 3.10+ mit Flask 3.0+, Flask-Login, Flask-WTF
+- **WSGI:** Gunicorn (Produktion)
+- **PDF-Handling:** PyMuPDF (fitz) fuer Rendering und Text-Injektion
 - **Frontend:** HTML5, CSS3 (Flexbox), Vanilla JavaScript (Fetch API)
-- **Datenbank:** SQLite (persistente Speicherung)
-- **Code Quality:** Ruff (Linting & Formatting), MyPy (Type Checking)
+- **Icons:** Lucide (inline SVG)
+- **Datenbank:** SQLite
+- **Containerisierung:** Docker (Multi-Stage Build), Docker Compose
+- **Code Quality:** Ruff (Linting & Formatting)
 
 ## Lizenz
 
 Dieses Projekt wurde als Lernprojekt erstellt.
 
-## Bekannte Limitierungen
-
-- **Single-User:** Keine Multi-User-Unterstützung oder Session-Management
-- **Lokale Speicherung:** Alle Daten werden lokal gespeichert
-- **PDF-Rendering:** Sehr große PDFs (100+ Seiten) können Performance-Einbußen haben
-- **Text-Positionierung:** Notizen werden im Footer-Bereich (80px) platziert und können bei sehr langen Notizen überlappen
-
-## Zukuenftige Erweiterungen
-
-- Highlighting direkt im PDF
-- Volltext-Suche in Notizen
-- Export als DOCX/HTML
-
 ## Troubleshooting
 
 ### Fehler beim PDF-Upload
 
-- Prüfe, dass die Datei ein gültiges PDF ist (nicht beschädigt)
-- Prüfe die Dateigröße (max. 50 MB)
-- Prüfe die Logs in `data/app.log`
+- Prüfe, dass die Datei ein gueltiges PDF ist (nicht beschaedigt)
+- Prüfe die Dateigroesse (max. 50 MB)
+- Docker: `docker compose logs -f` fuer Fehlermeldungen
 
-### Fehler beim Rendering
+### Container startet nicht
 
-- PyMuPDF erfordert bestimmte System-Libraries
-- Bei macOS: `brew install mupdf`
-- Bei Ubuntu: `apt-get install mupdf-tools`
+- `SECRET_KEY` nicht gesetzt → `docker compose up` bricht mit Fehlermeldung ab
+- Port 8000 belegt → `ports` in `docker-compose.yml` anpassen (z.B. `"8080:8000"`)
 
-### Datenbank-Fehler
+### Daten zuruecksetzen (Docker)
 
-- Prüfe, dass `data/` Ordner existiert und beschreibbar ist
-- Lösche `data/annotations.db` für einen Neustart
-
-## Kontakt & Support
-
-Bei Fragen oder Problemen:
-- Siehe Logs in `data/app.log`
-- Prüfe die [CLAUDE.md](CLAUDE.md) für technische Spezifikationen
+```bash
+docker compose down
+docker volume rm pdfannotater_pdf_annotator_data
+docker compose up -d
+```
