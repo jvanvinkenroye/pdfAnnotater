@@ -15,10 +15,6 @@ COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-install-project
 
-# Install gunicorn for production WSGI
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install "gunicorn>=23.0.0"
-
 # Copy and install the project itself
 COPY src/ ./src/
 COPY wsgi.py ./

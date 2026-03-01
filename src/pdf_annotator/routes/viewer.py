@@ -20,7 +20,6 @@ from pdf_annotator.services.pdf_processor import (
 from pdf_annotator.utils.logger import get_logger
 from pdf_annotator.utils.validators import (
     validate_doc_id,
-    validate_file_path,
     validate_file_size,
     validate_file_type,
     validate_note_text,
@@ -473,13 +472,10 @@ def replace_pdf(doc_id: str) -> Any:
 
         logger.info(f"Replacing PDF for document {doc_id}")
 
-        # Get file path and validate it
         file_path = Path(doc_info["file_path"])
-        upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
-        is_valid, error_msg = validate_file_path(file_path, upload_folder)
-        if not is_valid:
-            logger.error("Path traversal attempt blocked in replace: %s", file_path)
-            return jsonify({"error": "Ungültiger Dateipfad"}), 400
+        if not file_path.is_file():
+            logger.error("Document file not found: %s", file_path)
+            return jsonify({"error": "Dokumentdatei nicht gefunden"}), 404
 
         # Save new file (overwrites old one)
         file.save(file_path)
@@ -554,11 +550,9 @@ def append_pdf(doc_id: str) -> Any:
             return jsonify({"error": error_msg}), 400
 
         file_path = Path(doc_info["file_path"])
-        upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
-        is_valid, error_msg = validate_file_path(file_path, upload_folder)
-        if not is_valid:
-            logger.error(f"Path traversal attempt blocked in append: {file_path}")
-            return jsonify({"error": "Ungültiger Dateipfad"}), 400
+        if not file_path.is_file():
+            logger.error(f"Document file not found: {file_path}")
+            return jsonify({"error": "Dokumentdatei nicht gefunden"}), 404
 
         # Save uploaded PDF to temp file
         tmp_new = file_path.with_suffix(".append.pdf")
@@ -644,11 +638,9 @@ def delete_page(doc_id: str, page_number: int) -> Any:
 
         # Delete page from PDF (fitz uses 0-indexed pages)
         file_path = Path(doc_info["file_path"])
-        upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
-        is_valid, error_msg = validate_file_path(file_path, upload_folder)
-        if not is_valid:
-            logger.error(f"Path traversal attempt blocked in delete_page: {file_path}")
-            return jsonify({"error": "Ungültiger Dateipfad"}), 400
+        if not file_path.is_file():
+            logger.error(f"Document file not found: {file_path}")
+            return jsonify({"error": "Dokumentdatei nicht gefunden"}), 404
 
         pdf_doc = fitz.open(str(file_path))
         pdf_doc.delete_page(page_number - 1)
