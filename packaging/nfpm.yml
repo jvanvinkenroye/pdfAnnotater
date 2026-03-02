@@ -21,34 +21,25 @@ depends:
 
 contents:
   # Bundled venv + app (shebangs pre-built to point at /opt/pdf-annotator/.venv)
-  - src: dist/staging/opt/pdf-annotator/
+  # Use glob so nfpm recurses into the directory (plain dir paths are not supported)
+  - src: dist/staging/opt/pdf-annotator/**
     dst: /opt/pdf-annotator/
 
   # CLI wrapper: desktop launcher (flaskwebgui)
   - src: dist/staging/usr/bin/pdf-annotator
     dst: /usr/bin/pdf-annotator
-    file_info:
-      mode: 0755
 
   # CLI wrapper: production server (gunicorn)
   - src: dist/staging/usr/bin/pdf-annotator-server
     dst: /usr/bin/pdf-annotator-server
-    file_info:
-      mode: 0755
 
   # systemd unit
   - src: packaging/pdf-annotator.service
     dst: /lib/systemd/system/pdf-annotator.service
 
-  # Config template – not overwritten on upgrade
+  # Config template
   - src: packaging/env.example
     dst: /etc/pdf-annotator/env.example
-
-  # Placeholder so dpkg owns /etc/pdf-annotator/
-  - dst: /etc/pdf-annotator/
-    type: dir
-    file_info:
-      mode: 0750
 
 scripts:
   postinstall: packaging/postinstall.sh

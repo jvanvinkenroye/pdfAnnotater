@@ -100,6 +100,11 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
+          echo "=== Staging layout ==="
+          find dist/staging -maxdepth 3 | head -30
+          echo "=== nfpm.yml ==="
+          cat packaging/nfpm.yml
+          echo "=== Building ==="
           mkdir -p dist
           nfpm package -f packaging/nfpm.yml -p deb -t dist/
           ls -lh dist/*.deb
@@ -132,6 +137,7 @@ jobs:
           echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
 
       - name: Update formula in homebrew tap
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
           TAG: ${{ steps.sha.outputs.tag }}
