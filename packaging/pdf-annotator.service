@@ -1,0 +1,15 @@
+[Unit]
+Description=PDF Annotator Web Service
+After=network.target
+
+[Service]
+Type=simple
+User=pdf-annotator
+EnvironmentFile=/etc/pdf-annotator/env
+Environment=XDG_DATA_HOME=/var/lib/pdf-annotator
+ExecStart=/usr/bin/pdf-annotator-server
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

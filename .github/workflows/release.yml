@@ -6,8 +6,118 @@ on:
       - "v*"
 
 jobs:
+  # ------------------------------------------------------------------
+  # 1. GitHub Release anlegen
+  # ------------------------------------------------------------------
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --title "Release ${{ github.ref_name }}" \
+            --generate-notes
+
+  # ------------------------------------------------------------------
+  # 2. .deb bauen und als Release-Asset hochladen
+  # ------------------------------------------------------------------
+  build-deb:
+    name: Build .deb package
+    needs: create-release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      # Version aus Git-Tag (v0.8.0 → 0.8.0)
+      - name: Extract version
+        id: version
+        run: |
+          TAG="${{ github.ref_name }}"
+          VERSION="${TAG#v}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      # Venv am späteren Installationspfad aufbauen, damit Shebangs stimmen
+      - name: Build venv at target path
+        run: |
+          sudo mkdir -p /opt/pdf-annotator
+          sudo chmod 777 /opt/pdf-annotator
+          UV_PROJECT_ENVIRONMENT=/opt/pdf-annotator/.venv \
+              uv sync --frozen --no-dev --no-editable
+
+      # Staging-Verzeichnis aufbauen
+      - name: Build staging directory
+        run: |
+          mkdir -p dist/staging/opt/pdf-annotator
+          mkdir -p dist/staging/usr/bin
+
+          # Venv + wsgi.py
+          cp -a /opt/pdf-annotator/.venv dist/staging/opt/pdf-annotator/.venv
+          cp wsgi.py dist/staging/opt/pdf-annotator/wsgi.py
+
+          # Wrapper: Desktop-Launcher (flaskwebgui)
+          cat > dist/staging/usr/bin/pdf-annotator << 'EOF'
+          #!/usr/bin/env bash
+          exec /opt/pdf-annotator/.venv/bin/pdf-annotator "$@"
+          EOF
+          chmod 755 dist/staging/usr/bin/pdf-annotator
+
+          # Wrapper: Production-Server (Gunicorn)
+          cat > dist/staging/usr/bin/pdf-annotator-server << 'EOF'
+          #!/usr/bin/env bash
+          exec /opt/pdf-annotator/.venv/bin/gunicorn \
+              --workers "${WORKERS:-4}" \
+              --bind "${BIND:-0.0.0.0:8000}" \
+              --chdir /opt/pdf-annotator \
+              wsgi:app
+          EOF
+          chmod 755 dist/staging/usr/bin/pdf-annotator-server
+
+      # nfpm installieren
+      - name: Install nfpm
+        run: |
+          NFPM_VER="v2.41.4"
+          curl -sfL \
+            "https://github.com/goreleaser/nfpm/releases/download/${NFPM_VER}/nfpm_${NFPM_VER#v}_Linux_x86_64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin nfpm
+          nfpm --version
+
+      # .deb bauen
+      - name: Build .deb
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir -p dist
+          nfpm package -f packaging/nfpm.yml -p deb -t dist/
+          ls -lh dist/*.deb
+
+      # Als Release-Asset hochladen
+      - name: Upload .deb to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ github.ref_name }}" \
+            "dist/pdf-annotator_${{ steps.version.outputs.version }}_amd64.deb"
+
+  # ------------------------------------------------------------------
+  # 3. Homebrew-Formel aktualisieren (bisheriger Job)
+  # ------------------------------------------------------------------
   update-homebrew-tap:
     name: Update Homebrew tap
+    needs: create-release
     runs-on: ubuntu-latest
 
     steps:

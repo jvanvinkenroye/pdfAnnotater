@@ -1,0 +1,55 @@
+# nfpm package manifest for pdf-annotator
+# Docs: https://nfpm.goreleaser.com/configuration/
+#
+# Build with:
+#   VERSION=0.8.0 nfpm package -f packaging/nfpm.yml -p deb -t dist/
+
+name: pdf-annotator
+version: ${VERSION}
+arch: amd64
+platform: linux
+maintainer: "jvanvinkenroye <java@local.dev>"
+description: |
+  PDF annotation tool with side-by-side view for notes.
+  Upload a PDF, annotate it page by page, and export an annotated copy
+  with green Courier timestamps. Includes a web interface served by Gunicorn.
+homepage: "https://github.com/jvanvinkenroye/pdfAnnotater"
+license: MIT
+
+depends:
+  - python3 (>= 3.10)
+
+contents:
+  # Bundled venv + app (shebangs pre-built to point at /opt/pdf-annotator/.venv)
+  - src: dist/staging/opt/pdf-annotator/
+    dst: /opt/pdf-annotator/
+
+  # CLI wrapper: desktop launcher (flaskwebgui)
+  - src: dist/staging/usr/bin/pdf-annotator
+    dst: /usr/bin/pdf-annotator
+    file_info:
+      mode: 0755
+
+  # CLI wrapper: production server (gunicorn)
+  - src: dist/staging/usr/bin/pdf-annotator-server
+    dst: /usr/bin/pdf-annotator-server
+    file_info:
+      mode: 0755
+
+  # systemd unit
+  - src: packaging/pdf-annotator.service
+    dst: /lib/systemd/system/pdf-annotator.service
+
+  # Config template – not overwritten on upgrade
+  - src: packaging/env.example
+    dst: /etc/pdf-annotator/env.example
+
+  # Placeholder so dpkg owns /etc/pdf-annotator/
+  - dst: /etc/pdf-annotator/
+    type: dir
+    file_info:
+      mode: 0750
+
+scripts:
+  postinstall: packaging/postinstall.sh
+  preremove: packaging/preremove.sh
