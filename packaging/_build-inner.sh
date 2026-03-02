@@ -50,11 +50,11 @@ exec /opt/pdf-annotator/.venv/bin/gunicorn \
 EOF
 chmod 755 /workspace/dist/staging/usr/bin/pdf-annotator-server
 
-# --- nfpm installieren ---
-NFPM_VER="v2.41.4"
-curl -sfL \
-    "https://github.com/goreleaser/nfpm/releases/download/${NFPM_VER}/nfpm_${NFPM_VER#v}_Linux_x86_64.tar.gz" \
-    | tar -xz -C /usr/local/bin nfpm
+# --- nfpm installieren (via goreleaser apt-Repository) ---
+echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' \
+    > /etc/apt/sources.list.d/goreleaser.list
+apt-get update -qq
+apt-get install -y -qq nfpm
 
 # --- .deb bauen ---
 mkdir -p /workspace/dist
