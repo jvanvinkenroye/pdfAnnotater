@@ -20,13 +20,16 @@ mkdir -p /opt/pdf-annotator
 uv venv /opt/pdf-annotator/.venv
 
 # Produktions-Abhängigkeiten aus Lockfile exportieren und installieren
+# uv pip install --python vermeidet die Abhängigkeit von pip im Venv
 uv export --frozen --no-dev --no-hashes --format requirements-txt \
     > /tmp/requirements.txt
-/opt/pdf-annotator/.venv/bin/pip install --quiet -r /tmp/requirements.txt
+uv pip install --quiet --python /opt/pdf-annotator/.venv \
+    -r /tmp/requirements.txt
 
 # Projekt selbst als Wheel bauen und installieren (nicht-editable)
 uv build --wheel --out-dir /tmp/pdf-wheel/
-/opt/pdf-annotator/.venv/bin/pip install --quiet --no-deps /tmp/pdf-wheel/*.whl
+uv pip install --quiet --python /opt/pdf-annotator/.venv \
+    --no-deps /tmp/pdf-wheel/*.whl
 
 echo "Shebang check: $(head -1 /opt/pdf-annotator/.venv/bin/pdf-annotator)"
 
