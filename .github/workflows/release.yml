@@ -50,13 +50,28 @@ jobs:
           VERSION="${TAG#v}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
-      # Venv am späteren Installationspfad aufbauen, damit Shebangs stimmen
+      # Venv am späteren Installationspfad aufbauen, damit Shebangs stimmen.
+      # Wir erstellen das Venv direkt bei /opt/pdf-annotator/.venv mit
+      # uv venv + uv export + pip, damit der Pfad im Shebang stimmt.
       - name: Build venv at target path
         run: |
           sudo mkdir -p /opt/pdf-annotator
           sudo chmod 777 /opt/pdf-annotator
-          UV_PROJECT_ENVIRONMENT=/opt/pdf-annotator/.venv \
-              uv sync --frozen --no-dev --no-editable
+
+          # Venv an Ziel-Pfad anlegen (Shebangs zeigen dann auf /opt/pdf-annotator/.venv)
+          uv venv /opt/pdf-annotator/.venv
+
+          # Produktions-Abhängigkeiten exportieren und installieren
+          uv export --frozen --no-dev --no-hashes --format requirements-txt \
+            > /tmp/requirements.txt
+          /opt/pdf-annotator/.venv/bin/pip install --quiet -r /tmp/requirements.txt
+
+          # Projekt selbst als Wheel bauen und installieren (nicht-editable)
+          uv build --wheel --out-dir /tmp/pdf-wheel/
+          /opt/pdf-annotator/.venv/bin/pip install --quiet --no-deps /tmp/pdf-wheel/*.whl
+
+          echo "=== Entry point shebang ==="
+          head -1 /opt/pdf-annotator/.venv/bin/pdf-annotator
 
       # Staging-Verzeichnis aufbauen
       - name: Build staging directory
@@ -86,28 +101,52 @@ jobs:
           EOF
           chmod 755 dist/staging/usr/bin/pdf-annotator-server
 
-      # nfpm installieren (via goreleaser apt-Repository)
-      - name: Install nfpm
-        run: |
-          echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' \
-            | sudo tee /etc/apt/sources.list.d/goreleaser.list
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq nfpm
-          nfpm --version
+          echo "=== Staging layout (ohne .venv-Internals) ==="
+          find dist/staging -not -path '*/.venv/*' | sort
 
-      # .deb bauen
+      # .deb mit dpkg-deb bauen (kein nfpm – vermeidet Glob-Probleme mit tiefen Venvs)
       - name: Build .deb
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          echo "=== Staging layout ==="
-          find dist/staging -maxdepth 3 | head -30
-          echo "=== nfpm.yml ==="
-          cat packaging/nfpm.yml
-          echo "=== Building ==="
-          mkdir -p dist
-          nfpm package -f packaging/nfpm.yml -p deb -t dist/
+          # DEBIAN-Paketstruktur aufbauen
+          mkdir -p dist/deb/DEBIAN
+          mkdir -p dist/deb/usr/bin
+          mkdir -p dist/deb/lib/systemd/system
+          mkdir -p dist/deb/etc/pdf-annotator
+
+          # App + Venv
+          cp -a dist/staging/opt dist/deb/
+
+          # Wrapper-Scripts
+          cp dist/staging/usr/bin/pdf-annotator      dist/deb/usr/bin/
+          cp dist/staging/usr/bin/pdf-annotator-server dist/deb/usr/bin/
+
+          # systemd Unit + Konfig-Template
+          cp packaging/pdf-annotator.service dist/deb/lib/systemd/system/
+          cp packaging/env.example           dist/deb/etc/pdf-annotator/
+
+          # DEBIAN/control (keine führenden Leerzeichen erlaubt!)
+          echo "Package: pdf-annotator"                                   > dist/deb/DEBIAN/control
+          echo "Version: ${VERSION}"                                      >> dist/deb/DEBIAN/control
+          echo "Architecture: amd64"                                      >> dist/deb/DEBIAN/control
+          echo "Maintainer: jvanvinkenroye <java@local.dev>"              >> dist/deb/DEBIAN/control
+          echo "Depends: python3 (>= 3.10)"                              >> dist/deb/DEBIAN/control
+          echo "Homepage: https://github.com/jvanvinkenroye/pdfAnnotater" >> dist/deb/DEBIAN/control
+          echo "Description: PDF annotation tool with side-by-side view"  >> dist/deb/DEBIAN/control
+          echo " PDF annotator with green Courier timestamps and Gunicorn." >> dist/deb/DEBIAN/control
+
+          # Maintainer-Scripts
+          cp packaging/postinstall.sh dist/deb/DEBIAN/postinst
+          cp packaging/preremove.sh   dist/deb/DEBIAN/prerm
+          chmod 755 dist/deb/DEBIAN/postinst dist/deb/DEBIAN/prerm
+
+          # Paket bauen
+          fakeroot dpkg-deb --build dist/deb \
+            "dist/pdf-annotator_${VERSION}_amd64.deb"
+
           ls -lh dist/*.deb
+          dpkg-deb --info "dist/pdf-annotator_${VERSION}_amd64.deb"
 
       # Als Release-Asset hochladen
       - name: Upload .deb to release
