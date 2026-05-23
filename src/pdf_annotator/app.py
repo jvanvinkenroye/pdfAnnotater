@@ -7,7 +7,7 @@ Creates and configures Flask application with all routes and settings.
 import os
 from typing import Any
 
-from flask import Flask
+from flask import Flask, jsonify
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_login import LoginManager
@@ -109,6 +109,19 @@ def create_app(config_name: str | None = None) -> Flask:
     app.register_blueprint(admin_bp, url_prefix="/admin")
 
     logger.info("All blueprints registered")
+
+    @app.route("/health", methods=["GET"])
+    def health_check() -> Any:
+        db_ok = True
+        try:
+            with DatabaseManager().get_connection() as conn:
+                conn.execute("SELECT 1")
+        except Exception:
+            db_ok = False
+        status = "ok" if db_ok else "error"
+        return jsonify({"status": status, "db": status}), (200 if db_ok else 503)
+
+    limiter.exempt(app.view_functions["health_check"])
 
     # Apply stricter rate limits to resource-intensive endpoints
     limiter.limit("5 per minute")(
