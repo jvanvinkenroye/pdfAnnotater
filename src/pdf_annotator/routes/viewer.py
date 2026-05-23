@@ -9,6 +9,7 @@ from typing import Any
 
 import fitz
 from flask import Blueprint, Response, current_app, jsonify, render_template, request
+from flask.typing import ResponseReturnValue
 from flask_login import current_user, login_required
 
 from pdf_annotator.models.database import DatabaseManager
@@ -133,7 +134,7 @@ def view_document(doc_id: str) -> Any:
 
 @viewer_bp.route("/api/page/<doc_id>/<int:page_number>", methods=["GET"])
 @login_required
-def get_page_image(doc_id: str, page_number: int) -> Response:
+def get_page_image(doc_id: str, page_number: int) -> ResponseReturnValue:
     """
     Render PDF page as PNG image.
 
@@ -151,11 +152,14 @@ def get_page_image(doc_id: str, page_number: int) -> Response:
         doc_info, err = _get_doc_or_error(doc_id)
         if err is not None:
             return err
+        assert doc_info is not None
 
         # Validate page number
         is_valid, error_msg = validate_page_number(page_number, doc_info["page_count"])
         if not is_valid:
-            logger.warning("Invalid page number %d for document %s", page_number, doc_id)
+            logger.warning(
+                "Invalid page number %d for document %s", page_number, doc_id
+            )
             return jsonify({"error": error_msg}), 400
 
         # Render page
@@ -205,13 +209,16 @@ def get_annotation(doc_id: str, page_number: int) -> Any:
         doc_info, err = _get_doc_or_error(doc_id)
         if err is not None:
             return err
+        assert doc_info is not None
 
         db = DatabaseManager()
 
         # Validate page number
         is_valid, error_msg = validate_page_number(page_number, doc_info["page_count"])
         if not is_valid:
-            logger.warning("Invalid page number %d for document %s", page_number, doc_id)
+            logger.warning(
+                "Invalid page number %d for document %s", page_number, doc_id
+            )
             return jsonify({"error": error_msg}), 400
 
         # Get annotation
@@ -268,13 +275,16 @@ def save_annotation(doc_id: str, page_number: int) -> Any:
         doc_info, err = _get_doc_or_error(doc_id)
         if err is not None:
             return err
+        assert doc_info is not None
 
         db = DatabaseManager()
 
         # Validate page number
         is_valid, error_msg = validate_page_number(page_number, doc_info["page_count"])
         if not is_valid:
-            logger.warning("Invalid page number %d for document %s", page_number, doc_id)
+            logger.warning(
+                "Invalid page number %d for document %s", page_number, doc_id
+            )
             return jsonify({"error": error_msg}), 400
 
         # Get note text from request
@@ -296,6 +306,7 @@ def save_annotation(doc_id: str, page_number: int) -> Any:
 
         # Get updated annotation to return timestamp
         annotation = db.get_annotation(doc_id, page_number)
+        assert annotation is not None
 
         logger.info(f"Saved annotation for page {page_number} of document {doc_id}")
 
@@ -438,6 +449,7 @@ def replace_pdf(doc_id: str) -> Any:
         doc_info, err = _get_doc_or_error(doc_id)
         if err is not None:
             return err
+        assert doc_info is not None
 
         db = DatabaseManager()
 
@@ -520,6 +532,7 @@ def append_pdf(doc_id: str) -> Any:
         doc_info, err = _get_doc_or_error(doc_id)
         if err is not None:
             return err
+        assert doc_info is not None
 
         db = DatabaseManager()
 
@@ -577,8 +590,20 @@ def append_pdf(doc_id: str) -> Any:
 
         clear_render_cache()
 
-        new_page_count = get_page_count(file_path)
-        db.update_page_count(doc_id, new_page_count)
+        old_page_count = doc_info["page_count"]
+        new_page_count = old_page_count + added_pages
+        with db.get_connection() as conn:
+            conn.execute(
+                "UPDATE documents SET page_count = ? WHERE id = ?",
+                (new_page_count, doc_id),
+            )
+            for p in range(old_page_count + 1, new_page_count + 1):
+                conn.execute(
+                    """INSERT INTO annotations (doc_id, page_number, note_text)
+                       VALUES (?, ?, '')
+                       ON CONFLICT(doc_id, page_number) DO NOTHING""",
+                    (doc_id, p),
+                )
 
         logger.info(
             f"Appended {added_pages} pages to document {doc_id}, "
@@ -621,6 +646,7 @@ def delete_page(doc_id: str, page_number: int) -> Any:
         doc_info, err = _get_doc_or_error(doc_id)
         if err is not None:
             return err
+        assert doc_info is not None
 
         db = DatabaseManager()
 
@@ -652,9 +678,8 @@ def delete_page(doc_id: str, page_number: int) -> Any:
         # Clear render cache
         clear_render_cache()
 
-        # Delete annotation for this page and renumber subsequent ones
-        db.delete_annotation(doc_id, page_number)
-        db.renumber_annotations_after_delete(doc_id, page_number)
+        # Delete annotation, renumber subsequent pages and decrement count atomically
+        db.delete_annotation_and_renumber(doc_id, page_number)
 
         new_page_count = doc_info["page_count"] - 1
 
