@@ -80,10 +80,12 @@
             pageLoading.style.display = 'none';
         };
         img.onerror = function() {
-            pageLoading.textContent = '';
+            pageLoading.innerHTML = '';
+            pageLoading.style.display = 'flex';
+            pdfPage.style.display = 'none';
             const errorP = document.createElement('p');
             errorP.classList.add('error-text');
-            errorP.textContent = 'Fehler beim Laden der Seite';
+            errorP.textContent = 'Fehler beim Laden der Seite. Bitte Seite neu laden.';
             pageLoading.appendChild(errorP);
         };
         img.src = pageUrl;

@@ -83,7 +83,7 @@
         btn.addEventListener('click', function(event) {
             event.preventDefault();
             const docId = this.dataset.docId;
-            downloadFile(`/export/pdf/${docId}`, 'POST');
+            downloadFile(`/export/pdf/${docId}`, 'POST', this);
         });
     });
 
@@ -91,11 +91,13 @@
         btn.addEventListener('click', function(event) {
             event.preventDefault();
             const docId = this.dataset.docId;
-            downloadFile(`/export/markdown/${docId}`, 'POST');
+            downloadFile(`/export/markdown/${docId}`, 'POST', this);
         });
     });
 
-    function downloadFile(url, method) {
+    function downloadFile(url, method, btn) {
+        const originalText = btn ? btn.textContent : null;
+        if (btn) { btn.disabled = true; btn.textContent = '...'; }
         fetch(url, {
             method: method,
             headers: { 'X-CSRFToken': csrfToken },
@@ -134,6 +136,9 @@
             .catch(error => {
                 console.error('Error downloading file:', error);
                 showToast('Fehler beim Herunterladen der Datei', 'error');
+            })
+            .finally(() => {
+                if (btn) { btn.disabled = false; btn.textContent = originalText; }
             });
     }
 
