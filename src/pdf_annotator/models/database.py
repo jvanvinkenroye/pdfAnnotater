@@ -63,6 +63,7 @@ class DatabaseManager:
         conn = sqlite3.connect(str(self._db_path))
         conn.row_factory = sqlite3.Row  # Enable column access by name
         conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute("PRAGMA journal_mode=WAL")
         try:
             yield conn
             conn.commit()
@@ -141,9 +142,7 @@ class DatabaseManager:
 
             # Add theme column to users table if it doesn't exist
             try:
-                cursor.execute(
-                    "ALTER TABLE users ADD COLUMN theme TEXT DEFAULT NULL"
-                )
+                cursor.execute("ALTER TABLE users ADD COLUMN theme TEXT DEFAULT NULL")
             except sqlite3.OperationalError:
                 pass  # Column already exists
 
@@ -175,6 +174,13 @@ class DatabaseManager:
                 """
                 CREATE INDEX IF NOT EXISTS idx_annotations_page
                 ON annotations(doc_id, page_number)
+            """
+            )
+
+            cursor.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_annotations_updated_at
+                ON annotations(updated_at)
             """
             )
 
@@ -323,7 +329,7 @@ class DatabaseManager:
                 """,
                     (first_name, last_name, title, year, subject, doc_id),
                 )
-                return cursor.rowcount > 0
+                return bool(cursor.rowcount > 0)
         except sqlite3.Error:
             return False
 
@@ -431,7 +437,7 @@ class DatabaseManager:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
-            return cursor.rowcount > 0
+            return bool(cursor.rowcount > 0)
 
     def update_page_count(self, doc_id: str, page_count: int) -> bool:
         """
@@ -451,7 +457,7 @@ class DatabaseManager:
                     "UPDATE documents SET page_count = ? WHERE id = ?",
                     (page_count, doc_id),
                 )
-                return cursor.rowcount > 0
+                return bool(cursor.rowcount > 0)
         except sqlite3.Error:
             return False
 
@@ -472,7 +478,7 @@ class DatabaseManager:
                 "DELETE FROM annotations WHERE doc_id = ? AND page_number = ?",
                 (doc_id, page_number),
             )
-            return cursor.rowcount > 0
+            return bool(cursor.rowcount > 0)
 
     def renumber_annotations_after_delete(self, doc_id: str, deleted_page: int) -> None:
         """
@@ -499,6 +505,30 @@ class DatabaseManager:
                 SET page_count = page_count - 1
                 WHERE id = ?
             """,
+                (doc_id,),
+            )
+
+    def delete_annotation_and_renumber(self, doc_id: str, deleted_page: int) -> None:
+        """
+        Atomically delete a page's annotation, renumber subsequent pages,
+        and decrement the document's page count in a single transaction.
+
+        Args:
+            doc_id: UUID of document
+            deleted_page: Page number deleted (1-indexed)
+        """
+        with self.get_connection() as conn:
+            conn.execute(
+                "DELETE FROM annotations WHERE doc_id = ? AND page_number = ?",
+                (doc_id, deleted_page),
+            )
+            conn.execute(
+                "UPDATE annotations SET page_number = page_number - 1 "
+                "WHERE doc_id = ? AND page_number > ?",
+                (doc_id, deleted_page),
+            )
+            conn.execute(
+                "UPDATE documents SET page_count = page_count - 1 WHERE id = ?",
                 (doc_id,),
             )
 
@@ -678,7 +708,7 @@ class DatabaseManager:
                 """,
                     (1 if is_active else 0, user_id),
                 )
-                return cursor.rowcount > 0
+                return bool(cursor.rowcount > 0)
         except sqlite3.Error:
             return False
 
@@ -707,7 +737,7 @@ class DatabaseManager:
                 """,
                     (1 if is_admin else 0, user_id),
                 )
-                return cursor.rowcount > 0
+                return bool(cursor.rowcount > 0)
         except sqlite3.Error:
             return False
 
@@ -729,7 +759,7 @@ class DatabaseManager:
             with self.get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
-                return cursor.rowcount > 0
+                return bool(cursor.rowcount > 0)
         except sqlite3.Error:
             return False
 
@@ -782,6 +812,6 @@ class DatabaseManager:
                     "UPDATE users SET theme = ? WHERE id = ?",
                     (theme, user_id),
                 )
-                return cursor.rowcount > 0
+                return bool(cursor.rowcount > 0)
         except sqlite3.Error:
             return False
