@@ -1,5 +1,16 @@
 # Spezifikation: PDF Side-by-Side Annotator
 
+## Reference Documentation
+
+Detailed reference docs are in `/ref/`:
+
+- [`ref/architecture.md`](ref/architecture.md) — App factory, blueprint layout, layer diagram, config environments, key design decisions
+- [`ref/api.md`](ref/api.md) — All HTTP endpoints with methods, paths, auth requirements
+- [`ref/database.md`](ref/database.md) — Schema, DatabaseManager methods, timestamp handling, testing notes
+- [`ref/services.md`](ref/services.md) — pdf_processor, pdf_generator, markdown_exporter, data_manager
+- [`ref/frontend.md`](ref/frontend.md) — Templates, JS files, keyboard shortcuts, icon macro usage
+- [`ref/development.md`](ref/development.md) — Setup, test fixtures, linting, packaging, gotchas
+
 ## 1. Projektübersicht
 
 Eine Web-Applikation auf Flask-Basis, die es Benutzern ermöglicht, PDF-Dokumente hochzuladen, diese seitenweise zu betrachten und pro Seite textuelle Notizen zu erfassen. Die Notizen werden anschließend mit Zeitstempeln in das PDF integriert (grüne Fixed-Width Schrift).
