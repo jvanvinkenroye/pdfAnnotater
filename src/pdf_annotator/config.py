@@ -72,7 +72,7 @@ class Config:
     MAX_NOTE_LENGTH = 5000
 
     # Database settings
-    DATABASE_PATH = BASE_DIR / "data" / "annotations.db"
+    DATABASE_PATH: Path | str = BASE_DIR / "data" / "annotations.db"
 
     # PDF rendering settings
     PDF_RENDER_DPI = 150  # DPI for browser preview (lower = faster)
@@ -93,10 +93,10 @@ class Config:
         Args:
             app: Flask application instance
         """
-        # Ensure required directories exist
         Config.UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
         Config.EXPORT_FOLDER.mkdir(parents=True, exist_ok=True)
-        Config.DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        if isinstance(Config.DATABASE_PATH, Path):
+            Config.DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 
 class DevelopmentConfig(Config):

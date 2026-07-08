@@ -126,7 +126,7 @@ def _render_page_cached(file_path: str, page_num: int, dpi: int) -> bytes:
         pix.width,
         pix.height,
     )
-    return png_bytes
+    return bytes(png_bytes)
 
 
 def render_page_to_image(file_path: str, page_num: int, dpi: int = 300) -> bytes | None:

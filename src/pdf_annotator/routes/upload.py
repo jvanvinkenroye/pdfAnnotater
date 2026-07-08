@@ -306,7 +306,7 @@ def export_data() -> Any:
         logger.info(f"Data exported to: {zip_path}")
 
         # Send file and delete after
-        return send_file(
+        return send_file(  # type: ignore[call-arg]
             zip_path,
             mimetype="application/zip",
             as_attachment=True,

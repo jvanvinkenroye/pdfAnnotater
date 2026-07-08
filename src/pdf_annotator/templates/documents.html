@@ -53,7 +53,7 @@
                     <td data-label="Jahr">{{ doc.year | e if doc.year else '-' }}</td>
                     <td data-label="Thema">{{ doc.subject | e if doc.subject else '-' }}</td>
                     <td class="center" data-label="Seiten">{{ doc.page_count }}</td>
-                    <td data-label="Hochgeladen">{{ doc.upload_timestamp.strftime('%Y-%m-%d %H:%M') if doc.upload_timestamp else '-' }}</td>
+                    <td data-label="Hochgeladen">{{ doc.upload_timestamp[:16] if doc.upload_timestamp else '-' }}</td>
                     <td data-label="Bearbeitet">{{ doc.last_edited[:16] if doc.last_edited else '-' }}</td>
                     <td class="actions-cell" data-label="Aktionen">
                         <a href="{{ url_for('viewer.view_document', doc_id=doc.id) }}" class="btn btn-primary btn-sm" title="Dokument bearbeiten">

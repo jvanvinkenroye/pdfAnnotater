@@ -69,9 +69,10 @@ class DataManager:
             )
 
         # Collect documents to export
+        documents: list[dict[str, Any]]
         if doc_ids:
-            documents = [self.db.get_document(doc_id) for doc_id in doc_ids]
-            documents = [doc for doc in documents if doc is not None]
+            raw_docs = [self.db.get_document(doc_id) for doc_id in doc_ids]
+            documents = [doc for doc in raw_docs if doc is not None]
         else:
             # Note: This is for backward compatibility with single-user mode
             # In production, get_all_documents should not be called without user_id
@@ -313,9 +314,10 @@ class DataManager:
                 - annotation_count: Total annotations
                 - estimated_size_mb: Estimated archive size
         """
+        documents: list[dict[str, Any]]
         if doc_ids:
-            documents = [self.db.get_document(doc_id) for doc_id in doc_ids]
-            documents = [doc for doc in documents if doc is not None]
+            raw_docs = [self.db.get_document(doc_id) for doc_id in doc_ids]
+            documents = [doc for doc in raw_docs if doc is not None]
         else:
             documents = []
 

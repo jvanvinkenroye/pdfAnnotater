@@ -46,9 +46,10 @@ Key fixtures (always use these, never instantiate DB directly):
 ```bash
 uv run ruff check .              # lint
 uv run ruff format .             # format (max line 88)
+uv run mypy src/                 # type check (ignore_missing_imports = true)
 ```
 
-Config: `ruff.toml`
+Config: `ruff.toml`, `pyproject.toml [tool.mypy]`
 
 ## Important Gotchas
 

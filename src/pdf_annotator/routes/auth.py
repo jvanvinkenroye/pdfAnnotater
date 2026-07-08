@@ -7,6 +7,7 @@ Provides endpoints for user authentication and session management.
 import sqlite3
 
 from flask import Blueprint, jsonify, redirect, render_template, request, url_for
+from flask.typing import ResponseReturnValue
 from flask_login import current_user, login_required, login_user, logout_user
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -17,13 +18,13 @@ auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
 
 
 @auth_bp.route("/login", methods=["GET"])
-def login() -> str:
+def login() -> ResponseReturnValue:
     """Display login form."""
     return render_template("auth/login.html")
 
 
 @auth_bp.route("/login", methods=["POST"])
-def login_post() -> str | tuple:
+def login_post() -> ResponseReturnValue:
     """
     Handle login form submission.
 
@@ -74,20 +75,20 @@ def login_post() -> str | tuple:
 
 @auth_bp.route("/logout", methods=["GET"])
 @login_required
-def logout() -> str:
+def logout() -> ResponseReturnValue:
     """Log out current user and redirect to login page."""
     logout_user()
     return redirect(url_for("auth.login"))
 
 
 @auth_bp.route("/register", methods=["GET"])
-def register() -> str:
+def register() -> ResponseReturnValue:
     """Display registration form."""
     return render_template("auth/register.html")
 
 
 @auth_bp.route("/register", methods=["POST"])
-def register_post() -> str | tuple:
+def register_post() -> ResponseReturnValue:
     """
     Handle registration form submission.
 
@@ -187,7 +188,7 @@ def register_post() -> str | tuple:
 
 @auth_bp.route("/theme", methods=["POST"])
 @login_required
-def set_theme():
+def set_theme() -> ResponseReturnValue:
     """
     Save theme preference for the current user.
 
