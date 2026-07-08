@@ -10,6 +10,7 @@ Detailed reference docs are in `/ref/`:
 - [`ref/services.md`](ref/services.md) — pdf_processor, pdf_generator, markdown_exporter, data_manager
 - [`ref/frontend.md`](ref/frontend.md) — Templates, JS files, keyboard shortcuts, icon macro usage
 - [`ref/development.md`](ref/development.md) — Setup, test fixtures, linting, packaging, gotchas
+- [`ref/packaging-briefcase-evaluation.md`](ref/packaging-briefcase-evaluation.md) — BeeWare Briefcase/Toga als Desktop-Packaging-Alternative: evaluiert, zurückgestellt, offene Punkte für spätere Wiederaufnahme
 
 ## 1. Projektübersicht
 
