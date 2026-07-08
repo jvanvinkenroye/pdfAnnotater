@@ -61,6 +61,7 @@ Config: `ruff.toml`, `pyproject.toml [tool.mypy]`
 - **PyMuPDF save()** — cannot save in-place; always use temp file + `replace()`
 - **sanitize_filename** — preserves Unicode (Umlaute) intentionally; werkzeug would strip them
 - **WAL mode** — persistent after first connection; silent no-op on `:memory:`
+- **DESKTOP_MODE** — never set `PDF_ANNOTATOR_DESKTOP_MODE=1` on server/Docker deployments; it makes export routes write files directly into `DESKTOP_EXPORT_DIR` on the server's disk instead of streaming them to the client. Only meant for WebView-based desktop shells (e.g. a future Toga/Briefcase packaging) that cannot handle `Content-Disposition: attachment` responses. `flaskwebgui` (current desktop app) is unaffected — it uses a real Chrome process with a working native download manager.
 
 ## Packaging
 

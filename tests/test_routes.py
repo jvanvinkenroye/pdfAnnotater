@@ -5,6 +5,7 @@ Tests upload, viewer, annotation, metadata, delete, and export endpoints.
 """
 
 import json
+from pathlib import Path
 
 
 class TestUploadRoutes:
@@ -315,3 +316,59 @@ class TestExportRoutes:
         data = response.get_json()
         assert "document_count" in data
         assert "annotation_count" in data
+
+
+class TestDesktopModeExports:
+    """Test DESKTOP_MODE: exports are written to disk instead of streamed,
+    since WebView-based desktop shells (e.g. Toga) cannot handle
+    Content-Disposition: attachment responses."""
+
+    def test_export_pdf_desktop_mode(
+        self, app, logged_in_client, uploaded_pdf, tmp_path, monkeypatch
+    ):
+        monkeypatch.setitem(app.config, "DESKTOP_MODE", True)
+        monkeypatch.setitem(app.config, "DESKTOP_EXPORT_DIR", tmp_path)
+
+        response = logged_in_client.post(f"/export/pdf/{uploaded_pdf}")
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["success"] is True
+        assert Path(data["path"]).exists()
+        assert Path(data["path"]).parent == tmp_path
+
+    def test_export_markdown_desktop_mode(
+        self, app, logged_in_client, uploaded_pdf, tmp_path, monkeypatch
+    ):
+        monkeypatch.setitem(app.config, "DESKTOP_MODE", True)
+        monkeypatch.setitem(app.config, "DESKTOP_EXPORT_DIR", tmp_path)
+
+        response = logged_in_client.post(f"/export/markdown/{uploaded_pdf}")
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["success"] is True
+        assert Path(data["path"]).exists()
+
+    def test_export_original_pdf_desktop_mode(
+        self, app, logged_in_client, uploaded_pdf, tmp_path, monkeypatch
+    ):
+        monkeypatch.setitem(app.config, "DESKTOP_MODE", True)
+        monkeypatch.setitem(app.config, "DESKTOP_EXPORT_DIR", tmp_path)
+
+        response = logged_in_client.get(f"/export/original/{uploaded_pdf}")
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["success"] is True
+        assert Path(data["path"]).exists()
+
+    def test_export_data_desktop_mode(
+        self, app, logged_in_client, uploaded_pdf, tmp_path, monkeypatch
+    ):
+        monkeypatch.setitem(app.config, "DESKTOP_MODE", True)
+        monkeypatch.setitem(app.config, "DESKTOP_EXPORT_DIR", tmp_path)
+
+        response = logged_in_client.get("/export")
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["success"] is True
+        assert Path(data["path"]).exists()
+        assert Path(data["path"]).suffix == ".zip"

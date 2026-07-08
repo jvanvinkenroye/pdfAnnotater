@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from flask import Blueprint, current_app, jsonify, send_file
+from flask import Blueprint, current_app, jsonify
 from flask_login import current_user, login_required
 
 from pdf_annotator.models.database import DatabaseManager
@@ -21,6 +21,7 @@ from pdf_annotator.services.pdf_generator import (
     create_annotated_pdf,
     generate_annotated_filename,
 )
+from pdf_annotator.utils.downloads import send_file_response
 from pdf_annotator.utils.logger import get_logger
 from pdf_annotator.utils.validators import validate_doc_id, validate_file_path
 
@@ -109,12 +110,7 @@ def download_original_pdf(doc_id: str) -> Any:
         # Send file
         original_filename = doc_info["original_filename"]
         logger.info(f"Sending original PDF: {original_filename}")
-        return send_file(
-            file_path,
-            as_attachment=True,
-            download_name=original_filename,
-            mimetype="application/pdf",
-        )
+        return send_file_response(file_path, original_filename, "application/pdf")
 
     except Exception as e:
         logger.error(
@@ -206,12 +202,7 @@ def export_pdf(doc_id: str) -> Any:
 
         # Send file
         logger.info(f"Sending annotated PDF: {export_filename}")
-        return send_file(
-            export_path,
-            as_attachment=True,
-            download_name=export_filename,
-            mimetype="application/pdf",
-        )
+        return send_file_response(export_path, export_filename, "application/pdf")
 
     except Exception as e:
         logger.error(f"Error exporting PDF for document {doc_id}: {e}", exc_info=True)
@@ -293,12 +284,7 @@ def export_markdown(doc_id: str) -> Any:
 
         # Send file
         logger.info(f"Sending Markdown file: {export_filename}")
-        return send_file(
-            export_path,
-            as_attachment=True,
-            download_name=export_filename,
-            mimetype="text/markdown",
-        )
+        return send_file_response(export_path, export_filename, "text/markdown")
 
     except Exception as e:
         logger.error(

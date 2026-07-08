@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import secrets
+import subprocess
 import sys
 import warnings
 from pathlib import Path
@@ -39,6 +40,33 @@ def get_data_dir() -> Path:
         base = Path(xdg_data)
 
     return base / app_name
+
+
+def get_downloads_dir() -> Path:
+    """
+    Get platform-specific Downloads directory, used by DESKTOP_MODE exports.
+
+    Returns:
+        Path to the user's Downloads directory:
+        - macOS/Windows: ~/Downloads
+        - Linux: `xdg-user-dir DOWNLOAD` output if available, else ~/Downloads
+    """
+    if sys.platform not in ("darwin", "win32"):
+        try:
+            result = subprocess.run(  # noqa: S603
+                ["xdg-user-dir", "DOWNLOAD"],  # noqa: S607
+                capture_output=True,
+                text=True,
+                timeout=2,
+                check=True,
+            )
+            xdg_path = result.stdout.strip()
+            if xdg_path:
+                return Path(xdg_path)
+        except (OSError, subprocess.SubprocessError):
+            pass
+
+    return Path.home() / "Downloads"
 
 
 class Config:
@@ -73,6 +101,13 @@ class Config:
 
     # Database settings
     DATABASE_PATH: Path | str = BASE_DIR / "data" / "annotations.db"
+
+    # Desktop-Mode: export routes write directly to disk instead of streaming
+    # an HTTP download. Needed for WebView-based desktop shells (e.g. Toga)
+    # that cannot handle Content-Disposition: attachment responses. Must
+    # never be enabled for server/Docker deployments.
+    DESKTOP_MODE = os.environ.get("PDF_ANNOTATOR_DESKTOP_MODE") == "1"
+    DESKTOP_EXPORT_DIR: Path = get_downloads_dir()
 
     # PDF rendering settings
     PDF_RENDER_DPI = 150  # DPI for browser preview (lower = faster)

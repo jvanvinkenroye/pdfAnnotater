@@ -95,6 +95,17 @@
         });
     });
 
+    // Original-PDF link: only intercept in Desktop-Mode (WebView cannot handle
+    // Content-Disposition downloads); in the browser the plain link works fine.
+    document.querySelectorAll('.btn-download-original').forEach(btn => {
+        btn.addEventListener('click', function(event) {
+            if (!window.__desktopMode) return;
+            event.preventDefault();
+            const docId = this.dataset.docId;
+            downloadFile(`/export/original/${docId}`, 'GET', this);
+        });
+    });
+
     function downloadFile(url, method, btn) {
         const originalText = btn ? btn.textContent : null;
         if (btn) { btn.disabled = true; btn.textContent = '...'; }
@@ -107,6 +118,12 @@
                     throw new Error('Download failed');
                 }
 
+                if (window.__desktopMode) {
+                    // Desktop-Mode: server already wrote the file to disk and
+                    // returns JSON with the saved path instead of a blob.
+                    return response.json().then(data => ({ desktopMode: true, data }));
+                }
+
                 // Extract filename from Content-Disposition header
                 const contentDisposition = response.headers.get('Content-Disposition');
                 let filename = 'download';
@@ -117,15 +134,20 @@
                     }
                 }
 
-                return response.blob().then(blob => ({ blob, filename }));
+                return response.blob().then(blob => ({ desktopMode: false, blob, filename }));
             })
-            .then(({ blob, filename }) => {
+            .then(result => {
+                if (result.desktopMode) {
+                    showToast(`Gespeichert unter: ${result.data.path}`, 'success');
+                    return;
+                }
+
                 // Create download link
-                const downloadUrl = window.URL.createObjectURL(blob);
+                const downloadUrl = window.URL.createObjectURL(result.blob);
                 const a = document.createElement('a');
                 a.style.display = 'none';
                 a.href = downloadUrl;
-                a.download = filename;
+                a.download = result.filename;
                 document.body.appendChild(a);
                 a.click();
 
@@ -272,7 +294,10 @@
                         `Fortfahren?`;
 
                     showConfirm(msg).then(function(confirmed) {
-                        if (confirmed) {
+                        if (!confirmed) return;
+                        if (window.__desktopMode) {
+                            downloadFile('/export', 'GET', exportBtn);
+                        } else {
                             window.location.href = '/export';
                         }
                     });

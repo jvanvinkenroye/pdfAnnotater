@@ -16,7 +16,6 @@ from flask import (
     redirect,
     render_template,
     request,
-    send_file,
     url_for,
 )
 from flask_login import current_user, login_required
@@ -24,6 +23,7 @@ from flask_login import current_user, login_required
 from pdf_annotator.models.database import DatabaseManager
 from pdf_annotator.services.data_manager import DataManager
 from pdf_annotator.services.pdf_processor import get_page_count, validate_pdf
+from pdf_annotator.utils.downloads import send_file_response
 from pdf_annotator.utils.logger import get_logger
 from pdf_annotator.utils.validators import (
     sanitize_filename,
@@ -305,13 +305,7 @@ def export_data() -> Any:
 
         logger.info(f"Data exported to: {zip_path}")
 
-        # Send file and delete after
-        return send_file(  # type: ignore[call-arg]
-            zip_path,
-            mimetype="application/zip",
-            as_attachment=True,
-            download_name=zip_path.name,
-        )
+        return send_file_response(zip_path, zip_path.name, "application/zip")
 
     except Exception as e:
         logger.error(f"Export failed: {e}", exc_info=True)
@@ -398,13 +392,8 @@ def import_data() -> Any:
             logger.info(f"Import completed: {stats}")
 
             # Check if anything was imported
-            if (
-                stats["documents_imported"] == 0
-                and stats["annotations_imported"] == 0
-            ):
-                logger.warning(
-                    f"Import resulted in no data: {stats}"
-                )
+            if stats["documents_imported"] == 0 and stats["annotations_imported"] == 0:
+                logger.warning(f"Import resulted in no data: {stats}")
                 return jsonify(
                     {
                         "success": False,
@@ -451,5 +440,7 @@ def import_data() -> Any:
     except Exception as e:
         logger.error(f"Import failed: {e}", exc_info=True)
         return jsonify(
-            {"error": "Fehler beim Importieren der Daten. Bitte versuchen Sie es später."}
+            {
+                "error": "Fehler beim Importieren der Daten. Bitte versuchen Sie es später."
+            }
         ), 500

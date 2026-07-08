@@ -62,7 +62,7 @@
                         <button class="btn btn-secondary btn-sm btn-download btn-replace" title="PDF ersetzen" data-doc-id="{{ doc.id }}">
                             Ersetzen
                         </button>
-                        <a href="{{ url_for('export.download_original_pdf', doc_id=doc.id) }}" class="btn btn-secondary btn-sm btn-download" title="Original-PDF herunterladen">
+                        <a href="{{ url_for('export.download_original_pdf', doc_id=doc.id) }}" class="btn btn-secondary btn-sm btn-download btn-download-original" title="Original-PDF herunterladen" data-doc-id="{{ doc.id }}">
                             PDF
                         </a>
                         <a href="{{ url_for('export.export_pdf', doc_id=doc.id) }}" class="btn btn-secondary btn-sm btn-download btn-export-pdf" title="Annotiertes PDF herunterladen" data-doc-id="{{ doc.id }}">

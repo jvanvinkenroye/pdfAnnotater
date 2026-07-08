@@ -11,6 +11,7 @@
     <script>
         window.__userTheme = {{ (current_user.theme | tojson) if current_user.is_authenticated and current_user.theme else 'null' }};
         window.__userAuthenticated = {{ 'true' if current_user.is_authenticated else 'false' }};
+        window.__desktopMode = {{ 'true' if config.DESKTOP_MODE else 'false' }};
     </script>
     <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
     <style>
