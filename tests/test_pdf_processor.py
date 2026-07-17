@@ -8,8 +8,11 @@ import pytest
 
 from pdf_annotator.services.pdf_processor import (
     clear_render_cache,
+    clear_text_layout_cache,
     get_cache_info,
     get_page_count,
+    get_page_dimensions,
+    get_page_text_layout,
     render_page_to_image,
     validate_pdf,
 )
@@ -95,3 +98,39 @@ class TestCache:
         assert "misses" in info
         assert "size" in info
         assert "maxsize" in info
+
+
+class TestGetPageTextLayout:
+    """Test word/bbox text extraction for the selectable text overlay."""
+
+    def setup_method(self):
+        clear_text_layout_cache()
+
+    def test_page_dimensions_match_get_page_dimensions(self, sample_pdf):
+        width, height = get_page_dimensions(sample_pdf, 1)
+        layout = get_page_text_layout(str(sample_pdf), 1)
+        assert layout["page_width"] == width
+        assert layout["page_height"] == height
+
+    def test_words_have_well_formed_bboxes(self, sample_pdf):
+        layout = get_page_text_layout(str(sample_pdf), 1)
+        words = [w for line in layout["lines"] for w in line["words"]]
+        assert words
+        for word in words:
+            assert word["x0"] < word["x1"]
+            assert word["y0"] < word["y1"]
+
+    def test_extracts_known_text(self, sample_pdf):
+        layout = get_page_text_layout(str(sample_pdf), 1)
+        words = [w["text"] for line in layout["lines"] for w in line["words"]]
+        assert "Test" in words
+        assert "Page" in words
+
+    def test_invalid_page_raises(self, sample_pdf):
+        with pytest.raises(ValueError):
+            get_page_text_layout(str(sample_pdf), 99)
+
+    def test_clear_text_layout_cache(self, sample_pdf):
+        get_page_text_layout(str(sample_pdf), 1)
+        clear_text_layout_cache()
+        assert get_page_text_layout.cache_info().currsize == 0

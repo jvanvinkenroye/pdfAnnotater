@@ -171,6 +171,67 @@ def clear_render_cache() -> None:
     logger.info("PDF render cache cleared")
 
 
+@lru_cache(maxsize=50)
+def get_page_text_layout(file_path: str, page_num: int) -> dict:
+    """
+    Extract word-level text with bounding boxes for a PDF page.
+
+    Used to build a selectable/copyable text overlay on top of the raster
+    page image. Coordinates are in PDF points, matching get_page_dimensions.
+
+    Args:
+        file_path: Path to PDF file (as string, for LRU cache compatibility)
+        page_num: Page number (1-indexed)
+
+    Raises:
+        ValueError: If page number is invalid
+
+    Returns:
+        dict with page_width, page_height (points) and lines, each a list
+        of words with text and x0/y0/x1/y1 bounding box in points.
+    """
+    doc = fitz.open(file_path)
+    try:
+        if page_num < 1 or page_num > len(doc):
+            raise ValueError(
+                f"Page {page_num} out of range (1-{len(doc)}) for {file_path}"
+            )
+
+        page = doc[page_num - 1]
+        rect = page.rect
+        words = page.get_text("words")
+
+        # Group words by (block_no, line_no) to preserve line breaks on copy.
+        lines_by_key: dict[tuple[int, int], list[dict]] = {}
+        for x0, y0, x1, y1, text, block_no, line_no, _word_no in words:
+            key = (block_no, line_no)
+            lines_by_key.setdefault(key, []).append(
+                {"text": text, "x0": x0, "y0": y0, "x1": x1, "y1": y1}
+            )
+
+        lines = [lines_by_key[key] for key in sorted(lines_by_key)]
+
+        return {
+            "page_width": rect.width,
+            "page_height": rect.height,
+            "lines": [{"words": line_words} for line_words in lines],
+        }
+    finally:
+        doc.close()
+
+
+def clear_text_layout_cache() -> None:
+    """
+    Clear the LRU cache for extracted text layouts.
+
+    Must be called alongside clear_render_cache() whenever a PDF's content
+    changes (replace/append/delete page), otherwise stale word/bbox data
+    could be served after the image cache has already been invalidated.
+    """
+    get_page_text_layout.cache_clear()
+    logger.info("PDF text layout cache cleared")
+
+
 def get_cache_info() -> dict:
     """
     Get information about the render cache.

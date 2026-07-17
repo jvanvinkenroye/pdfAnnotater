@@ -16,6 +16,7 @@
 
     // DOM elements
     const pdfPage = document.getElementById('pdf-page');
+    const pdfTextLayer = document.getElementById('pdf-text-layer');
     const pageLoading = document.getElementById('page-loading');
     const noteField = document.getElementById('note-field');
     const pageInput = document.getElementById('page-input');
@@ -78,6 +79,7 @@
             pdfPage.src = img.src;
             pdfPage.style.display = 'block';
             pageLoading.style.display = 'none';
+            syncTextLayerGeometry();
         };
         img.onerror = function() {
             pageLoading.innerHTML = '';
@@ -90,12 +92,83 @@
         };
         img.src = pageUrl;
 
+        // Load text layer (non-fatal: selection is a nice-to-have, must never
+        // block page image display)
+        loadTextLayer(pageNumber);
+
         // Load annotation
         loadAnnotation(pageNumber);
 
         // Update UI
         pageInput.value = pageNumber;
         updateNavigationButtons();
+    }
+
+    /**
+     * Fetch word/bbox data for a page and build the selectable text overlay
+     * @param {number} pageNumber - Page number (1-indexed)
+     */
+    function loadTextLayer(pageNumber) {
+        const textUrl = `/viewer/api/page/${docId}/${pageNumber}/text`;
+        fetch(textUrl)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Text layer request failed');
+                }
+                return response.json();
+            })
+            .then(data => buildTextLayer(data))
+            .catch(() => {
+                pdfTextLayer.innerHTML = '';
+            });
+    }
+
+    /**
+     * Build the invisible, selectable text spans over the page image
+     * @param {object} layoutData - {page_width, page_height, lines: [{words: [...]}]}
+     */
+    function buildTextLayer(layoutData) {
+        pdfTextLayer.innerHTML = '';
+        const pageWidth = layoutData.page_width;
+        const pageHeight = layoutData.page_height;
+
+        layoutData.lines.forEach(line => {
+            const words = line.words;
+            words.forEach((word, index) => {
+                const isLastInLine = index === words.length - 1;
+                // Extend width to the next word's x0 so the added trailing
+                // space occupies the visual gap between words on copy.
+                const x1 = isLastInLine ? word.x1 : words[index + 1].x0;
+
+                const span = document.createElement('span');
+                span.textContent = word.text + (isLastInLine ? '' : ' ');
+                span.style.left = (word.x0 / pageWidth * 100) + '%';
+                span.style.top = (word.y0 / pageHeight * 100) + '%';
+                span.style.width = ((x1 - word.x0) / pageWidth * 100) + '%';
+                span.style.height = ((word.y1 - word.y0) / pageHeight * 100) + '%';
+                pdfTextLayer.appendChild(span);
+            });
+            pdfTextLayer.appendChild(document.createElement('br'));
+        });
+
+        syncTextLayerGeometry();
+    }
+
+    /**
+     * Align the text layer's box exactly with the currently rendered image,
+     * since applyZoom() scales #pdf-page directly rather than the wrapper
+     * (so the text layer, as a sibling, does not inherit that transform).
+     */
+    function syncTextLayerGeometry() {
+        if (!pdfPage.offsetWidth) {
+            return;
+        }
+        const wrapperRect = pdfPageWrapper.getBoundingClientRect();
+        const imgRect = pdfPage.getBoundingClientRect();
+        pdfTextLayer.style.left = (imgRect.left - wrapperRect.left + pdfPageWrapper.scrollLeft) + 'px';
+        pdfTextLayer.style.top = (imgRect.top - wrapperRect.top + pdfPageWrapper.scrollTop) + 'px';
+        pdfTextLayer.style.width = imgRect.width + 'px';
+        pdfTextLayer.style.height = imgRect.height + 'px';
     }
 
     /**
@@ -474,6 +547,7 @@
             zoomLevelSpan.textContent = ZOOM_LEVELS[currentZoomIndex] + '%';
             zoomFitBtn.classList.remove('active');
         }
+        syncTextLayerGeometry();
     }
 
     /**
@@ -689,6 +763,13 @@
                 navigateToPage(currentPage + 1);
             }
         }
+    });
+
+    // Re-align text layer on window resize (fit-to-width re-flows image size)
+    let resizeTimeout = null;
+    window.addEventListener('resize', function() {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(syncTextLayerGeometry, 150);
     });
 
     // Initialize: Load first page

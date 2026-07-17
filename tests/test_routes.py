@@ -130,6 +130,31 @@ class TestPageImageApi:
         assert response.status_code == 400
 
 
+class TestPageTextApi:
+    """Test page text-layout API (word bounding boxes for text selection)."""
+
+    def test_get_page_text_success(self, app, logged_in_client, uploaded_pdf):
+        response = logged_in_client.get(f"/viewer/api/page/{uploaded_pdf}/1/text")
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["page_width"] > 0
+        assert data["page_height"] > 0
+        words = [w for line in data["lines"] for w in line["words"]]
+        assert any(w["text"] == "Test" for w in words)
+        assert any(w["text"] == "Page" for w in words)
+        for word in words:
+            assert word["x0"] < word["x1"]
+            assert word["y0"] < word["y1"]
+
+    def test_get_page_text_invalid_page(self, app, logged_in_client, uploaded_pdf):
+        response = logged_in_client.get(f"/viewer/api/page/{uploaded_pdf}/99/text")
+        assert response.status_code == 400
+
+    def test_get_page_text_invalid_doc(self, logged_in_client):
+        response = logged_in_client.get("/viewer/api/page/not-a-uuid/1/text")
+        assert response.status_code == 400
+
+
 class TestAnnotationApi:
     """Test annotation GET/POST API."""
 

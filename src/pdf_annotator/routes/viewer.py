@@ -15,7 +15,9 @@ from flask_login import current_user, login_required
 from pdf_annotator.models.database import DatabaseManager
 from pdf_annotator.services.pdf_processor import (
     clear_render_cache,
+    clear_text_layout_cache,
     get_page_count,
+    get_page_text_layout,
     render_page_to_image,
 )
 from pdf_annotator.utils.logger import get_logger
@@ -178,6 +180,61 @@ def get_page_image(doc_id: str, page_number: int) -> ResponseReturnValue:
     except Exception as e:
         logger.error(
             f"Error rendering page {page_number} of {doc_id}: {e}",
+            exc_info=True,
+        )
+        return jsonify({"error": "Interner Serverfehler"}), 500
+
+
+@viewer_bp.route("/api/page/<doc_id>/<int:page_number>/text", methods=["GET"])
+@login_required
+def get_page_text(doc_id: str, page_number: int) -> Any:
+    """
+    Get word-level text with bounding boxes for a PDF page.
+
+    Used by the frontend to build a selectable/copyable text overlay on
+    top of the raster page image.
+
+    Args:
+        doc_id: UUID of document
+        page_number: Page number (1-indexed)
+
+    Returns:
+        JSON with page_width, page_height (points) and lines/words data
+
+    Example:
+        GET /viewer/api/page/abc-123/1/text
+    """
+    try:
+        doc_info, err = _get_doc_or_error(doc_id)
+        if err is not None:
+            return err
+        assert doc_info is not None
+
+        is_valid, error_msg = validate_page_number(page_number, doc_info["page_count"])
+        if not is_valid:
+            logger.warning(
+                "Invalid page number %d for document %s", page_number, doc_id
+            )
+            return jsonify({"error": error_msg}), 400
+
+        try:
+            layout = get_page_text_layout(doc_info["file_path"], page_number)
+        except Exception as e:
+            logger.error(
+                "Failed to extract text layout for page %d of %s: %s",
+                page_number,
+                doc_id,
+                e,
+            )
+            return jsonify({"error": "Fehler beim Extrahieren des Textes"}), 500
+
+        resp = jsonify(layout)
+        resp.headers["Cache-Control"] = "private, max-age=300"
+        return resp
+
+    except Exception as e:
+        logger.error(
+            f"Error getting text layout for page {page_number} of {doc_id}: {e}",
             exc_info=True,
         )
         return jsonify({"error": "Interner Serverfehler"}), 500
@@ -493,8 +550,9 @@ def replace_pdf(doc_id: str) -> Any:
         file.save(file_path)
         logger.info("Saved new PDF to: %s", file_path)
 
-        # Clear render cache so stale images are not served
+        # Clear render + text caches so stale data is not served
         clear_render_cache()
+        clear_text_layout_cache()
 
         # Get new page count and update database
         new_page_count = get_page_count(file_path)
@@ -589,6 +647,7 @@ def append_pdf(doc_id: str) -> Any:
                 tmp_new.unlink()
 
         clear_render_cache()
+        clear_text_layout_cache()
 
         old_page_count = doc_info["page_count"]
         new_page_count = old_page_count + added_pages
@@ -675,8 +734,9 @@ def delete_page(doc_id: str, page_number: int) -> Any:
         pdf_doc.close()
         tmp_path.replace(file_path)
 
-        # Clear render cache
+        # Clear render + text caches
         clear_render_cache()
+        clear_text_layout_cache()
 
         # Delete annotation, renumber subsequent pages and decrement count atomically
         db.delete_annotation_and_renumber(doc_id, page_number)
