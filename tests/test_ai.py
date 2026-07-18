@@ -88,7 +88,8 @@ class TestGenerateTextDispatch:
                 self.completions = FakeCompletions()
 
         class FakeOpenAIClient:
-            def __init__(self, api_key):
+            def __init__(self, api_key, base_url=None):
+                self.base_url = base_url
                 self.chat = FakeChat()
 
         import openai
@@ -101,6 +102,47 @@ class TestGenerateTextDispatch:
             result = generate_text("Stichpunkte: A, B, C", None)
 
         assert result == "Generierter Text."
+
+    def test_openai_provider_uses_custom_base_url(self, app, monkeypatch):
+        class FakeMessage:
+            content = "Antwort vom Custom-Endpoint."
+
+        class FakeChoice:
+            message = FakeMessage()
+
+        class FakeResponse:
+            choices = [FakeChoice()]
+
+        class FakeCompletions:
+            def create(self, **kwargs):
+                assert kwargs["model"] == "qwen3-32b"
+                return FakeResponse()
+
+        class FakeChat:
+            def __init__(self):
+                self.completions = FakeCompletions()
+
+        captured = {}
+
+        class FakeOpenAIClient:
+            def __init__(self, api_key, base_url=None):
+                captured["api_key"] = api_key
+                captured["base_url"] = base_url
+                self.chat = FakeChat()
+
+        import openai
+
+        monkeypatch.setattr(openai, "OpenAI", FakeOpenAIClient)
+
+        with app.app_context():
+            app.config["AI_PROVIDER"] = "openai"
+            app.config["OPENAI_API_KEY"] = "test-key"
+            app.config["OPENAI_BASE_URL"] = "https://chat-ai.academiccloud.de/v1"
+            app.config["AI_MODEL"] = "qwen3-32b"
+            result = generate_text("Stichpunkte: A, B, C", None)
+
+        assert result == "Antwort vom Custom-Endpoint."
+        assert captured["base_url"] == "https://chat-ai.academiccloud.de/v1"
 
     def test_generate_mode_omits_source_text_from_prompt(self, app):
         system_prompt, user_prompt = ai_client._build_prompt("mach eine Notiz", None)

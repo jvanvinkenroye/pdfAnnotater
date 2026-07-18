@@ -80,7 +80,8 @@ def _call_openai(system_prompt: str, user_prompt: str, model: str) -> str:
     if not api_key:
         raise AIConfigError("OPENAI_API_KEY ist nicht gesetzt")
 
-    client = openai.OpenAI(api_key=api_key)
+    base_url = current_app.config.get("OPENAI_BASE_URL")
+    client = openai.OpenAI(api_key=api_key, base_url=base_url or None)
     try:
         response = client.chat.completions.create(
             model=model,

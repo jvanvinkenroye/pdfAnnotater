@@ -134,6 +134,9 @@ class Config:
     AI_MODEL = os.environ.get("AI_MODEL")  # None = provider default
     ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
     OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+    # Override for OpenAI-compatible endpoints other than api.openai.com
+    # (e.g. a university/self-hosted gateway). None = official OpenAI API.
+    OPENAI_BASE_URL = os.environ.get("OPENAI_BASE_URL")
 
     # PDF rendering settings
     PDF_RENDER_DPI = 150  # DPI for browser preview (lower = faster)
