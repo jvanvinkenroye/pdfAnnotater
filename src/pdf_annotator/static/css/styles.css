@@ -541,7 +541,8 @@ body {
     align-items: center;
     color: transparent;
     white-space: pre;
-    font-size: 12px;
+    font: 12px sans-serif;
+    transform-origin: left center;
     cursor: text;
     user-select: text;
     pointer-events: auto;

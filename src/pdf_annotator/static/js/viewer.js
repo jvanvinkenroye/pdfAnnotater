@@ -123,6 +123,13 @@
             });
     }
 
+    // Font used for the invisible text layer spans (must match the CSS rule
+    // for .pdf-text-layer span so canvas measurements match rendered width)
+    const TEXT_LAYER_FONT = '12px sans-serif';
+    const measureCanvas = document.createElement('canvas');
+    const measureCtx = measureCanvas.getContext('2d');
+    measureCtx.font = TEXT_LAYER_FONT;
+
     /**
      * Build the invisible, selectable text spans over the page image
      * @param {object} layoutData - {page_width, page_height, lines: [{words: [...]}]}
@@ -139,13 +146,19 @@
                 // Extend width to the next word's x0 so the added trailing
                 // space occupies the visual gap between words on copy.
                 const x1 = isLastInLine ? word.x1 : words[index + 1].x0;
+                const text = word.text + (isLastInLine ? '' : ' ');
 
                 const span = document.createElement('span');
-                span.textContent = word.text + (isLastInLine ? '' : ' ');
+                span.textContent = text;
                 span.style.left = (word.x0 / pageWidth * 100) + '%';
                 span.style.top = (word.y0 / pageHeight * 100) + '%';
                 span.style.width = ((x1 - word.x0) / pageWidth * 100) + '%';
                 span.style.height = ((word.y1 - word.y0) / pageHeight * 100) + '%';
+                // Natural rendered width at TEXT_LAYER_FONT, used to stretch
+                // the glyphs to fill the target box (see syncTextLayerGeometry) —
+                // otherwise only the narrow sliver where the glyphs actually
+                // render would be selectable, not the full word box.
+                span.dataset.naturalWidth = measureCtx.measureText(text).width;
                 pdfTextLayer.appendChild(span);
             });
             pdfTextLayer.appendChild(document.createElement('br'));
@@ -158,6 +171,9 @@
      * Align the text layer's box exactly with the currently rendered image,
      * since applyZoom() scales #pdf-page directly rather than the wrapper
      * (so the text layer, as a sibling, does not inherit that transform).
+     * Also rescales each span's invisible text horizontally to exactly fill
+     * its box, since the box width (from PDF points) rarely matches the
+     * glyphs' natural rendered width at the fixed text-layer font size.
      */
     function syncTextLayerGeometry() {
         if (!pdfPage.offsetWidth) {
@@ -169,6 +185,14 @@
         pdfTextLayer.style.top = (imgRect.top - wrapperRect.top + pdfPageWrapper.scrollTop) + 'px';
         pdfTextLayer.style.width = imgRect.width + 'px';
         pdfTextLayer.style.height = imgRect.height + 'px';
+
+        pdfTextLayer.querySelectorAll('span').forEach(span => {
+            const naturalWidth = parseFloat(span.dataset.naturalWidth);
+            if (naturalWidth > 0 && span.offsetWidth > 0) {
+                const scaleX = span.offsetWidth / naturalWidth;
+                span.style.transform = `scaleX(${scaleX})`;
+            }
+        });
     }
 
     /**
