@@ -95,4 +95,9 @@ SECRET_KEY=<random-hex>   # otherwise sessions invalidate on restart
 
 ### Environment variables / `.env`
 
-A `.env` file at the project root is loaded automatically via `python-dotenv` (`config.py`, `load_dotenv()`) — existing shell-exported variables always take precedence. Use it for local secrets (`SECRET_KEY`, `AI_PROVIDER`, `ANTHROPIC_API_KEY`/`OPENAI_API_KEY`, ...). Never commit `.env` with real secrets.
+Two `.env` locations are loaded automatically via `python-dotenv` (`config.py`), in this precedence order (later calls never override values already set):
+1. Shell-exported environment variables (always win)
+2. `.env` at the project root — covers running from source (`uv run flask run`, `uv run pdf-annotator`)
+3. `.env` in the platform data directory (`get_data_dir()`, e.g. `~/Library/Application Support/PDF-Annotator/.env` on macOS) — covers the **installed** uv-tool app, whose working directory at launch is arbitrary but whose data dir is always the same path
+
+Use either for local secrets (`SECRET_KEY`, `AI_PROVIDER`, `ANTHROPIC_API_KEY`/`OPENAI_API_KEY`, ...). Never commit a `.env` with real secrets.

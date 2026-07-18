@@ -19,9 +19,16 @@ from dotenv import load_dotenv
 if TYPE_CHECKING:
     from flask import Flask
 
-# Load variables from a .env file (if present) into the environment before
-# the Config classes below read them. Existing environment variables are
-# never overridden.
+# Load variables from a .env file into the environment before the Config
+# classes below read them. Existing environment variables are never
+# overridden, and neither call replaces values the other already set.
+#
+# 1. CWD-based lookup (python-dotenv default): covers running from the
+#    source repo (`uv run flask run`, `uv run pdf-annotator`).
+# 2. Data-dir .env: covers the installed uv-tool app, whose working
+#    directory at launch is arbitrary (Spotlight, a different shell cwd,
+#    etc.) but whose data directory is always the same platform-specific
+#    path (see get_data_dir() below).
 load_dotenv()
 
 
@@ -47,6 +54,9 @@ def get_data_dir() -> Path:
         base = Path(xdg_data)
 
     return base / app_name
+
+
+load_dotenv(get_data_dir() / ".env")
 
 
 def get_downloads_dir() -> Path:
