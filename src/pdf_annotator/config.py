@@ -14,8 +14,15 @@ import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from dotenv import load_dotenv
+
 if TYPE_CHECKING:
     from flask import Flask
+
+# Load variables from a .env file (if present) into the environment before
+# the Config classes below read them. Existing environment variables are
+# never overridden.
+load_dotenv()
 
 
 def get_data_dir() -> Path:

@@ -92,3 +92,7 @@ Required env var for production:
 ```bash
 SECRET_KEY=<random-hex>   # otherwise sessions invalidate on restart
 ```
+
+### Environment variables / `.env`
+
+A `.env` file at the project root is loaded automatically via `python-dotenv` (`config.py`, `load_dotenv()`) — existing shell-exported variables always take precedence. Use it for local secrets (`SECRET_KEY`, `AI_PROVIDER`, `ANTHROPIC_API_KEY`/`OPENAI_API_KEY`, ...). Never commit `.env` with real secrets.
