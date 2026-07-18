@@ -6,14 +6,15 @@ All templates extend `base.html`. Jinja2 with `{{ icons.icon(...) }}` macro from
 
 | Template | Route | Description |
 |---|---|---|
-| `base.html` | — | Layout, nav, dark mode, CSRF meta tag, `window.__userTheme`, `window.__userAuthenticated` |
+| `base.html` | — | Layout, nav, dark mode, CSRF meta tag, `window.__userTheme`, `window.__userAuthenticated`, `window.__desktopMode`, `window.__aiEnabled` |
 | `documents.html` | `/documents` | Document table with sorting, export/import buttons |
-| `viewer.html` | `/viewer/<doc_id>` | Split-screen PDF viewer + annotation textarea |
+| `viewer.html` | `/viewer/<doc_id>` | Split-screen PDF viewer + annotation textarea; selectable text overlay (`#pdf-text-layer`); AI-assist button + panel |
 | `index.html` | `/` | Landing/redirect |
 | `error.html` | error handlers | Generic error page |
 | `icons.html` | — | Lucide SVG icon macro library: `icons.icon(name, size, stroke_width)` |
 | `auth/login.html` | `/auth/login` | Login form |
 | `auth/register.html` | `/auth/register` | Registration form |
+| `auth/change_password.html` | `/auth/change-password` | Change-password form |
 | `admin/index.html` | `/admin/` | User management table |
 
 ## JavaScript
@@ -21,7 +22,7 @@ All templates extend `base.html`. Jinja2 with `{{ icons.icon(...) }}` macro from
 | File | Used on | Responsibilities |
 |---|---|---|
 | `documents.js` | Documents page | Table sorting, export/import buttons with loading state, PDF replacement, document deletion |
-| `viewer.js` | Viewer page | Page navigation, annotation auto-save (sendBeacon on page change/unload), image loading with error handling, keyboard shortcuts |
+| `viewer.js` | Viewer page | Page navigation, annotation auto-save (sendBeacon on page change/unload), image loading with error handling, keyboard shortcuts, selectable text overlay (`buildTextLayer`/`syncTextLayerGeometry`), AI-assist panel (edit/generate/context modes) |
 | `modal.js` | Global | `showConfirm()`, `showAlert()`, `showToast()` — custom modal dialogs |
 | `theme.js` | Global (via base.html) | Dark/light mode toggle, AJAX save to `/auth/theme`, priority: server DB > localStorage > system preference |
 | `upload.js` | Upload page | Drag-and-drop upload, form submission, progress feedback |
@@ -40,6 +41,13 @@ downloadFile(url, 'POST', this)
 // sendBeacon on page change — CSRF-exempt endpoint
 navigator.sendBeacon(`/viewer/api/annotation/${docId}/${pageNumber}`, formData)
 ```
+
+### AI-assist panel modes (`viewer.js`)
+Two toolbar buttons open the same inline panel (`#ai-panel`), gated by `window.__aiEnabled`:
+- **"✨ KI"** (`ai-assist-btn`): mode decided by note-field selection at open time — `edit` (selection non-empty, replaces it via `setRangeText`) or `generate` (no selection, inserts/replaces at cursor).
+- **"✨ KI aus PDF"** (`ai-pdf-btn`): reads `window.getSelection().toString()` (the PDF text overlay) as read-only context — mode `context`, result is always inserted into the note field, never overwrites the PDF quote.
+
+All three POST to `/viewer/api/ai/text`, then call the existing `saveNote(true)` to persist through the normal autosave path.
 
 ### Theme priority (`theme.js`)
 ```

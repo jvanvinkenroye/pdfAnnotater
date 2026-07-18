@@ -26,6 +26,12 @@ _GENERATE_SYSTEM_PROMPT = (
     "ausschließlich den Notiztext zurück, ohne Erklärungen, Anführungszeichen "
     "oder zusätzliche Kommentare."
 )
+_CONTEXT_SYSTEM_PROMPT = (
+    "Der Nutzer gibt dir einen Kontext-Ausschnitt (z.B. ein Zitat aus einem "
+    "PDF-Dokument) sowie eine Anweisung dazu. Formuliere daraus einen "
+    "eigenständigen Notiztext auf Deutsch. Gib ausschließlich den Notiztext "
+    "zurück, ohne Erklärungen, Anführungszeichen oder zusätzliche Kommentare."
+)
 
 
 class AIProviderError(Exception):
@@ -40,11 +46,16 @@ class AIConfigError(AIProviderError):
     """Raised when AI_PROVIDER is set but its API key is missing."""
 
 
-def _build_prompt(instruction: str, source_text: str | None) -> tuple[str, str]:
+def _build_prompt(
+    mode: str, instruction: str, source_text: str | None
+) -> tuple[str, str]:
     """Return (system_prompt, user_prompt) for the given mode."""
-    if source_text:
+    if mode == "edit":
         user_prompt = f"Anweisung: {instruction}\n\nText:\n{source_text}"
         return _EDIT_SYSTEM_PROMPT, user_prompt
+    if mode == "context":
+        user_prompt = f"Anweisung: {instruction}\n\nKontext:\n{source_text}"
+        return _CONTEXT_SYSTEM_PROMPT, user_prompt
     return _GENERATE_SYSTEM_PROMPT, instruction
 
 
@@ -98,14 +109,18 @@ def _call_openai(system_prompt: str, user_prompt: str, model: str) -> str:
     return (content or "").strip()
 
 
-def generate_text(instruction: str, source_text: str | None) -> str:
+def generate_text(mode: str, instruction: str, source_text: str | None) -> str:
     """
     Edit or generate note text via the configured AI provider.
 
     Args:
+        mode: "edit" (rewrite source_text per instruction), "context"
+            (formulate a note from a read-only context excerpt, e.g. a PDF
+            quote, plus instruction), or "generate" (formulate a note from
+            the instruction alone)
         instruction: Free-form user instruction
-        source_text: Selected text to edit, or None/empty to generate
-            new text from the instruction alone
+        source_text: Text to edit/use as context (required for "edit" and
+            "context", ignored for "generate")
 
     Raises:
         AIFeatureDisabledError: No AI_PROVIDER configured
@@ -119,7 +134,7 @@ def generate_text(instruction: str, source_text: str | None) -> str:
     if not provider:
         raise AIFeatureDisabledError("Keine AI_PROVIDER konfiguriert")
 
-    system_prompt, user_prompt = _build_prompt(instruction, source_text)
+    system_prompt, user_prompt = _build_prompt(mode, instruction, source_text)
     model = current_app.config.get("AI_MODEL")
 
     if provider == "anthropic":

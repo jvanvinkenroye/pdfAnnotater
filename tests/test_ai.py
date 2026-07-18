@@ -23,21 +23,21 @@ class TestGenerateTextDispatch:
         with app.app_context():
             app.config["AI_PROVIDER"] = None
             with pytest.raises(AIFeatureDisabledError):
-                generate_text("kürze das", "Ein langer Text.")
+                generate_text("edit", "kürze das", "Ein langer Text.")
 
     def test_config_error_when_anthropic_key_missing(self, app):
         with app.app_context():
             app.config["AI_PROVIDER"] = "anthropic"
             app.config["ANTHROPIC_API_KEY"] = None
             with pytest.raises(AIConfigError):
-                generate_text("kürze das", "Ein langer Text.")
+                generate_text("edit", "kürze das", "Ein langer Text.")
 
     def test_config_error_when_openai_key_missing(self, app):
         with app.app_context():
             app.config["AI_PROVIDER"] = "openai"
             app.config["OPENAI_API_KEY"] = None
             with pytest.raises(AIConfigError):
-                generate_text("kürze das", "Ein langer Text.")
+                generate_text("edit", "kürze das", "Ein langer Text.")
 
     def test_anthropic_provider_returns_response_text(self, app, monkeypatch):
         class FakeMessage:
@@ -64,7 +64,7 @@ class TestGenerateTextDispatch:
         with app.app_context():
             app.config["AI_PROVIDER"] = "anthropic"
             app.config["ANTHROPIC_API_KEY"] = "test-key"
-            result = generate_text("kürze das", "Ein langer Text.")
+            result = generate_text("edit", "kürze das", "Ein langer Text.")
 
         assert result == "Gekürzter Text."
 
@@ -99,7 +99,7 @@ class TestGenerateTextDispatch:
         with app.app_context():
             app.config["AI_PROVIDER"] = "openai"
             app.config["OPENAI_API_KEY"] = "test-key"
-            result = generate_text("Stichpunkte: A, B, C", None)
+            result = generate_text("generate", "Stichpunkte: A, B, C", None)
 
         assert result == "Generierter Text."
 
@@ -139,21 +139,31 @@ class TestGenerateTextDispatch:
             app.config["OPENAI_API_KEY"] = "test-key"
             app.config["OPENAI_BASE_URL"] = "https://chat-ai.academiccloud.de/v1"
             app.config["AI_MODEL"] = "qwen3-32b"
-            result = generate_text("Stichpunkte: A, B, C", None)
+            result = generate_text("generate", "Stichpunkte: A, B, C", None)
 
         assert result == "Antwort vom Custom-Endpoint."
         assert captured["base_url"] == "https://chat-ai.academiccloud.de/v1"
 
     def test_generate_mode_omits_source_text_from_prompt(self, app):
-        system_prompt, user_prompt = ai_client._build_prompt("mach eine Notiz", None)
+        system_prompt, user_prompt = ai_client._build_prompt(
+            "generate", "mach eine Notiz", None
+        )
         assert user_prompt == "mach eine Notiz"
 
     def test_edit_mode_includes_source_text_in_prompt(self, app):
         system_prompt, user_prompt = ai_client._build_prompt(
-            "kürze das", "Originaltext"
+            "edit", "kürze das", "Originaltext"
         )
         assert "kürze das" in user_prompt
         assert "Originaltext" in user_prompt
+
+    def test_context_mode_includes_instruction_and_context_in_prompt(self, app):
+        system_prompt, user_prompt = ai_client._build_prompt(
+            "context", "fasse zusammen", "Zitat aus dem PDF"
+        )
+        assert "fasse zusammen" in user_prompt
+        assert "Zitat aus dem PDF" in user_prompt
+        assert system_prompt == ai_client._CONTEXT_SYSTEM_PROMPT
 
 
 class TestAiTextRoute:
@@ -170,7 +180,7 @@ class TestAiTextRoute:
     def test_edit_mode_success(self, app, logged_in_client, monkeypatch):
         monkeypatch.setattr(
             "pdf_annotator.routes.ai.generate_text",
-            lambda instruction, source_text: "Ergebnis",
+            lambda mode, instruction, source_text: "Ergebnis",
         )
         response = logged_in_client.post(
             "/viewer/api/ai/text",
@@ -188,7 +198,7 @@ class TestAiTextRoute:
     ):
         monkeypatch.setattr(
             "pdf_annotator.routes.ai.generate_text",
-            lambda instruction, source_text: "Neue Notiz",
+            lambda mode, instruction, source_text: "Neue Notiz",
         )
         response = logged_in_client.post(
             "/viewer/api/ai/text",
@@ -204,11 +214,44 @@ class TestAiTextRoute:
     def test_edit_mode_requires_source_text(self, app, logged_in_client, monkeypatch):
         monkeypatch.setattr(
             "pdf_annotator.routes.ai.generate_text",
-            lambda instruction, source_text: "x",
+            lambda mode, instruction, source_text: "x",
         )
         response = logged_in_client.post(
             "/viewer/api/ai/text",
             json={"mode": "edit", "instruction": "kürze das", "source_text": ""},
+        )
+        assert response.status_code == 400
+
+    def test_context_mode_success(self, app, logged_in_client, monkeypatch):
+        monkeypatch.setattr(
+            "pdf_annotator.routes.ai.generate_text",
+            lambda mode, instruction, source_text: "Notiz aus Kontext",
+        )
+        response = logged_in_client.post(
+            "/viewer/api/ai/text",
+            json={
+                "mode": "context",
+                "instruction": "fasse zusammen",
+                "source_text": "Zitat aus dem PDF",
+            },
+        )
+        assert response.status_code == 200
+        assert response.get_json() == {"result": "Notiz aus Kontext"}
+
+    def test_context_mode_requires_source_text(
+        self, app, logged_in_client, monkeypatch
+    ):
+        monkeypatch.setattr(
+            "pdf_annotator.routes.ai.generate_text",
+            lambda mode, instruction, source_text: "x",
+        )
+        response = logged_in_client.post(
+            "/viewer/api/ai/text",
+            json={
+                "mode": "context",
+                "instruction": "fasse zusammen",
+                "source_text": "",
+            },
         )
         assert response.status_code == 400
 
@@ -240,7 +283,7 @@ class TestAiTextRoute:
         assert response.status_code in (302, 401)
 
     def test_provider_error_maps_to_500(self, app, logged_in_client, monkeypatch):
-        def raise_error(instruction, source_text):
+        def raise_error(mode, instruction, source_text):
             raise AIProviderError("boom")
 
         monkeypatch.setattr("pdf_annotator.routes.ai.generate_text", raise_error)
@@ -251,7 +294,7 @@ class TestAiTextRoute:
         assert response.status_code == 500
 
     def test_config_error_maps_to_503(self, app, logged_in_client, monkeypatch):
-        def raise_error(instruction, source_text):
+        def raise_error(mode, instruction, source_text):
             raise AIConfigError("boom")
 
         monkeypatch.setattr("pdf_annotator.routes.ai.generate_text", raise_error)

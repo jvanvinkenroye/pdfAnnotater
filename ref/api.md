@@ -11,6 +11,8 @@ All endpoints require login (`@login_required`) unless noted. CSRF token require
 | GET | `/auth/logout` | ✓ | Logout |
 | GET | `/auth/register` | — | Registration page |
 | POST | `/auth/register` | — | Create account (first user becomes admin) |
+| GET | `/auth/change-password` | ✓ | Change-password page |
+| POST | `/auth/change-password` | ✓ | Verify current password, set new one (min. 8 chars) |
 | POST | `/auth/theme` | ✓ | Save dark/light theme; rate-limited 30/min |
 
 ## Upload / Documents — `/`
@@ -31,6 +33,7 @@ All endpoints require login (`@login_required`) unless noted. CSRF token require
 |---|---|---|---|
 | GET | `/viewer/<doc_id>` | ✓ | Viewer page (HTML) |
 | GET | `/viewer/api/page/<doc_id>/<page>` | ✓ | Render page as PNG; rate-limited 60/min |
+| GET | `/viewer/api/page/<doc_id>/<page>/text` | ✓ | Word bounding boxes for the selectable text overlay |
 | GET | `/viewer/api/annotation/<doc_id>/<page>` | ✓ | Get annotation JSON |
 | POST | `/viewer/api/annotation/<doc_id>/<page>` | ✓ | Save annotation (CSRF-exempt, sendBeacon) |
 | POST | `/viewer/api/metadata/<doc_id>` | ✓ | Update document metadata |
@@ -45,6 +48,21 @@ All endpoints require login (`@login_required`) unless noted. CSRF token require
 | GET | `/export/original/<doc_id>` | ✓ | Download original PDF |
 | POST | `/export/pdf/<doc_id>` | ✓ | Generate and download annotated PDF |
 | POST | `/export/markdown/<doc_id>` | ✓ | Generate and download Markdown notes |
+
+## AI Assist — `/viewer/api/ai`
+
+Only active when `AI_PROVIDER` is configured (see `ref/services.md`). Stateless — not tied to any document, no ownership check.
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| POST | `/viewer/api/ai/text` | ✓ | Edit/generate note text; rate-limited 10/min |
+
+Request body: `{"mode": "edit" \| "generate" \| "context", "instruction": str, "source_text": str}`.
+- `edit`: rewrites `source_text` (the note-field selection) per `instruction` — response replaces the selection.
+- `generate`: formulates new note text from `instruction` alone (`source_text` ignored) — response is inserted at the cursor, or replaces the field if empty.
+- `context`: formulates a note from a read-only `source_text` (e.g. a PDF quote from the viewer's text overlay) plus `instruction` — response is inserted at the cursor, never overwrites the source.
+
+Response: `{"result": str}` on success. Errors: 400 (validation / feature disabled), 503 (provider configured but API key missing), 500 (provider request failed).
 
 ## Admin — `/admin`
 

@@ -14,6 +14,8 @@ Eine Flask-basierte Web-Applikation zum Annotieren von PDF-Dokumenten mit Side-b
   - **Annotiertes PDF:** Original-PDF mit Notizen in gruener Courier-Schrift + Zeitstempel
   - **Markdown-Export:** Alle Notizen als strukturiertes Markdown-Dokument
 - **Zoom:** Stufenweises Zoomen (50%-200%) und Breitenanpassung
+- **Text markieren/kopieren:** PDF-Seiten haben eine unsichtbare Textebene, Text lässt sich wie in einem normalen Browser markieren und kopieren
+- **KI-Assistent (optional, deaktiviert per Default):** Notiztext mit freier Anweisung bearbeiten oder aus Stichpunkten generieren lassen ("✨ KI"), oder aus markiertem PDF-Text eine Notiz formulieren lassen ("✨ KI aus PDF"). Unterstützt Anthropic, OpenAI oder jeden OpenAI-kompatiblen Endpunkt (z.B. selbstgehostete Uni-Gateways)
 - **Themes:** Light, Dark und Brutalist — Einstellung wird pro Account serverseitig gespeichert
 - **Multi-User:** Registrierung und Login mit eigenem Dokumenten-Bereich
 - **Admin Panel:** Benutzerverwaltung (Aktivieren/Deaktivieren, Admin-Rechte, Loeschen)
@@ -60,8 +62,15 @@ Umgebungsvariablen in einer `.env`-Datei oder direkt in der Shell:
 |---|---|---|---|
 | `SECRET_KEY` | **Ja** | — | Flask Session-Key (min. 32 zufaellige Bytes) |
 | `GUNICORN_WORKERS` | Nein | `2` | Anzahl Gunicorn Worker-Prozesse |
+| `AI_PROVIDER` | Nein | — (Funktion deaktiviert) | `anthropic` oder `openai` — aktiviert den KI-Assistenten im Notizfeld |
+| `AI_MODEL` | Nein | Provider-Default (`claude-haiku-4-5` / `gpt-4o-mini`) | Modell-Override |
+| `ANTHROPIC_API_KEY` | Falls `AI_PROVIDER=anthropic` | — | Anthropic API-Key |
+| `OPENAI_API_KEY` | Falls `AI_PROVIDER=openai` | — | OpenAI (oder kompatibler) API-Key |
+| `OPENAI_BASE_URL` | Nein | `api.openai.com` | Alternativer OpenAI-kompatibler Endpunkt (z.B. ein Uni-Gateway) |
 
 Empfohlene Worker-Anzahl: `2 * CPU-Kerne + 1`.
+
+**Hinweis:** Ist `AI_PROVIDER` gesetzt, werden Notiztext und Anweisungen bei Nutzung des KI-Assistenten an den konfigurierten Drittanbieter gesendet — Datenschutz-relevant, daher standardmaessig deaktiviert.
 
 ### Mit .env-Datei
 
@@ -177,6 +186,10 @@ SECRET_KEY=<dein-key> uv run pdf-annotator-server
 | **macOS** | `~/Library/Application Support/PDF-Annotator/` |
 | **Linux** | `~/.local/share/PDF-Annotator/` |
 | **Docker** | `/data/PDF-Annotator/` (Volume `pdf_annotator_data`) |
+
+**Konfiguration lokal (`.env`):** Wird automatisch von zwei Orten geladen (Shell-Exports haben immer Vorrang, spaeter geladene Werte ueberschreiben nichts bereits Gesetztes):
+1. `.env` im Projekt-Root — nur wirksam, wenn aus dem Repo heraus gestartet wird (`uv run ...`)
+2. `.env` im obigen Datenspeicherort — wirksam **egal von wo** die installierte `pdf-annotator`-Tool-Version gestartet wird (z.B. Spotlight, anderes Arbeitsverzeichnis)
 
 ---
 
@@ -301,6 +314,7 @@ CREATE TABLE annotations (
 - `GET/POST /auth/login` - Login
 - `GET/POST /auth/register` - Registrierung
 - `GET /auth/logout` - Logout
+- `GET/POST /auth/change-password` - Passwort aendern (Login erforderlich)
 - `POST /auth/theme` - Theme serverseitig speichern (Login erforderlich)
 
 ### Dokumente
@@ -313,11 +327,13 @@ CREATE TABLE annotations (
 ### Viewer
 - `GET /viewer/<doc_id>` - Viewer-Seite
 - `GET /viewer/api/page/<doc_id>/<page>` - Seite als PNG
+- `GET /viewer/api/page/<doc_id>/<page>/text` - Wort-Bounding-Boxes fuer die markierbare Textebene
 - `DELETE /viewer/api/page/<doc_id>/<page>` - Seite loeschen
 - `GET /viewer/api/annotation/<doc_id>/<page>` - Notiz laden
 - `POST /viewer/api/annotation/<doc_id>/<page>` - Notiz speichern
 - `POST /viewer/api/metadata/<doc_id>` - Metadaten aktualisieren
 - `POST /viewer/api/replace/<doc_id>` - PDF ersetzen
+- `POST /viewer/api/ai/text` - KI-Textbearbeitung/-generierung (nur falls `AI_PROVIDER` konfiguriert)
 
 ### Export
 - `POST /export/pdf/<doc_id>` - Annotiertes PDF

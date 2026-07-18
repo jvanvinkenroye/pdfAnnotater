@@ -20,6 +20,7 @@
     const pageLoading = document.getElementById('page-loading');
     const noteField = document.getElementById('note-field');
     const aiAssistBtn = document.getElementById('ai-assist-btn');
+    const aiPdfBtn = document.getElementById('ai-pdf-btn');
     const aiPanel = document.getElementById('ai-panel');
     const aiInstructionInput = document.getElementById('ai-instruction');
     const aiSubmitBtn = document.getElementById('ai-submit-btn');
@@ -292,8 +293,12 @@
         }
     }
 
-    // AI assist state: selection range captured when the panel is opened,
-    // so a later click into the instruction input doesn't lose it.
+    // AI assist state: captured when the panel is opened, so a later click
+    // into the instruction input doesn't lose the source selection.
+    // mode: 'edit' (replace note-field selection), 'context' (formulate a
+    // note from a read-only PDF quote), or 'generate' (from instruction alone).
+    let aiMode = 'generate';
+    let aiSourceText = '';
     let aiSelectionStart = 0;
     let aiSelectionEnd = 0;
 
@@ -301,9 +306,32 @@
         aiSelectionStart = noteField.selectionStart;
         aiSelectionEnd = noteField.selectionEnd;
         const hasSelection = aiSelectionStart !== aiSelectionEnd;
+        aiMode = hasSelection ? 'edit' : 'generate';
+        aiSourceText = hasSelection
+            ? noteField.value.slice(aiSelectionStart, aiSelectionEnd)
+            : '';
         aiInstructionInput.placeholder = hasSelection
             ? "Anweisung für den markierten Text… z.B. 'kürze das'"
             : 'Stichpunkte oder kurze Anweisung für neue Notiz…';
+        aiStatus.textContent = '';
+        aiPanel.style.display = '';
+        aiPanel.hidden = false;
+        aiInstructionInput.focus();
+    }
+
+    function openAiPanelFromPdf() {
+        const selection = window.getSelection().toString().trim();
+        if (!selection) {
+            showToast('Kein Text im PDF markiert.', 'error');
+            return;
+        }
+        aiMode = 'context';
+        aiSourceText = selection;
+        // Insertion point in the note field (not a replace range) —
+        // the PDF quote itself is read-only and never gets overwritten.
+        aiSelectionStart = noteField.selectionStart;
+        aiSelectionEnd = aiSelectionStart;
+        aiInstructionInput.placeholder = "Anweisung zum markierten PDF-Text…";
         aiStatus.textContent = '';
         aiPanel.style.display = '';
         aiPanel.hidden = false;
@@ -323,12 +351,6 @@
             return;
         }
 
-        const hasSelection = aiSelectionStart !== aiSelectionEnd;
-        const mode = hasSelection ? 'edit' : 'generate';
-        const sourceText = hasSelection
-            ? noteField.value.slice(aiSelectionStart, aiSelectionEnd)
-            : '';
-
         aiSubmitBtn.disabled = true;
         aiCancelBtn.disabled = true;
         aiStatus.textContent = 'Wird bearbeitet...';
@@ -339,7 +361,7 @@
                 'Content-Type': 'application/json',
                 'X-CSRFToken': csrfToken,
             },
-            body: JSON.stringify({ mode: mode, instruction: instruction, source_text: sourceText })
+            body: JSON.stringify({ mode: aiMode, instruction: instruction, source_text: aiSourceText })
         })
             .then(response => {
                 if (!response.ok) {
@@ -350,13 +372,15 @@
                 return response.json();
             })
             .then(data => {
-                if (mode === 'edit') {
+                if (aiMode === 'edit') {
                     noteField.setRangeText(data.result, aiSelectionStart, aiSelectionEnd, 'end');
                 } else if (noteField.value.trim() === '') {
                     noteField.value = data.result;
                 } else {
                     const pos = noteField.selectionStart;
-                    noteField.setRangeText(data.result, pos, pos, 'end');
+                    const needsSeparator = pos > 0 && !/\s$/.test(noteField.value.slice(0, pos));
+                    const textToInsert = (needsSeparator ? '\n\n' : '') + data.result;
+                    noteField.setRangeText(textToInsert, pos, pos, 'end');
                 }
                 saveNote(true);
                 closeAiPanel();
@@ -374,6 +398,7 @@
 
     if (window.__aiEnabled) {
         aiAssistBtn.style.display = '';
+        aiPdfBtn.style.display = '';
     }
 
     aiAssistBtn.addEventListener('click', () => {
@@ -382,6 +407,10 @@
         } else {
             closeAiPanel();
         }
+    });
+
+    aiPdfBtn.addEventListener('click', () => {
+        openAiPanelFromPdf();
     });
 
     aiSubmitBtn.addEventListener('click', submitAiRequest);

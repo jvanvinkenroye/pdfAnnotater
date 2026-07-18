@@ -41,6 +41,15 @@ def app(tmp_path):
     app.config["EXPORT_FOLDER"] = export_folder
     app.config["DATABASE_PATH"] = db_path
 
+    # Isolate tests from any real AI provider config picked up from a
+    # developer's local .env (repo-root or data-dir) — tests that need
+    # specific values set them explicitly.
+    app.config["AI_PROVIDER"] = None
+    app.config["AI_MODEL"] = None
+    app.config["ANTHROPIC_API_KEY"] = None
+    app.config["OPENAI_API_KEY"] = None
+    app.config["OPENAI_BASE_URL"] = None
+
     # Re-init DB with the file-based path (create_app used :memory:
     # which doesn't work across connections)
     DatabaseManager._instance = None

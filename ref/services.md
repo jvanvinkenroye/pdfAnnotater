@@ -88,10 +88,10 @@ Checks ZIP `data.json` version field.
 
 ## ai_client.py
 
-Optional AI-assisted note editing (edit selected text / generate note text from bullet points). Disabled by default.
+Optional AI-assisted note editing (edit selected note text, generate note text from bullet points, or formulate a note from a read-only PDF-quote context). Disabled by default.
 
-**`generate_text(instruction, source_text) -> str`**  
-Dispatches to the provider configured via `AI_PROVIDER` (`"anthropic"` | `"openai"` | unset). Raises `AIFeatureDisabledError` if unset, `AIConfigError` if the provider's API key is missing, `AIProviderError` on request failure.
+**`generate_text(mode, instruction, source_text) -> str`**  
+`mode` is `"edit"` (rewrite `source_text` per `instruction`), `"generate"` (formulate from `instruction` alone, `source_text` ignored), or `"context"` (formulate a note from a read-only context excerpt — e.g. a PDF quote — plus `instruction`). Dispatches to the provider configured via `AI_PROVIDER` (`"anthropic"` | `"openai"` | unset). Raises `AIFeatureDisabledError` if unset, `AIConfigError` if the provider's API key is missing, `AIProviderError` on request failure.
 
 **Env vars:** `AI_PROVIDER`, `AI_MODEL` (optional override; defaults `claude-haiku-4-5` / `gpt-4o-mini`), `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OPENAI_BASE_URL` (optional — points the OpenAI SDK at any OpenAI-compatible endpoint instead of `api.openai.com`, e.g. a university-hosted gateway; combine with `AI_MODEL` set to that endpoint's model name).
 
