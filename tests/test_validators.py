@@ -13,6 +13,7 @@ from pdf_annotator.utils.validators import (
     validate_ai_instruction,
     validate_file_path,
     validate_note_text,
+    validate_search_query,
 )
 
 
@@ -120,6 +121,41 @@ class TestValidateAiInstruction:
 
     def test_non_string_instruction_rejected(self):
         is_valid, error = validate_ai_instruction(12345)
+
+        assert is_valid is False
+        assert "text" in error.lower()
+
+
+class TestValidateSearchQuery:
+    """Test library catalog search query validation."""
+
+    def test_valid_query_accepted(self):
+        is_valid, error = validate_search_query("Der Zauberberg")
+
+        assert is_valid is True
+        assert error is None
+
+    def test_empty_query_rejected(self):
+        is_valid, error = validate_search_query("")
+
+        assert is_valid is False
+        assert "leer" in error.lower()
+
+    def test_whitespace_only_query_rejected(self):
+        is_valid, error = validate_search_query("   ")
+
+        assert is_valid is False
+        assert "leer" in error.lower()
+
+    def test_oversized_query_rejected(self):
+        query = "x" * 301
+        is_valid, error = validate_search_query(query, max_length=300)
+
+        assert is_valid is False
+        assert "zu lang" in error.lower()
+
+    def test_non_string_query_rejected(self):
+        is_valid, error = validate_search_query(12345)
 
         assert is_valid is False
         assert "text" in error.lower()

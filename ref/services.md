@@ -96,3 +96,12 @@ Optional AI-assisted note editing (edit selected note text, generate note text f
 **Env vars:** `AI_PROVIDER`, `AI_MODEL` (optional override; defaults `claude-haiku-4-5` / `gpt-4o-mini`), `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OPENAI_BASE_URL` (optional — points the OpenAI SDK at any OpenAI-compatible endpoint instead of `api.openai.com`, e.g. a university-hosted gateway; combine with `AI_MODEL` set to that endpoint's model name).
 
 Route: `POST /viewer/api/ai/text` (`routes/ai.py`) — stateless, not tied to a document, only `@login_required` + rate limit (10/min). Frontend gated by `window.__aiEnabled` (`config.AI_PROVIDER` truthy).
+
+## swb_client.py
+
+Library catalog search for the "🔎 SWB-Suche" button (PDF-viewer text selection). Always active, no config/API key required.
+
+**`search_books(query, max_results=20) -> list[dict]`**  
+Wraps the `swb` package's Python API (`swb.api.SWBClient`, sibling project at `/Users/java/src_own/swb`, added as a local path dependency) — not its CLI, since the CLI has no machine-readable output format. Uses `SearchIndex.ALL` for a forgiving free-text search. Maps `SearchResponse.results` (`SearchResult` dataclasses) to plain dicts: `title`, `author`, `year`, `isbn`, `link`. Raises `SWBSearchError` on request failure (network error or malformed response from the underlying API).
+
+Route: `GET /swb/search` (`routes/swb.py`) — stateless, `@login_required`, rate-limited 15/min. Renders `templates/swb_results.html` directly (no JSON endpoint) — the button does `window.open()` to this URL in a new tab rather than a fetch/AJAX round-trip.

@@ -64,6 +64,16 @@ Request body: `{"mode": "edit" \| "generate" \| "context", "instruction": str, "
 
 Response: `{"result": str}` on success. Errors: 400 (validation / feature disabled), 503 (provider configured but API key missing), 500 (provider request failed).
 
+## Library Search — `/swb`
+
+Stateless — not tied to any document, no ownership check. Always active, no config required (public SWB endpoint).
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/swb/search` | ✓ | Search library catalogs; renders HTML results page; rate-limited 15/min |
+
+Query param `q`: search text (e.g. selected in the PDF viewer's text overlay). Opened via `window.open()` in a new tab, not fetched via AJAX. Errors render inline on the same page (400 validation, 503 search failure, 500 internal).
+
 ## Admin — `/admin`
 
 All admin routes require `@admin_required` (is_admin=1 in DB).

@@ -21,6 +21,7 @@
     const noteField = document.getElementById('note-field');
     const aiAssistBtn = document.getElementById('ai-assist-btn');
     const aiPdfBtn = document.getElementById('ai-pdf-btn');
+    const swbSearchBtn = document.getElementById('swb-search-btn');
     const aiPanel = document.getElementById('ai-panel');
     const aiInstructionInput = document.getElementById('ai-instruction');
     const aiSubmitBtn = document.getElementById('ai-submit-btn');
@@ -422,6 +423,15 @@
 
     aiPdfBtn.addEventListener('click', () => {
         openAiPanelFromPdf();
+    });
+
+    swbSearchBtn.addEventListener('click', () => {
+        const selection = window.getSelection().toString().trim();
+        if (!selection) {
+            showToast('Kein Text im PDF markiert.', 'error');
+            return;
+        }
+        window.open('/swb/search?q=' + encodeURIComponent(selection), '_blank');
     });
 
     aiSubmitBtn.addEventListener('click', submitAiRequest);

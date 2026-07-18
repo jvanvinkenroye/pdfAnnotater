@@ -15,6 +15,7 @@ All templates extend `base.html`. Jinja2 with `{{ icons.icon(...) }}` macro from
 | `auth/login.html` | `/auth/login` | Login form |
 | `auth/register.html` | `/auth/register` | Registration form |
 | `auth/change_password.html` | `/auth/change-password` | Change-password form |
+| `swb_results.html` | `/swb/search` | Library catalog search results (title/author/year/isbn + catalog link) |
 | `admin/index.html` | `/admin/` | User management table |
 
 ## JavaScript
@@ -22,7 +23,7 @@ All templates extend `base.html`. Jinja2 with `{{ icons.icon(...) }}` macro from
 | File | Used on | Responsibilities |
 |---|---|---|
 | `documents.js` | Documents page | Table sorting, export/import buttons with loading state, PDF replacement, document deletion |
-| `viewer.js` | Viewer page | Page navigation, annotation auto-save (sendBeacon on page change/unload), image loading with error handling, keyboard shortcuts, selectable text overlay (`buildTextLayer`/`syncTextLayerGeometry`), AI-assist panel (edit/generate/context modes) |
+| `viewer.js` | Viewer page | Page navigation, annotation auto-save (sendBeacon on page change/unload), image loading with error handling, keyboard shortcuts, selectable text overlay (`buildTextLayer`/`syncTextLayerGeometry`), AI-assist panel (edit/generate/context modes), SWB library search button (`window.open()` with the PDF selection) |
 | `modal.js` | Global | `showConfirm()`, `showAlert()`, `showToast()` — custom modal dialogs |
 | `theme.js` | Global (via base.html) | Dark/light mode toggle, AJAX save to `/auth/theme`, priority: server DB > localStorage > system preference |
 | `upload.js` | Upload page | Drag-and-drop upload, form submission, progress feedback |

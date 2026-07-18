@@ -3,7 +3,7 @@ name = "pdf-annotator"
 version = "0.1.0"
 description = "Flask-based PDF annotation tool with side-by-side view"
 authors = [{ name = "Jan Vanvinkenroye", email = "jan@vanvinkenroye.de" }]
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
   "flask>=3.0.0",
   "pymupdf>=1.23.0",
@@ -17,6 +17,7 @@ dependencies = [
   "anthropic>=0.117.0",
   "openai>=2.46.0",
   "python-dotenv>=1.2.2",
+  "swb",
 ]
 
 [project.scripts]
@@ -39,7 +40,7 @@ build-backend = "hatchling.build"
 # Ruff config in ruff.toml
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
@@ -50,6 +51,9 @@ filterwarnings = [
   "ignore::DeprecationWarning:importlib._bootstrap",
   "ignore::DeprecationWarning:sqlite3",
 ]
+
+[tool.uv.sources]
+swb = { path = "../swb" }
 
 [dependency-groups]
 dev = ["mkdocs>=1.6.1", "mkdocs-material>=9.7.3", "pytest-cov>=7.0.0"]

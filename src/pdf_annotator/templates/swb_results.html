@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}SWB-Suche: {{ query }} - PDF Annotator{% endblock %}
+
+{% block content %}
+<div class="upload-container">
+    <div class="upload-content">
+        <h1>Bibliothekssuche</h1>
+        <p class="subtitle">Suchergebnisse für: „{{ query }}“</p>
+
+        {% if error %}
+        <div class="flash flash-error" style="margin-bottom: 1.5rem;">{{ error }}</div>
+        {% elif results is not none and results|length == 0 %}
+        <p>Keine Treffer gefunden.</p>
+        {% elif results %}
+        <div class="swb-results-list">
+            {% for result in results %}
+            <div class="swb-result-card">
+                <h3 class="swb-result-title">{{ result.title or "Ohne Titel" }}</h3>
+                <div class="swb-result-meta">
+                    {% if result.author %}<span>{{ result.author }}</span>{% endif %}
+                    {% if result.year %}<span>{{ result.year }}</span>{% endif %}
+                    {% if result.isbn %}<span>ISBN: {{ result.isbn }}</span>{% endif %}
+                </div>
+                {% if result.link %}
+                <a href="{{ result.link }}" target="_blank" rel="noopener" class="btn btn-secondary btn-sm">Zum Katalog</a>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

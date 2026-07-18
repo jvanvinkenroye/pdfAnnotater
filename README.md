@@ -16,6 +16,7 @@ Eine Flask-basierte Web-Applikation zum Annotieren von PDF-Dokumenten mit Side-b
 - **Zoom:** Stufenweises Zoomen (50%-200%) und Breitenanpassung
 - **Text markieren/kopieren:** PDF-Seiten haben eine unsichtbare Textebene, Text lässt sich wie in einem normalen Browser markieren und kopieren
 - **KI-Assistent (optional, deaktiviert per Default):** Notiztext mit freier Anweisung bearbeiten oder aus Stichpunkten generieren lassen ("✨ KI"), oder aus markiertem PDF-Text eine Notiz formulieren lassen ("✨ KI aus PDF"). Unterstützt Anthropic, OpenAI oder jeden OpenAI-kompatiblen Endpunkt (z.B. selbstgehostete Uni-Gateways)
+- **Bibliothekssuche ("🔎 SWB-Suche"):** Markierten PDF-Text direkt in deutschen Bibliothekskatalogen (SWB/K10plus/DNB/...) nachschlagen — öffnet die Treffer in einem neuen Tab, immer aktiv, kein Setup noetig
 - **Themes:** Light, Dark und Brutalist — Einstellung wird pro Account serverseitig gespeichert
 - **Multi-User:** Registrierung und Login mit eigenem Dokumenten-Bereich
 - **Admin Panel:** Benutzerverwaltung (Aktivieren/Deaktivieren, Admin-Rechte, Loeschen)
@@ -334,6 +335,9 @@ CREATE TABLE annotations (
 - `POST /viewer/api/metadata/<doc_id>` - Metadaten aktualisieren
 - `POST /viewer/api/replace/<doc_id>` - PDF ersetzen
 - `POST /viewer/api/ai/text` - KI-Textbearbeitung/-generierung (nur falls `AI_PROVIDER` konfiguriert)
+
+### Bibliothekssuche
+- `GET /swb/search` - Bibliothekskatalog-Suche (rendert HTML-Ergebnisseite, `?q=<suchtext>`)
 
 ### Export
 - `POST /export/pdf/<doc_id>` - Annotiertes PDF

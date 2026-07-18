@@ -219,6 +219,34 @@ def validate_ai_instruction(
     return True, None
 
 
+def validate_search_query(query: str, max_length: int = 300) -> tuple[bool, str | None]:
+    """
+    Validate a library catalog search query (e.g. text selected in the PDF viewer).
+
+    Args:
+        query: Search query text to validate
+        max_length: Maximum allowed length (default: 300)
+
+    Returns:
+        Tuple of (is_valid, error_message)
+
+    Example:
+        is_valid, error = validate_search_query(query)
+        if not is_valid:
+            return jsonify({"error": error}), 400
+    """
+    if not isinstance(query, str):
+        return False, "Suchanfrage muss ein Text sein"
+
+    if not query.strip():
+        return False, "Suchanfrage darf nicht leer sein"
+
+    if len(query) > max_length:
+        return False, f"Suchanfrage zu lang (max. {max_length} Zeichen)"
+
+    return True, None
+
+
 def validate_file_type(filename: str) -> tuple[bool, str | None]:
     """
     Validate that file is a PDF.
