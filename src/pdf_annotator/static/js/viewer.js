@@ -345,6 +345,8 @@
         aiStatus.textContent = '';
     }
 
+    const AI_REQUEST_TIMEOUT_MS = 60000;
+
     function submitAiRequest() {
         const instruction = aiInstructionInput.value.trim();
         if (!instruction) {
@@ -355,15 +357,20 @@
         aiCancelBtn.disabled = true;
         aiStatus.textContent = 'Wird bearbeitet...';
 
+        const abortController = new AbortController();
+        const timeoutId = setTimeout(() => abortController.abort(), AI_REQUEST_TIMEOUT_MS);
+
         fetch('/viewer/api/ai/text', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': csrfToken,
             },
-            body: JSON.stringify({ mode: aiMode, instruction: instruction, source_text: aiSourceText })
+            body: JSON.stringify({ mode: aiMode, instruction: instruction, source_text: aiSourceText }),
+            signal: abortController.signal
         })
             .then(response => {
+                clearTimeout(timeoutId);
                 if (!response.ok) {
                     return response.json().then(data => {
                         throw new Error(data.error || 'KI-Anfrage fehlgeschlagen');
@@ -386,8 +393,12 @@
                 closeAiPanel();
             })
             .catch(error => {
+                clearTimeout(timeoutId);
                 console.error('Error in AI request:', error);
-                showToast('Fehler bei der KI-Anfrage: ' + error.message, 'error');
+                const message = error.name === 'AbortError'
+                    ? 'Zeitüberschreitung bei der KI-Anfrage (keine Antwort nach 60s).'
+                    : 'Fehler bei der KI-Anfrage: ' + error.message;
+                showToast(message, 'error');
                 aiStatus.textContent = '';
             })
             .finally(() => {
