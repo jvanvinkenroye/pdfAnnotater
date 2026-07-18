@@ -34,9 +34,13 @@ def search_books(query: str, max_results: int = 20) -> list[dict]:
     """
     from swb.api import SWBClient
     from swb.models import SearchIndex
+    from swb.profiles import get_profile
 
     try:
-        with SWBClient() as client:
+        # Default "swb" profile only covers the regional SWB network
+        # (Baden-Württemberg/Saarland/Sachsen). Use the broader K10plus
+        # union catalog so results aren't missing books held elsewhere.
+        with SWBClient(base_url=get_profile("k10plus").url) as client:
             response = client.search(
                 query, index=SearchIndex.ALL, maximum_records=max_results
             )

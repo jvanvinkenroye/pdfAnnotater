@@ -27,6 +27,9 @@ class TestSearchBooks:
         ]
 
         class FakeSWBClient:
+            def __init__(self, base_url=None):
+                self.base_url = base_url
+
             def __enter__(self):
                 return self
 
@@ -57,6 +60,9 @@ class TestSearchBooks:
         from swb.models import SearchResponse
 
         class FakeSWBClient:
+            def __init__(self, base_url=None):
+                self.base_url = base_url
+
             def __enter__(self):
                 return self
 
@@ -74,6 +80,9 @@ class TestSearchBooks:
 
     def test_network_error_wrapped(self, monkeypatch):
         class FakeSWBClient:
+            def __init__(self, base_url=None):
+                self.base_url = base_url
+
             def __enter__(self):
                 return self
 
