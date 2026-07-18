@@ -123,7 +123,18 @@
     <div class="note-editor">
         <div class="editor-header">
             <h2>Notizen</h2>
+            <button id="ai-assist-btn" class="btn btn-secondary btn-sm" style="display:none;" type="button">✨ KI</button>
             <span id="save-status" class="save-status" role="status" aria-live="polite">Gespeichert</span>
+        </div>
+        <div id="ai-panel" class="ai-panel" style="display:none;" hidden>
+            <label for="ai-instruction">KI-Anweisung</label>
+            <input id="ai-instruction" type="text" maxlength="500"
+                   placeholder="z.B. 'mach das förmlicher' oder 'kürze das'">
+            <div class="ai-panel-actions">
+                <button id="ai-submit-btn" class="btn btn-primary btn-sm" type="button">Anwenden</button>
+                <button id="ai-cancel-btn" class="btn btn-secondary btn-sm" type="button">Abbrechen</button>
+            </div>
+            <span id="ai-status" class="ai-status" role="status" aria-live="polite"></span>
         </div>
         <textarea
             id="note-field"

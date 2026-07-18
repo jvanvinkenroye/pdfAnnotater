@@ -19,6 +19,12 @@
     const pdfTextLayer = document.getElementById('pdf-text-layer');
     const pageLoading = document.getElementById('page-loading');
     const noteField = document.getElementById('note-field');
+    const aiAssistBtn = document.getElementById('ai-assist-btn');
+    const aiPanel = document.getElementById('ai-panel');
+    const aiInstructionInput = document.getElementById('ai-instruction');
+    const aiSubmitBtn = document.getElementById('ai-submit-btn');
+    const aiCancelBtn = document.getElementById('ai-cancel-btn');
+    const aiStatus = document.getElementById('ai-status');
     const pageInput = document.getElementById('page-input');
     const prevButton = document.getElementById('prev-page');
     const nextButton = document.getElementById('next-page');
@@ -285,6 +291,109 @@
             saveStatus.classList.add('error');
         }
     }
+
+    // AI assist state: selection range captured when the panel is opened,
+    // so a later click into the instruction input doesn't lose it.
+    let aiSelectionStart = 0;
+    let aiSelectionEnd = 0;
+
+    function openAiPanel() {
+        aiSelectionStart = noteField.selectionStart;
+        aiSelectionEnd = noteField.selectionEnd;
+        const hasSelection = aiSelectionStart !== aiSelectionEnd;
+        aiInstructionInput.placeholder = hasSelection
+            ? "Anweisung für den markierten Text… z.B. 'kürze das'"
+            : 'Stichpunkte oder kurze Anweisung für neue Notiz…';
+        aiStatus.textContent = '';
+        aiPanel.style.display = '';
+        aiPanel.hidden = false;
+        aiInstructionInput.focus();
+    }
+
+    function closeAiPanel() {
+        aiPanel.style.display = 'none';
+        aiPanel.hidden = true;
+        aiInstructionInput.value = '';
+        aiStatus.textContent = '';
+    }
+
+    function submitAiRequest() {
+        const instruction = aiInstructionInput.value.trim();
+        if (!instruction) {
+            return;
+        }
+
+        const hasSelection = aiSelectionStart !== aiSelectionEnd;
+        const mode = hasSelection ? 'edit' : 'generate';
+        const sourceText = hasSelection
+            ? noteField.value.slice(aiSelectionStart, aiSelectionEnd)
+            : '';
+
+        aiSubmitBtn.disabled = true;
+        aiCancelBtn.disabled = true;
+        aiStatus.textContent = 'Wird bearbeitet...';
+
+        fetch('/viewer/api/ai/text', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken,
+            },
+            body: JSON.stringify({ mode: mode, instruction: instruction, source_text: sourceText })
+        })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(data => {
+                        throw new Error(data.error || 'KI-Anfrage fehlgeschlagen');
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (mode === 'edit') {
+                    noteField.setRangeText(data.result, aiSelectionStart, aiSelectionEnd, 'end');
+                } else if (noteField.value.trim() === '') {
+                    noteField.value = data.result;
+                } else {
+                    const pos = noteField.selectionStart;
+                    noteField.setRangeText(data.result, pos, pos, 'end');
+                }
+                saveNote(true);
+                closeAiPanel();
+            })
+            .catch(error => {
+                console.error('Error in AI request:', error);
+                showToast('Fehler bei der KI-Anfrage: ' + error.message, 'error');
+                aiStatus.textContent = '';
+            })
+            .finally(() => {
+                aiSubmitBtn.disabled = false;
+                aiCancelBtn.disabled = false;
+            });
+    }
+
+    if (window.__aiEnabled) {
+        aiAssistBtn.style.display = '';
+    }
+
+    aiAssistBtn.addEventListener('click', () => {
+        if (aiPanel.hidden) {
+            openAiPanel();
+        } else {
+            closeAiPanel();
+        }
+    });
+
+    aiSubmitBtn.addEventListener('click', submitAiRequest);
+    aiCancelBtn.addEventListener('click', closeAiPanel);
+    aiInstructionInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            submitAiRequest();
+        } else if (e.key === 'Escape') {
+            closeAiPanel();
+        }
+    });
 
     /**
      * Navigate to specific page

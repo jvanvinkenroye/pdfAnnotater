@@ -98,6 +98,7 @@ class Config:
     MAX_YEAR_LENGTH = 4
     MAX_SUBJECT_LENGTH = 200
     MAX_NOTE_LENGTH = 5000
+    MAX_AI_INSTRUCTION_LENGTH = 500
 
     # Database settings
     DATABASE_PATH: Path | str = BASE_DIR / "data" / "annotations.db"
@@ -108,6 +109,14 @@ class Config:
     # never be enabled for server/Docker deployments.
     DESKTOP_MODE = os.environ.get("PDF_ANNOTATOR_DESKTOP_MODE") == "1"
     DESKTOP_EXPORT_DIR: Path = get_downloads_dir()
+
+    # AI-assisted note editing (optional, disabled by default). When enabled,
+    # note text and the user's instruction are sent to the configured
+    # third-party provider.
+    AI_PROVIDER = os.environ.get("AI_PROVIDER")  # None = feature disabled
+    AI_MODEL = os.environ.get("AI_MODEL")  # None = provider default
+    ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
+    OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
     # PDF rendering settings
     PDF_RENDER_DPI = 150  # DPI for browser preview (lower = faster)
@@ -174,6 +183,19 @@ class ProductionConfig(Config):
             warnings.warn(
                 "SECRET_KEY ist nicht gesetzt! Sessions werden nach Neustart ungültig. "
                 "Setzen Sie die Umgebungsvariable SECRET_KEY für Production.",
+                stacklevel=2,
+            )
+        ai_provider = app.config.get("AI_PROVIDER")
+        if ai_provider == "anthropic" and not app.config.get("ANTHROPIC_API_KEY"):
+            warnings.warn(
+                "AI_PROVIDER=anthropic gesetzt, aber ANTHROPIC_API_KEY fehlt. "
+                "Die KI-Funktion wird bei jeder Anfrage fehlschlagen.",
+                stacklevel=2,
+            )
+        elif ai_provider == "openai" and not app.config.get("OPENAI_API_KEY"):
+            warnings.warn(
+                "AI_PROVIDER=openai gesetzt, aber OPENAI_API_KEY fehlt. "
+                "Die KI-Funktion wird bei jeder Anfrage fehlschlagen.",
                 stacklevel=2,
             )
         # Use ProductionConfig paths, not base Config

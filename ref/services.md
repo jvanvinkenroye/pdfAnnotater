@@ -83,3 +83,16 @@ Rewrites `doc_id` references when importing.
 
 **`_is_version_compatible(version) -> bool`** *(internal)*  
 Checks ZIP `data.json` version field.
+
+---
+
+## ai_client.py
+
+Optional AI-assisted note editing (edit selected text / generate note text from bullet points). Disabled by default.
+
+**`generate_text(instruction, source_text) -> str`**  
+Dispatches to the provider configured via `AI_PROVIDER` (`"anthropic"` | `"openai"` | unset). Raises `AIFeatureDisabledError` if unset, `AIConfigError` if the provider's API key is missing, `AIProviderError` on request failure.
+
+**Env vars:** `AI_PROVIDER`, `AI_MODEL` (optional override; defaults `claude-haiku-4-5` / `gpt-4o-mini`), `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`.
+
+Route: `POST /viewer/api/ai/text` (`routes/ai.py`) — stateless, not tied to a document, only `@login_required` + rate limit (10/min). Frontend gated by `window.__aiEnabled` (`config.AI_PROVIDER` truthy).

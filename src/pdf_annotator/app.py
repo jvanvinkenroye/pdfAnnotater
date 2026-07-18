@@ -17,6 +17,7 @@ from pdf_annotator.config import config
 from pdf_annotator.models.database import DatabaseManager
 from pdf_annotator.models.user import User
 from pdf_annotator.routes.admin import admin_bp
+from pdf_annotator.routes.ai import ai_bp
 from pdf_annotator.routes.auth import auth_bp
 from pdf_annotator.routes.export import export_bp
 from pdf_annotator.routes.upload import upload_bp
@@ -107,6 +108,7 @@ def create_app(config_name: str | None = None) -> Flask:
     app.register_blueprint(viewer_bp)
     app.register_blueprint(export_bp)
     app.register_blueprint(admin_bp, url_prefix="/admin")
+    app.register_blueprint(ai_bp)
 
     logger.info("All blueprints registered")
 
@@ -131,6 +133,7 @@ def create_app(config_name: str | None = None) -> Flask:
     limiter.limit("60 per minute")(app.view_functions["viewer.get_page_image"])
     limiter.limit("10 per minute")(app.view_functions["upload.import_data"])
     limiter.limit("30 per minute")(app.view_functions["auth.set_theme"])
+    limiter.limit("10 per minute")(app.view_functions["ai.generate_or_edit_text"])
 
     # Security headers
     @app.after_request

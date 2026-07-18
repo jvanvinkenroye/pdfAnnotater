@@ -189,6 +189,36 @@ def validate_note_text(
     return True, None
 
 
+def validate_ai_instruction(
+    instruction: str, max_length: int = 500
+) -> tuple[bool, str | None]:
+    """
+    Validate a free-form AI instruction for the note-editing assistant.
+
+    Args:
+        instruction: Instruction text to validate
+        max_length: Maximum allowed length (default: 500)
+
+    Returns:
+        Tuple of (is_valid, error_message)
+
+    Example:
+        is_valid, error = validate_ai_instruction(instruction)
+        if not is_valid:
+            return jsonify({"error": error}), 400
+    """
+    if not isinstance(instruction, str):
+        return False, "Anweisung muss ein Text sein"
+
+    if not instruction.strip():
+        return False, "Anweisung darf nicht leer sein"
+
+    if len(instruction) > max_length:
+        return False, f"Anweisung zu lang (max. {max_length} Zeichen)"
+
+    return True, None
+
+
 def validate_file_type(filename: str) -> tuple[bool, str | None]:
     """
     Validate that file is a PDF.

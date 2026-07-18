@@ -10,6 +10,7 @@ import pytest
 
 from pdf_annotator.utils.validators import (
     sanitize_filename,
+    validate_ai_instruction,
     validate_file_path,
     validate_note_text,
 )
@@ -84,6 +85,41 @@ class TestValidateNoteText:
         """Test that non-string notes are rejected."""
         note = 12345  # Integer instead of string
         is_valid, error = validate_note_text(note, max_length=5000)
+
+        assert is_valid is False
+        assert "text" in error.lower()
+
+
+class TestValidateAiInstruction:
+    """Test AI instruction validation."""
+
+    def test_valid_instruction_accepted(self):
+        is_valid, error = validate_ai_instruction("mach das förmlicher")
+
+        assert is_valid is True
+        assert error is None
+
+    def test_empty_instruction_rejected(self):
+        is_valid, error = validate_ai_instruction("")
+
+        assert is_valid is False
+        assert "leer" in error.lower()
+
+    def test_whitespace_only_instruction_rejected(self):
+        is_valid, error = validate_ai_instruction("   ")
+
+        assert is_valid is False
+        assert "leer" in error.lower()
+
+    def test_oversized_instruction_rejected(self):
+        instruction = "x" * 501
+        is_valid, error = validate_ai_instruction(instruction, max_length=500)
+
+        assert is_valid is False
+        assert "zu lang" in error.lower()
+
+    def test_non_string_instruction_rejected(self):
+        is_valid, error = validate_ai_instruction(12345)
 
         assert is_valid is False
         assert "text" in error.lower()

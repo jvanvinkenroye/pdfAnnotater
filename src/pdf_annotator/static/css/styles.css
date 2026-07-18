@@ -596,6 +596,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 0.75rem;
     padding: 1rem 1.5rem;
     border-bottom: 1px solid var(--border-color);
 }
@@ -604,6 +605,39 @@ body {
     font-size: 1.25rem;
     font-weight: 600;
     color: var(--text-primary);
+    margin-right: auto;
+}
+
+.ai-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+    background-color: var(--bg-light);
+}
+
+.ai-panel label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.ai-panel input {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 0.9rem;
+}
+
+.ai-panel-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.ai-status {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
 }
 
 .save-status {

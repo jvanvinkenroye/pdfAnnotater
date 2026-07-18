@@ -62,6 +62,7 @@ Config: `ruff.toml`, `pyproject.toml [tool.mypy]`
 - **sanitize_filename** — preserves Unicode (Umlaute) intentionally; werkzeug would strip them
 - **WAL mode** — persistent after first connection; silent no-op on `:memory:`
 - **DESKTOP_MODE** — never set `PDF_ANNOTATOR_DESKTOP_MODE=1` on server/Docker deployments; it makes export routes write files directly into `DESKTOP_EXPORT_DIR` on the server's disk instead of streaming them to the client. Only meant for WebView-based desktop shells (e.g. a future Toga/Briefcase packaging) that cannot handle `Content-Disposition: attachment` responses. `flaskwebgui` (current desktop app) is unaffected — it uses a real Chrome process with a working native download manager.
+- **AI Assist (optional)** — note-editor "✨ KI" button is disabled unless `AI_PROVIDER` (`anthropic`|`openai`) plus the matching `ANTHROPIC_API_KEY`/`OPENAI_API_KEY` are set. Privacy: when enabled, the note text and the user's instruction are sent to that third-party API — self-hosters should be aware before setting `AI_PROVIDER`. See `ref/services.md` (`ai_client.py`) for details.
 
 ## Packaging
 
