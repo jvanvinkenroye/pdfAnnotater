@@ -69,6 +69,7 @@
                 </button>
                 {% if current_user.is_authenticated %}
                 <span class="nav-user">{{ current_user.username }}</span>
+                <a href="{{ url_for('auth.change_password') }}" class="nav-link">Passwort ändern</a>
                 <a href="{{ url_for('auth.logout') }}" class="nav-link">Abmelden</a>
                 {% else %}
                 <a href="{{ url_for('auth.login') }}" class="nav-link">Einloggen</a>

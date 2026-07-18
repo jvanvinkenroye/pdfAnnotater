@@ -794,6 +794,28 @@ class DatabaseManager:
             row = cursor.fetchone()
             return row[0] if row else 0
 
+    def update_password(self, user_id: str, password_hash: str) -> bool:
+        """
+        Update a user's password hash.
+
+        Args:
+            user_id: UUID of user
+            password_hash: New hashed password from werkzeug.security
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "UPDATE users SET password_hash = ? WHERE id = ?",
+                    (password_hash, user_id),
+                )
+                return bool(cursor.rowcount > 0)
+        except sqlite3.Error:
+            return False
+
     def set_user_theme(self, user_id: str, theme: str) -> bool:
         """
         Set theme preference for a user.

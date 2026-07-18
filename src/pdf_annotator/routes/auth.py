@@ -186,6 +186,67 @@ def register_post() -> ResponseReturnValue:
     return redirect(url_for("upload.list_documents"))
 
 
+@auth_bp.route("/change-password", methods=["GET"])
+@login_required
+def change_password() -> ResponseReturnValue:
+    """Display change-password form."""
+    return render_template("auth/change_password.html")
+
+
+@auth_bp.route("/change-password", methods=["POST"])
+@login_required
+def change_password_post() -> ResponseReturnValue:
+    """
+    Handle change-password form submission.
+
+    Verifies the current password before setting the new one.
+
+    Returns:
+        Redirect to documents page on success, or re-render form with error
+    """
+    current_password = request.form.get("current_password", "")
+    new_password = request.form.get("new_password", "")
+    new_password_confirm = request.form.get("new_password_confirm", "")
+
+    db = DatabaseManager()
+    user_data = db.get_user_by_id(current_user.id)
+
+    if not user_data or not check_password_hash(
+        user_data["password_hash"], current_password
+    ):
+        return (
+            render_template(
+                "auth/change_password.html",
+                error="Aktuelles Passwort ist falsch.",
+            ),
+            401,
+        )
+
+    if len(new_password) < 8:
+        return (
+            render_template(
+                "auth/change_password.html",
+                error="Neues Passwort muss mindestens 8 Zeichen lang sein.",
+            ),
+            400,
+        )
+
+    if new_password != new_password_confirm:
+        return (
+            render_template(
+                "auth/change_password.html",
+                error="Neue Passwörter stimmen nicht überein.",
+            ),
+            400,
+        )
+
+    db.update_password(current_user.id, generate_password_hash(new_password))
+
+    return render_template(
+        "auth/change_password.html", success="Passwort erfolgreich geändert."
+    )
+
+
 @auth_bp.route("/theme", methods=["POST"])
 @login_required
 def set_theme() -> ResponseReturnValue:
