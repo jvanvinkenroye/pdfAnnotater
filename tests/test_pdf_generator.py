@@ -61,6 +61,38 @@ class TestAddAnnotationToPage:
         assert result is True
         doc.close()
 
+    def test_long_multiline_note_actually_renders(self):
+        """
+        Regression test: insert_textbox() silently draws nothing (no
+        exception) when text overflows a fixed-height box, so a note this
+        long/multi-line used to be dropped without any indication. The
+        footer must grow / font shrink until it actually fits.
+        """
+        doc = fitz.open()
+        page = doc.new_page(width=595.4, height=841.8)
+        note_text = (
+            "1. Ist okay. \n"
+            "2. Sehr schön. Ich bin mir bei dem Begriff „Feldakteure” nicht "
+            "sicher. Wenn das aber ein üblicher Begriff ist, ist es in "
+            "Ordnung.\n"
+            "3. (Thomas) – sollte eigentlich auf einer Folie stehen. Das "
+            "Zitat stimmt aber. Das Beispiel passt aber. Im "
+            "Interview-Kontext geht es auch um Objektivität. Wenn jemand "
+            "etwas auf eine bestimmte Weise beschreibt oder erklärt, ist "
+            "es für ihn erst einmal nicht relevant, ob das stimmt. "
+            "Dadurch, dass er das tut und eventuell mit anderen darüber "
+            "ins Gespräch geht, hat das eben Folgen, weil dadurch "
+            "Interaktion entsteht. "
+        )
+
+        result = add_annotation_to_page(page, note_text, "[2026-06-15 15:47]")
+
+        assert result is True
+        text = page.get_text()
+        assert "[2026-06-15 15:47]" in text
+        assert "Ist okay" in text
+        assert "Interaktion entsteht" in text
+
 
 class TestCreateAnnotatedPdf:
     """Test full annotated PDF creation (requires app context)."""

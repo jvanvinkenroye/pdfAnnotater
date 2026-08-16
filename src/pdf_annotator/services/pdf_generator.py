@@ -20,6 +20,11 @@ from pdf_annotator.utils.validators import validate_file_path
 
 logger = get_logger(__name__)
 
+FOOTER_MIN_HEIGHT = 80
+FOOTER_MAX_HEIGHT = 300
+FOOTER_HEIGHT_STEP = 40
+MIN_FONT_SIZE = 6
+
 
 def calculate_footer_rect(page_rect: fitz.Rect, footer_height: float = 80) -> fitz.Rect:
     """
@@ -43,6 +48,29 @@ def calculate_footer_rect(page_rect: fitz.Rect, footer_height: float = 80) -> fi
         page_rect.width - margin,  # x1 (right)
         page_rect.height - margin,  # y1 (bottom)
     )
+
+
+def _text_fits_in_box(
+    text: str, width: float, height: float, font_name: str, font_size: float
+) -> bool:
+    """
+    Check whether text fits a box of the given size without drawing on a
+    real page.
+
+    PyMuPDF's insert_textbox() has no dry-run mode and silently draws
+    nothing at all (no exception) if the text doesn't fit — so fitting
+    must be measured on a disposable scratch page first.
+    """
+    scratch_doc = fitz.open()
+    try:
+        scratch_page = scratch_doc.new_page(width=width + 20, height=height + 20)
+        rect = fitz.Rect(10, 10, width + 10, height + 10)
+        spare: float = scratch_page.insert_textbox(
+            rect, text, fontsize=font_size, fontname=font_name, color=(0, 0, 0)
+        )
+        return bool(spare >= 0)
+    finally:
+        scratch_doc.close()
 
 
 def add_annotation_to_page(
@@ -78,7 +106,37 @@ def add_annotation_to_page(
     """
     try:
         page_rect = page.rect
-        footer_rect = calculate_footer_rect(page_rect)
+        full_text = f"{timestamp}\n{note_text}"
+
+        # Grow the footer and shrink the font until the text fits, instead
+        # of silently losing long/multi-line notes: insert_textbox() draws
+        # nothing at all (no exception, no partial text) when it can't fit
+        # everything in the given box.
+        footer_height = FOOTER_MIN_HEIGHT
+        current_font_size = font_size
+        while not _text_fits_in_box(
+            full_text,
+            page_rect.width - 20,
+            footer_height - 20,
+            font_name,
+            current_font_size,
+        ):
+            if current_font_size > MIN_FONT_SIZE:
+                current_font_size -= 1
+            elif footer_height < FOOTER_MAX_HEIGHT:
+                footer_height = min(
+                    footer_height + FOOTER_HEIGHT_STEP, FOOTER_MAX_HEIGHT
+                )
+                current_font_size = font_size
+            else:
+                logger.warning(
+                    "Note on page %d may not fully fit even at minimum "
+                    "font size and maximum footer height",
+                    page.number + 1,
+                )
+                break
+
+        footer_rect = calculate_footer_rect(page_rect, footer_height)
 
         # Draw background rectangle for better readability
         page.draw_rect(
@@ -88,14 +146,11 @@ def add_annotation_to_page(
             width=0.5,
         )
 
-        # Combine timestamp and note text
-        full_text = f"{timestamp}\n{note_text}"
-
         # Insert text into footer
         page.insert_textbox(
             footer_rect,
             full_text,
-            fontsize=font_size,
+            fontsize=current_font_size,
             fontname=font_name,
             color=font_color,
             align=0,  # Left-aligned
