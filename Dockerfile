@@ -1,6 +1,10 @@
 # ── Stage 1: Build ──────────────────────────────────────────────────────────
 FROM python:3.12.9-slim-bookworm AS builder
 
+# git is required by uv to resolve the swb git dependency (see pyproject.toml)
+RUN apt-get update && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install uv
 COPY --from=ghcr.io/astral-sh/uv:0.6 /uv /usr/local/bin/uv
 
