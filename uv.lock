@@ -1016,7 +1016,7 @@ requires-dist = [
     { name = "pytest-flask", marker = "extra == 'dev'", specifier = ">=1.3.0" },
     { name = "python-dotenv", specifier = ">=1.2.2" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
-    { name = "swb", directory = "../swb" },
+    { name = "swb", git = "https://github.com/jvanvinkenroye/swb.git" },
     { name = "types-flask", marker = "extra == 'dev'" },
 ]
 provides-extras = ["dev"]
@@ -1499,38 +1499,12 @@ wheels = [
 [[package]]
 name = "swb"
 version = "0.1.0"
-source = { directory = "../swb" }
+source = { git = "https://github.com/jvanvinkenroye/swb.git#8e87d17145e738b85f09084a480029b32d6e31b9" }
 dependencies = [
     { name = "click" },
     { name = "lxml" },
     { name = "requests" },
     { name = "rich" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "click", specifier = ">=8.3.1" },
-    { name = "lxml", specifier = ">=6.0.2" },
-    { name = "requests", specifier = ">=2.32.5" },
-    { name = "rich", specifier = ">=14.2.0" },
-    { name = "textual", marker = "extra == 'all'", specifier = ">=6.12.0" },
-    { name = "textual", marker = "extra == 'tui'", specifier = ">=6.12.0" },
-]
-provides-extras = ["tui", "all"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "mypy", specifier = ">=1.19.1" },
-    { name = "pytest", specifier = ">=9.0.2" },
-    { name = "pytest-cov", specifier = ">=7.0.0" },
-    { name = "ruff", specifier = ">=0.14.9" },
-    { name = "types-requests", specifier = ">=2.32.4.20250913" },
-]
-docs = [
-    { name = "mkdocs", specifier = ">=1.6.1" },
-    { name = "mkdocs-material", specifier = ">=9.5.0" },
-    { name = "mkdocstrings", extras = ["python"], specifier = ">=0.26.0" },
-    { name = "pymdown-extensions", specifier = ">=10.11.0" },
 ]
 
 [[package]]
