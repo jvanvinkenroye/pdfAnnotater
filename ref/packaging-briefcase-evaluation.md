@@ -61,26 +61,37 @@ WebView-basierte Desktop-Lösung nötig wäre und den bestehenden
 Siehe [`ref/development.md`](development.md) Gotchas-Abschnitt für den
 Sicherheitshinweis (`DESKTOP_MODE` niemals auf Server/Docker aktivieren).
 
-## Was für eine erneute Evaluierung noch fehlt
+## Wiederaufnahme (Branch `feature/toga-desktop`, 2026-08-19)
 
-- Auto-Login für Desktop-Mode (siehe oben)
+Der Prototyp lebt jetzt **im Repo** statt im Wegwerf-Scratchpad:
+
+- **`src/pdf_annotator/desktop_toga.py`** — Toga-Entry-Point: Flask im
+  Daemon-Thread auf freiem Port, `toga.WebView` als Fenster-Content.
+  Start: `uv run pdf-annotator-toga` (Script-Entry in pyproject).
+- **Toga als optionale Dependency**: `uv sync --extra toga`
+  (`[project.optional-dependencies] toga`).
+- **Auto-Login umgesetzt** (der frühere offene Punkt #1):
+  `PDF_ANNOTATOR_DESKTOP_AUTO_LOGIN=1` → `DESKTOP_AUTO_LOGIN`-Config-Flag →
+  `before_request`-Hook in `app.py` loggt automatisch einen lokalen
+  `desktop`-User ein (wird beim ersten Request mit Zufallspasswort +
+  Admin-Rechten angelegt). Niemals auf Servern aktivieren. 3 Tests in
+  `tests/test_auth.py` (`TestDesktopAutoLogin`).
+- Der Entry-Point setzt `DESKTOP_MODE=1` (Export → ~/Downloads) und
+  `DESKTOP_AUTO_LOGIN=1` automatisch.
+
+**Verifiziert am 2026-08-19:** App startet, natives Fenster öffnet sich,
+`GET /` liefert direkt 200 (kein Login-Redirect), desktop-User wird genau
+einmal angelegt, WKWebView lädt statische Assets.
+
+## Was für eine Produktiv-Entscheidung noch fehlt
+
 - Kompletter Annotations-Workflow im WebView testen (Speichern via
-  `sendBeacon`, Seiten löschen/anhängen, Keyboard-Shortcuts, Zoom)
-- Cookie-/Session-Persistenz über App-Neustarts hinweg
-- Tatsächlicher Briefcase-Build (`briefcase build`/`briefcase package`) statt
-  nur `briefcase dev` — Icon, Bundle-Signing, Notarization auf macOS
-- Vergleich des tatsächlichen Aufwands (Toga-App-Wrapper + Build-Konfiguration)
-  gegenüber dem Ertrag (ein Build-Tool statt Homebrew-Formel + `.deb`-Skript)
-
-## Prototyp
-
-Der Test-Prototyp lag unter einem Session-Scratchpad-Verzeichnis (temporär,
-nicht Teil des Repos). Bei Bedarf neu aufsetzen mit:
-```bash
-uvx briefcase new --no-input -Q formal_name="..." -Q app_name=... -Q bundle=... \
-  -Q gui_framework=Toga -Q license=BSD-3-Clause ...
-```
-Danach `app.py` so anpassen, dass `pdf_annotator.app.create_app("production")`
-in einem Hintergrund-Thread läuft und `toga.WebView` auf `127.0.0.1:<port>`
-zeigt (siehe Commit-Historie für den vollständigen Code-Stand, falls dieser
-Prototyp erneut gebraucht wird).
+  `sendBeacon`, Seiten löschen/anhängen, Keyboard-Shortcuts, Zoom,
+  Text-Layer-Selektion, OCR-Button)
+- Cookie-/Session-Persistenz über App-Neustarts hinweg (durch Auto-Login
+  praktisch entschärft — Session-Verlust heißt nur transparentes Neu-Einloggen)
+- Tatsächlicher Briefcase-Build (`briefcase build`/`briefcase package`) —
+  Icon, Bundle-Signing, Notarization auf macOS; `[tool.briefcase]`-Konfig
+  in pyproject.toml fehlt noch
+- Entscheidung: ersetzt das flaskwebgui (`desktop.py`) oder bleibt es
+  parallel als Option?

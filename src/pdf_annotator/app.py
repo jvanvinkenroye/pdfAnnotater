@@ -83,6 +83,43 @@ def create_app(config_name: str | None = None) -> Flask:
             )
         return None
 
+    # Desktop auto-login: skip the login screen for local single-user
+    # desktop shells (see desktop_toga.py). Never enable on servers.
+    if app.config.get("DESKTOP_AUTO_LOGIN"):
+        import secrets as _secrets
+
+        from flask_login import current_user, login_user
+        from werkzeug.security import generate_password_hash
+
+        @app.before_request
+        def desktop_auto_login() -> None:
+            if current_user.is_authenticated:
+                return
+            db = DatabaseManager()
+            user_data = db.get_user_by_username("desktop")
+            if not user_data:
+                # Random password: the account is only ever used via this
+                # auto-login, never through the login form
+                user_id = db.create_user(
+                    "desktop",
+                    "desktop@localhost",
+                    generate_password_hash(_secrets.token_hex(32)),
+                )
+                db.set_user_admin(user_id, True)
+                user_data = db.get_user_by_id(user_id)
+                logger.info("Created local desktop user for auto-login")
+            assert user_data is not None
+            login_user(
+                User(
+                    user_data["id"],
+                    user_data["username"],
+                    user_data["email"],
+                    bool(user_data["is_active"]),
+                    bool(user_data.get("is_admin", False)),
+                    user_data.get("theme"),
+                )
+            )
+
     # Initialize CSRF protection
     csrf = CSRFProtect(app)
 

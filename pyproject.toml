@@ -24,6 +24,7 @@ dependencies = [
 [project.scripts]
 pdf-annotator = "pdf_annotator.desktop:main"
 pdf-annotator-server = "pdf_annotator.app:run_server"
+pdf-annotator-toga = "pdf_annotator.desktop_toga:main"
 
 [project.optional-dependencies]
 dev = [
@@ -32,6 +33,9 @@ dev = [
   "pytest-flask>=1.3.0",
   "mypy>=1.7.0",
   "types-flask",
+]
+toga = [
+    "toga>=0.4.5",
 ]
 
 [build-system]

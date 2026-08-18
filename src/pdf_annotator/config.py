@@ -126,6 +126,10 @@ class Config:
     # never be enabled for server/Docker deployments.
     DESKTOP_MODE = os.environ.get("PDF_ANNOTATOR_DESKTOP_MODE") == "1"
     DESKTOP_EXPORT_DIR: Path = get_downloads_dir()
+    # Auto-login as a local "desktop" user, skipping the login screen.
+    # ONLY meant for single-user desktop shells (Toga/Briefcase) — must
+    # never be enabled on server/Docker deployments.
+    DESKTOP_AUTO_LOGIN = os.environ.get("PDF_ANNOTATOR_DESKTOP_AUTO_LOGIN") == "1"
 
     # AI-assisted note editing (optional, disabled by default). When enabled,
     # note text and the user's instruction are sent to the configured
