@@ -47,3 +47,6 @@ htmlcov/
 .mypy_cache/
 .dmypy.json
 dmypy.json
+.playwright-mcp/
+.ruff_cache/
+uploads/
