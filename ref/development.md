@@ -66,11 +66,12 @@ Config: `ruff.toml`, `pyproject.toml [tool.mypy]`
 
 ## Packaging
 
-### Desktop (macOS, via Homebrew or uv tool)
+### Desktop (uv tool)
 ```bash
 uv tool install .                # installs pdf-annotator to ~/.local/bin
 uv tool install --no-cache .     # force rebuild (picks up template changes)
 ```
+The former Homebrew tap (`jvanvinkenroye/pdf-annotator`) is **deprecated** (formula stuck at v0.4.1, dependencies incl. the swb git dependency can't reasonably be maintained as formula resources).
 
 ### .deb (Linux amd64)
 ```bash
@@ -80,7 +81,7 @@ bash packaging/build-deb.sh
 ```
 
 ### GitHub Release
-Push tag `v*` → CI builds .deb + updates Homebrew tap automatically.
+Push tag `v*` → CI builds .deb (Homebrew-tap update job removed — tap is deprecated).
 
 ### Production server (Gunicorn)
 ```bash

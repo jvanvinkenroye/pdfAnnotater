@@ -142,20 +142,17 @@ docker build -t pdf-annotator:latest .
 - macOS oder Linux
 - Optional fuer OCR: `tesseract` inkl. Sprachpaketen (`brew install tesseract` auf macOS; im Docker-Image bereits enthalten)
 
-### Homebrew (macOS)
-
-```bash
-brew tap jvanvinkenroye/pdf-annotator
-brew install pdf-annotator
-pdf-annotator
-```
-
-### uv tool (plattformuebergreifend)
+### uv tool (empfohlen, plattformuebergreifend)
 
 ```bash
 uv tool install git+https://github.com/jvanvinkenroye/pdfAnnotater.git
 pdf-annotator
 ```
+
+> **Hinweis:** Der fruehere Homebrew-Tap (`jvanvinkenroye/pdf-annotator`) ist
+> eingestellt (Formel bei v0.4.1 stehengeblieben). Bestehende
+> Homebrew-Installationen bitte auf `uv tool` migrieren — die Daten unter
+> `~/Library/Application Support/PDF-Annotator/` bleiben dabei erhalten.
 
 ### Aus Source (Entwicklung)
 
