@@ -209,7 +209,14 @@ def get_page_text_layout(file_path: str, page_num: int) -> dict:
                 {"text": text, "x0": x0, "y0": y0, "x1": x1, "y1": y1}
             )
 
-        lines = [lines_by_key[key] for key in sorted(lines_by_key)]
+        # Sort by VISUAL position (top-to-bottom, left-to-right), not by PDF
+        # content-stream order: browser drag-selection follows DOM order, so
+        # out-of-order spans (e.g. a footer emitted as the first block) make
+        # mouse selection jump across the page instead of following the text.
+        lines = list(lines_by_key.values())
+        for line_words in lines:
+            line_words.sort(key=lambda w: w["x0"])
+        lines.sort(key=lambda lw: (min(w["y0"] for w in lw), min(w["x0"] for w in lw)))
 
         return {
             "page_width": rect.width,

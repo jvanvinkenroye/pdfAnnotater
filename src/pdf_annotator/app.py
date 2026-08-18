@@ -170,6 +170,20 @@ def create_app(config_name: str | None = None) -> Flask:
             404,
         )
 
+    @app.errorhandler(403)
+    def forbidden(e: Any) -> tuple:
+        """Handle 403 errors."""
+        from flask import render_template
+
+        return (
+            render_template(
+                "error.html",
+                error_title="Nicht berechtigt",
+                error_message="Sie haben keine Berechtigung für diese Seite.",
+            ),
+            403,
+        )
+
     @app.errorhandler(500)
     def internal_error(e: Any) -> tuple:
         """Handle 500 errors."""

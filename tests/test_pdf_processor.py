@@ -4,6 +4,7 @@ Unit tests for PDF processor service.
 Tests PDF validation, page counting, rendering, and cache.
 """
 
+import fitz
 import pytest
 
 from pdf_annotator.services.pdf_processor import (
@@ -129,6 +130,30 @@ class TestGetPageTextLayout:
     def test_invalid_page_raises(self, sample_pdf):
         with pytest.raises(ValueError):
             get_page_text_layout(str(sample_pdf), 99)
+
+    def test_lines_sorted_by_visual_position(self, tmp_path):
+        """
+        Regression test: lines must be ordered top-to-bottom by their
+        on-page position, not by PDF content-stream order — a footer
+        emitted as the first block used to come first in the DOM, which
+        broke browser drag-selection (selection follows DOM order).
+        """
+        pdf_path = tmp_path / "footer_first.pdf"
+        doc = fitz.open()
+        page = doc.new_page(width=595, height=842)
+        # Insert the footer FIRST (bottom of page), then the heading (top):
+        # content-stream order is now the reverse of visual order.
+        page.insert_text((72, 800), "Fusszeile", fontsize=9)
+        page.insert_text((72, 100), "Ueberschrift", fontsize=24)
+        doc.save(str(pdf_path))
+        doc.close()
+
+        layout = get_page_text_layout(str(pdf_path), 1)
+        line_texts = [
+            " ".join(w["text"] for w in line["words"]) for line in layout["lines"]
+        ]
+
+        assert line_texts.index("Ueberschrift") < line_texts.index("Fusszeile")
 
     def test_clear_text_layout_cache(self, sample_pdf):
         get_page_text_layout(str(sample_pdf), 1)

@@ -536,22 +536,23 @@ body {
     overflow: auto;
     box-shadow: var(--shadow);
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
 }
 
 .pdf-page-wrapper {
     position: relative;
     width: 100%;
-    height: 100%;
+    min-height: 100%;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
 }
 
 .pdf-page-image {
+    /* Fit-to-width: fill the panel width and scroll vertically, instead
+       of shrinking a portrait page to panel height (wasted side space) */
     max-width: 100%;
-    max-height: 100%;
     display: block;
     box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
 }
@@ -930,7 +931,9 @@ body {
     border-collapse: collapse;
     font-size: 0.85rem;
     table-layout: auto;
-    min-width: 1600px;
+    /* Wide enough for all 10 columns incl. action buttons, but small
+       enough to fit common viewports without horizontal scrolling */
+    min-width: 1100px;
 }
 
 .documents-table thead {
@@ -939,7 +942,7 @@ body {
 }
 
 .documents-table th {
-    padding: 1rem;
+    padding: 1rem 0.75rem;
     text-align: left;
     font-weight: 600;
     color: var(--text-primary);
@@ -977,7 +980,7 @@ body {
 }
 
 .documents-table td {
-    padding: 1rem;
+    padding: 1rem 0.75rem;
     color: var(--text-primary);
 }
 
@@ -994,13 +997,18 @@ body {
 }
 
 .actions-cell {
-    text-align: center;
-    white-space: nowrap;
-    min-width: 450px;
+    /* Let the six action buttons wrap into two rows instead of forcing
+       one very wide row that pushes the table past the viewport */
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    align-items: center;
+    min-width: 240px;
+    max-width: 280px;
 }
 
 .actions-cell .btn {
-    margin: 0 0.25rem;
+    margin: 0;
 }
 
 .btn-sm {
