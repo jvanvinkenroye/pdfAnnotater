@@ -1,6 +1,6 @@
 [project]
 name = "pdf-annotator"
-version = "0.2.0"
+version = "0.3.0"
 description = "Flask-based PDF annotation tool with side-by-side view"
 authors = [{ name = "Jan Vanvinkenroye", email = "jan@vanvinkenroye.de" }]
 requires-python = ">=3.12"
