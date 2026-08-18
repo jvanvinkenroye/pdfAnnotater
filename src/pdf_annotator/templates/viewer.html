@@ -4,6 +4,8 @@
 {% block title %}{{ original_filename | e }} - PDF Annotator{% endblock %}
 
 {% block nav %}
+<a href="{{ url_for('upload.list_documents') }}" class="nav-link">Meine Dokumente</a>
+<a href="{{ url_for('upload.index') }}" class="nav-link">Neues PDF</a>
 <span class="doc-title">{{ original_filename | e }}</span>
 {% endblock %}
 
