@@ -138,8 +138,9 @@ docker build -t pdf-annotator:latest .
 
 ### Voraussetzungen
 
-- Python 3.10 oder hoeher
+- Python 3.12 oder hoeher
 - macOS oder Linux
+- Optional fuer OCR: `tesseract` inkl. Sprachpaketen (`brew install tesseract` auf macOS; im Docker-Image bereits enthalten)
 
 ### Homebrew (macOS)
 
@@ -225,44 +226,56 @@ SECRET_KEY=<dein-key> uv run pdf-annotator-server
 pdfAnnotater/
 ├── Dockerfile
 ├── docker-compose.yml
+├── CHANGELOG.md
 ├── wsgi.py                     # Gunicorn Entry Point
 ├── src/pdf_annotator/
 │   ├── app.py                  # Flask App Factory
-│   ├── config.py               # Konfiguration (Dev/Prod/Test)
+│   ├── config.py               # Konfiguration (Dev/Prod/Test), .env-Loading
+│   ├── desktop.py              # Desktop-App Entry Point (flaskwebgui)
 │   │
 │   ├── models/
 │   │   ├── database.py         # SQLite Schema & CRUD
 │   │   └── user.py             # User-Modell (Flask-Login)
 │   │
 │   ├── services/
-│   │   ├── pdf_processor.py    # PDF → PNG Rendering
+│   │   ├── pdf_processor.py    # PDF → PNG Rendering + Text-Layer-Extraktion
 │   │   ├── pdf_generator.py    # Annotiertes PDF erstellen
+│   │   ├── ocr.py              # OCR via ocrmypdf/tesseract
+│   │   ├── ai_client.py        # KI-Assistent (Anthropic/OpenAI)
+│   │   ├── swb_client.py       # Bibliothekskatalog-Suche (swb)
 │   │   ├── data_manager.py     # Import/Export ZIP
+│   │   ├── export_utils.py     # Timestamp-/Dateinamen-Helper
 │   │   └── markdown_exporter.py
 │   │
 │   ├── routes/
-│   │   ├── auth.py             # Login, Logout, Registrierung, Theme-API
+│   │   ├── auth.py             # Login, Registrierung, Passwort-aendern, Theme
 │   │   ├── admin.py            # Admin Panel (Benutzerverwaltung)
-│   │   ├── upload.py           # PDF-Upload, Delete, Export, Import
-│   │   └── viewer.py           # Viewer & Annotations-API
+│   │   ├── upload.py           # PDF-Upload, Delete, Backup-Export/Import
+│   │   ├── viewer.py           # Viewer, Annotations-, Text-Layer- & OCR-API
+│   │   ├── export.py           # PDF-/Markdown-/Original-Export
+│   │   ├── ai.py               # KI-Textbearbeitung
+│   │   └── swb.py              # Bibliothekssuche
 │   │
 │   ├── utils/
 │   │   ├── validators.py       # Input-Validierung
+│   │   ├── downloads.py        # Datei-Response-Helper (inkl. DESKTOP_MODE)
 │   │   └── logger.py           # Logging-Setup
 │   │
 │   ├── static/
-│   │   ├── css/styles.css
+│   │   ├── css/styles.css      # inkl. Themes: dark/brutalist/compact
 │   │   └── js/{upload,viewer,documents,theme,modal}.js
 │   │
 │   └── templates/
 │       ├── base.html
 │       ├── documents.html
 │       ├── viewer.html
-│       ├── auth/{login,register}.html
+│       ├── swb_results.html
+│       ├── auth/{login,register,change_password}.html
 │       ├── admin/
 │       └── icons.html          # Lucide SVG Icon-Library
 │
-├── tests/                      # Pytest Tests (114 Tests)
+├── tests/                      # Pytest Tests (178 Tests)
+├── ref/                        # Entwickler-Referenzdokumentation
 ├── pyproject.toml
 └── ruff.toml
 ```
@@ -324,7 +337,8 @@ CREATE TABLE annotations (
 - `GET /documents` - Dokumentenliste
 - `POST /upload` - PDF hochladen
 - `DELETE /delete/<doc_id>` - Dokument loeschen
-- `GET /export/backup` - Backup ZIP herunterladen
+- `GET /export` - Backup ZIP herunterladen (alle Daten)
+- `GET /export/info` - Backup-Metadaten (Anzahl, Groesse)
 - `POST /import` - Backup importieren
 
 ### Viewer
@@ -336,6 +350,8 @@ CREATE TABLE annotations (
 - `POST /viewer/api/annotation/<doc_id>/<page>` - Notiz speichern
 - `POST /viewer/api/metadata/<doc_id>` - Metadaten aktualisieren
 - `POST /viewer/api/replace/<doc_id>` - PDF ersetzen
+- `POST /viewer/api/append/<doc_id>` - Seiten aus anderer PDF anhaengen
+- `POST /viewer/api/ocr/<doc_id>` - OCR ausfuehren (Textebene fuer gescannte Dokumente)
 - `POST /viewer/api/ai/text` - KI-Textbearbeitung/-generierung (nur falls `AI_PROVIDER` konfiguriert)
 
 ### Bibliothekssuche
@@ -373,14 +389,17 @@ uv run ruff format src/ tests/
 
 ## Technologie-Stack
 
-- **Backend:** Python 3.10+ mit Flask 3.0+, Flask-Login, Flask-WTF
+- **Backend:** Python 3.12+ mit Flask 3.0+, Flask-Login, Flask-WTF, Flask-Limiter
 - **WSGI:** Gunicorn (Produktion)
-- **PDF-Handling:** PyMuPDF (fitz) fuer Rendering und Text-Injektion
+- **PDF-Handling:** PyMuPDF (fitz) fuer Rendering, Text-Layer-Extraktion und Text-Injektion
+- **OCR:** ocrmypdf + tesseract (optional)
+- **KI:** Anthropic-/OpenAI-SDK (optional, konfigurierbar)
+- **Bibliothekssuche:** swb (SRU-Client fuer K10plus/SWB/DNB)
 - **Frontend:** HTML5, CSS3 (Flexbox), Vanilla JavaScript (Fetch API)
 - **Icons:** Lucide (inline SVG)
 - **Datenbank:** SQLite
 - **Containerisierung:** Docker (Multi-Stage Build), Docker Compose
-- **Code Quality:** Ruff (Linting & Formatting)
+- **Code Quality:** Ruff (Linting & Formatting), Mypy
 
 ## Lizenz
 
