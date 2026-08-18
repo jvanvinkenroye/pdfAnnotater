@@ -22,6 +22,13 @@
     const aiAssistBtn = document.getElementById('ai-assist-btn');
     const aiPdfBtn = document.getElementById('ai-pdf-btn');
     const swbSearchBtn = document.getElementById('swb-search-btn');
+    const ocrBtn = document.getElementById('ocr-btn');
+    const noTextHint = document.getElementById('no-text-hint');
+    const noTextOcrLink = document.getElementById('no-text-ocr-link');
+    const viewerContainer = document.getElementById('viewer-container');
+    const splitPdfBtn = document.getElementById('split-pdf');
+    const splitBalancedBtn = document.getElementById('split-balanced');
+    const splitNotesBtn = document.getElementById('split-notes');
     const aiPanel = document.getElementById('ai-panel');
     const aiInstructionInput = document.getElementById('ai-instruction');
     const aiSubmitBtn = document.getElementById('ai-submit-btn');
@@ -125,10 +132,27 @@
                 }
                 return response.json();
             })
-            .then(data => buildTextLayer(data))
+            .then(data => {
+                buildTextLayer(data);
+                updateNoTextHint(data);
+            })
             .catch(() => {
                 pdfTextLayer.innerHTML = '';
             });
+    }
+
+    /**
+     * Show a hint (and OCR shortcut) when the current page has no
+     * extractable text — typically a scanned document.
+     * @param {object} layoutData - text layout response
+     */
+    function updateNoTextHint(layoutData) {
+        const hasText = layoutData.lines && layoutData.lines.length > 0;
+        noTextHint.style.display = hasText ? 'none' : '';
+        if (!hasText && window.__ocrAvailable) {
+            noTextOcrLink.style.display = '';
+            ocrBtn.style.display = '';
+        }
     }
 
     // Font used for the invisible text layer spans (must match the CSS rule
@@ -954,6 +978,78 @@
         clearTimeout(resizeTimeout);
         resizeTimeout = setTimeout(syncTextLayerGeometry, 150);
     });
+
+    // OCR: add a searchable text layer to scanned documents
+    function runOcr() {
+        showConfirm(
+            'Texterkennung (OCR) für dieses Dokument ausführen? Das kann je nach Umfang einige Minuten dauern.'
+        ).then(confirmed => {
+            if (!confirmed) {
+                return;
+            }
+            ocrBtn.disabled = true;
+            ocrBtn.textContent = 'OCR läuft...';
+            fetch(`/viewer/api/ocr/${docId}`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken },
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(data => {
+                            throw new Error(data.error || 'OCR fehlgeschlagen');
+                        });
+                    }
+                    return response.json();
+                })
+                .then(() => {
+                    showToast('Texterkennung abgeschlossen.', 'success');
+                    noTextHint.style.display = 'none';
+                    loadPage(currentPage);
+                })
+                .catch(error => {
+                    console.error('OCR error:', error);
+                    showToast('Fehler bei der Texterkennung: ' + error.message, 'error');
+                })
+                .finally(() => {
+                    ocrBtn.disabled = false;
+                    ocrBtn.textContent = 'OCR';
+                });
+        });
+    }
+
+    ocrBtn.addEventListener('click', runOcr);
+    noTextOcrLink.addEventListener('click', runOcr);
+    if (window.__ocrAvailable) {
+        ocrBtn.style.display = '';
+    }
+
+    // Split-view switcher: shift space between PDF and notes panel
+    const SPLIT_MODES = {
+        'split-pdf': splitPdfBtn,
+        '': splitBalancedBtn,
+        'split-notes': splitNotesBtn,
+    };
+
+    function applySplitMode(mode) {
+        viewerContainer.classList.remove('split-pdf', 'split-notes');
+        if (mode) {
+            viewerContainer.classList.add(mode);
+        }
+        Object.values(SPLIT_MODES).forEach(btn => btn.classList.remove('active'));
+        SPLIT_MODES[mode].classList.add('active');
+        localStorage.setItem('viewerSplitMode', mode);
+        // Image size changes with the panel, so realign the text layer
+        syncTextLayerGeometry();
+    }
+
+    splitPdfBtn.addEventListener('click', () => applySplitMode('split-pdf'));
+    splitBalancedBtn.addEventListener('click', () => applySplitMode(''));
+    splitNotesBtn.addEventListener('click', () => applySplitMode('split-notes'));
+
+    const savedSplitMode = localStorage.getItem('viewerSplitMode');
+    if (savedSplitMode && savedSplitMode in SPLIT_MODES) {
+        applySplitMode(savedSplitMode);
+    }
 
     // Initialize: Load first page
     loadPage(currentPage);

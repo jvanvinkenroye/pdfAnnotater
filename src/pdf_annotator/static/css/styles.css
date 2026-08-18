@@ -536,8 +536,75 @@ body {
     overflow: auto;
     box-shadow: var(--shadow);
     display: flex;
-    align-items: flex-start;
-    justify-content: center;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+}
+
+/* Split-view: shift space between PDF and notes for readability */
+.viewer-container.split-pdf .pdf-viewer {
+    flex: 3;
+}
+
+.viewer-container.split-pdf .note-editor {
+    flex: 1;
+}
+
+.viewer-container.split-notes .pdf-viewer {
+    flex: 1;
+}
+
+.viewer-container.split-notes .note-editor {
+    flex: 3;
+}
+
+.split-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.btn-split {
+    padding: 0.4rem 0.7rem;
+    font-size: 1rem;
+    line-height: 1;
+    background: var(--bg-light);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.btn-split:hover {
+    background: var(--border-color);
+}
+
+.btn-split.active {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: #fff;
+}
+
+.no-text-hint {
+    width: 100%;
+    padding: 0.6rem 1rem;
+    background: #fff8e1;
+    color: #7a5c00;
+    border-bottom: 1px solid #f0e0a0;
+    font-size: 0.85rem;
+    text-align: center;
+}
+
+.btn-link {
+    background: none;
+    border: none;
+    color: var(--primary-color);
+    text-decoration: underline;
+    cursor: pointer;
+    font-size: inherit;
+    padding: 0;
+    margin-left: 0.5rem;
 }
 
 .pdf-page-wrapper {
@@ -1238,6 +1305,12 @@ body {
     background-color: #7f1d1d;
     color: #fca5a5;
     border-color: #991b1b;
+}
+
+[data-theme="dark"] .no-text-hint {
+    background: #4a3f10;
+    color: #f5e3a0;
+    border-bottom-color: #6b5c1e;
 }
 
 [data-theme="dark"] .toast-success {

@@ -89,9 +89,17 @@
             <button id="zoom-in" class="btn-zoom" type="button" aria-label="Vergroessern">+</button>
             <button id="zoom-fit" class="btn-zoom-fit active" type="button" aria-label="An Breite anpassen">Anpassen</button>
         </div>
+        <div class="split-controls" role="group" aria-label="Ansicht aufteilen">
+            <button id="split-pdf" class="btn-split" type="button" title="PDF vergrößern" aria-label="PDF-Fokus">◧</button>
+            <button id="split-balanced" class="btn-split active" type="button" title="Geteilte Ansicht" aria-label="Geteilte Ansicht">◫</button>
+            <button id="split-notes" class="btn-split" type="button" title="Notizen vergrößern" aria-label="Notizen-Fokus">◨</button>
+        </div>
         <div class="controls-right">
             <button id="save-progress" class="btn btn-primary">
                 Fortschritt speichern
+            </button>
+            <button id="ocr-btn" class="btn btn-secondary" style="display: none;" title="Texterkennung für gescannte Dokumente">
+                OCR
             </button>
             <button id="delete-page-btn" class="btn btn-danger">
                 Seite löschen
@@ -108,8 +116,12 @@
     </div>
 </div>
 
-<div class="viewer-container">
+<div class="viewer-container" id="viewer-container">
     <div class="pdf-viewer">
+        <div id="no-text-hint" class="no-text-hint" style="display: none;">
+            Kein selektierbarer Text auf dieser Seite (gescanntes Dokument).
+            <button id="no-text-ocr-link" class="btn-link" type="button" style="display: none;">Texterkennung (OCR) ausführen</button>
+        </div>
         <div class="pdf-page-wrapper">
             <img id="pdf-page" src="" alt="PDF Seite" class="pdf-page-image">
             <div id="pdf-text-layer" class="pdf-text-layer" aria-hidden="true"></div>

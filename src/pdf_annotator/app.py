@@ -137,6 +137,14 @@ def create_app(config_name: str | None = None) -> Flask:
     limiter.limit("30 per minute")(app.view_functions["auth.set_theme"])
     limiter.limit("10 per minute")(app.view_functions["ai.generate_or_edit_text"])
     limiter.limit("15 per minute")(app.view_functions["swb.search"])
+    limiter.limit("3 per minute")(app.view_functions["viewer.ocr_document"])
+
+    @app.context_processor
+    def inject_ocr_availability() -> dict:
+        """Expose whether OCR (tesseract) is available to all templates."""
+        from pdf_annotator.services.ocr import ocr_available
+
+        return {"ocr_available": ocr_available()}
 
     # Security headers
     @app.after_request

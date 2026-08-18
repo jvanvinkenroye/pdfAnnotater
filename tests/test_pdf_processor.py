@@ -155,6 +155,32 @@ class TestGetPageTextLayout:
 
         assert line_texts.index("Ueberschrift") < line_texts.index("Fusszeile")
 
+    def test_rotated_page_coordinates_mapped_to_rendered_space(self, tmp_path):
+        """
+        Regression test: pages with a /Rotate flag (typical for scanned/
+        OCRed documents) render rotated via get_pixmap(), but
+        get_text("words") reports coordinates in the unrotated space —
+        the overlay used to end up mirrored to the wrong corner.
+        """
+        pdf_path = tmp_path / "rotated.pdf"
+        doc = fitz.open()
+        page = doc.new_page(width=595, height=842)
+        # Word near the top-left in unrotated space...
+        page.insert_text((72, 100), "Marker", fontsize=24)
+        page.set_rotation(180)
+        doc.save(str(pdf_path))
+        doc.close()
+
+        layout = get_page_text_layout(str(pdf_path), 1)
+        words = [w for line in layout["lines"] for w in line["words"]]
+        marker = next(w for w in words if w["text"] == "Marker")
+
+        # ...must appear near the bottom-right in the rendered (rotated) view
+        assert marker["x0"] > layout["page_width"] / 2
+        assert marker["y0"] > layout["page_height"] / 2
+        assert marker["x0"] < marker["x1"]
+        assert marker["y0"] < marker["y1"]
+
     def test_clear_text_layout_cache(self, sample_pdf):
         get_page_text_layout(str(sample_pdf), 1)
         clear_text_layout_cache()

@@ -685,6 +685,54 @@ def append_pdf(doc_id: str) -> Any:
         return jsonify({"error": "Interner Serverfehler"}), 500
 
 
+@viewer_bp.route("/api/ocr/<doc_id>", methods=["POST"])
+@login_required
+def ocr_document(doc_id: str) -> Any:
+    """
+    Run OCR on the document's PDF, adding a searchable text layer.
+
+    Meant for scanned documents whose pages have no extractable text —
+    afterwards the viewer's selectable text overlay works. Pages that
+    already contain text are left untouched (--skip-text).
+
+    Args:
+        doc_id: UUID of document
+
+    Returns:
+        JSON with success status or error response
+    """
+    try:
+        from pdf_annotator.services.ocr import OCRError, ocr_available, ocr_pdf
+
+        doc_info, err = _get_doc_or_error(doc_id)
+        if err is not None:
+            return err
+        assert doc_info is not None
+
+        if not ocr_available():
+            return jsonify({"error": "OCR ist auf diesem Server nicht verfügbar"}), 501
+
+        file_path = Path(doc_info["file_path"])
+        if not file_path.is_file():
+            logger.error("Document file not found: %s", file_path)
+            return jsonify({"error": "Dokumentdatei nicht gefunden"}), 404
+
+        logger.info("Running OCR for document %s", doc_id)
+        try:
+            ocr_pdf(file_path)
+        except OCRError as e:
+            return jsonify({"error": str(e)}), 500
+
+        clear_render_cache()
+        clear_text_layout_cache()
+
+        return jsonify({"success": True})
+
+    except Exception as e:
+        logger.error(f"Error running OCR for document {doc_id}: {e}", exc_info=True)
+        return jsonify({"error": "Interner Serverfehler"}), 500
+
+
 @viewer_bp.route("/api/page/<doc_id>/<int:page_number>", methods=["DELETE"])
 @login_required
 def delete_page(doc_id: str, page_number: int) -> Any:

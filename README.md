@@ -17,6 +17,8 @@ Eine Flask-basierte Web-Applikation zum Annotieren von PDF-Dokumenten mit Side-b
 - **Text markieren/kopieren:** PDF-Seiten haben eine unsichtbare Textebene, Text lässt sich wie in einem normalen Browser markieren und kopieren
 - **KI-Assistent (optional, deaktiviert per Default):** Notiztext mit freier Anweisung bearbeiten oder aus Stichpunkten generieren lassen ("✨ KI"), oder aus markiertem PDF-Text eine Notiz formulieren lassen ("✨ KI aus PDF"). Unterstützt Anthropic, OpenAI oder jeden OpenAI-kompatiblen Endpunkt (z.B. selbstgehostete Uni-Gateways)
 - **Bibliothekssuche ("🔎 SWB-Suche"):** Markierten PDF-Text direkt in deutschen Bibliothekskatalogen (SWB/K10plus/DNB/...) nachschlagen — öffnet die Treffer in einem neuen Tab, immer aktiv, kein Setup noetig
+- **OCR fuer gescannte Dokumente:** Erkennt Seiten ohne Textebene automatisch (Hinweis im Viewer) und fuegt per Klick eine durchsuchbare Textebene hinzu (tesseract erforderlich; im Docker-Image enthalten)
+- **Ansicht-Umschalter:** PDF-Fokus / geteilte Ansicht / Notizen-Fokus fuer bessere Lesbarkeit, Einstellung bleibt erhalten
 - **Themes:** Light, Dark und Brutalist — Einstellung wird pro Account serverseitig gespeichert
 - **Multi-User:** Registrierung und Login mit eigenem Dokumenten-Bereich
 - **Admin Panel:** Benutzerverwaltung (Aktivieren/Deaktivieren, Admin-Rechte, Loeschen)

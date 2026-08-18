@@ -39,6 +39,7 @@ All endpoints require login (`@login_required`) unless noted. CSRF token require
 | POST | `/viewer/api/metadata/<doc_id>` | ✓ | Update document metadata |
 | POST | `/viewer/api/replace/<doc_id>` | ✓ | Replace PDF file (keeps annotations) |
 | POST | `/viewer/api/append/<doc_id>` | ✓ | Append pages from another PDF |
+| POST | `/viewer/api/ocr/<doc_id>` | ✓ | Run OCR (add text layer to scanned docs); rate-limited 3/min; 501 if tesseract missing |
 | DELETE | `/viewer/api/page/<doc_id>/<page>` | ✓ | Delete a page |
 
 ## Export — `/export`

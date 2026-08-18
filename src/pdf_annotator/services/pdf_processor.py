@@ -201,9 +201,18 @@ def get_page_text_layout(file_path: str, page_num: int) -> dict:
         rect = page.rect
         words = page.get_text("words")
 
+        # get_text("words") returns coordinates in the UNROTATED page space,
+        # while get_pixmap() renders with the page's /Rotate flag applied
+        # (common on scanned/OCRed documents). Map the boxes into rendered
+        # space so the overlay lines up with what the user actually sees.
+        rotation_matrix = page.rotation_matrix if page.rotation else None
+
         # Group words by (block_no, line_no) to preserve line breaks on copy.
         lines_by_key: dict[tuple[int, int], list[dict]] = {}
         for x0, y0, x1, y1, text, block_no, line_no, _word_no in words:
+            if rotation_matrix is not None:
+                box = fitz.Rect(x0, y0, x1, y1) * rotation_matrix
+                x0, y0, x1, y1 = box.x0, box.y0, box.x1, box.y1
             key = (block_no, line_no)
             lines_by_key.setdefault(key, []).append(
                 {"text": text, "x0": x0, "y0": y0, "x1": x1, "y1": y1}

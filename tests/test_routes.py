@@ -155,6 +155,43 @@ class TestPageTextApi:
         assert response.status_code == 400
 
 
+class TestOcrApi:
+    """Test the OCR endpoint (OCR run itself is mocked — no tesseract in CI)."""
+
+    def test_ocr_success(self, app, logged_in_client, uploaded_pdf, monkeypatch):
+        monkeypatch.setattr("pdf_annotator.services.ocr.ocr_available", lambda: True)
+        monkeypatch.setattr(
+            "pdf_annotator.services.ocr.ocr_pdf", lambda file_path: None
+        )
+        response = logged_in_client.post(f"/viewer/api/ocr/{uploaded_pdf}")
+        assert response.status_code == 200
+        assert response.get_json()["success"] is True
+
+    def test_ocr_unavailable_returns_501(
+        self, app, logged_in_client, uploaded_pdf, monkeypatch
+    ):
+        monkeypatch.setattr("pdf_annotator.services.ocr.ocr_available", lambda: False)
+        response = logged_in_client.post(f"/viewer/api/ocr/{uploaded_pdf}")
+        assert response.status_code == 501
+
+    def test_ocr_failure_returns_500(
+        self, app, logged_in_client, uploaded_pdf, monkeypatch
+    ):
+        from pdf_annotator.services.ocr import OCRError
+
+        def raise_error(file_path):
+            raise OCRError("boom")
+
+        monkeypatch.setattr("pdf_annotator.services.ocr.ocr_available", lambda: True)
+        monkeypatch.setattr("pdf_annotator.services.ocr.ocr_pdf", raise_error)
+        response = logged_in_client.post(f"/viewer/api/ocr/{uploaded_pdf}")
+        assert response.status_code == 500
+
+    def test_ocr_invalid_doc(self, logged_in_client):
+        response = logged_in_client.post("/viewer/api/ocr/not-a-uuid")
+        assert response.status_code == 400
+
+
 class TestAnnotationApi:
     """Test annotation GET/POST API."""
 

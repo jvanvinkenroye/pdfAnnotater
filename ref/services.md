@@ -97,6 +97,15 @@ Optional AI-assisted note editing (edit selected note text, generate note text f
 
 Route: `POST /viewer/api/ai/text` (`routes/ai.py`) — stateless, not tied to a document, only `@login_required` + rate limit (10/min). Frontend gated by `window.__aiEnabled` (`config.AI_PROVIDER` truthy).
 
+## ocr.py
+
+OCR for scanned documents (in-app "OCR" button in the viewer).
+
+**`ocr_pdf(file_path, language="deu+eng") -> None`**  
+Runs `ocrmypdf --skip-text` in a subprocess (its Python API isn't thread-safe in a web worker) to add a searchable text layer in place; temp file + replace, 600s timeout. Raises `OCRError` on failure. **`ocr_available()`** checks for the tesseract binary — exposed to templates as `ocr_available` (context processor) and to JS as `window.__ocrAvailable`; the route returns 501 when missing. Docker image installs `tesseract-ocr` + `deu`/`eng` language packs + ghostscript; on macOS use `brew install tesseract ocrmypdf`.
+
+Note: pages with a `/Rotate` flag (typical for scans) are handled in `pdf_processor.get_page_text_layout()` — word boxes are mapped through `page.rotation_matrix` into rendered space, since `get_text("words")` reports unrotated coordinates while `get_pixmap()` renders rotated.
+
 ## swb_client.py
 
 Library catalog search for the "🔎 SWB-Suche" button (PDF-viewer text selection). Always active, no config/API key required.

@@ -29,6 +29,12 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # ── Stage 2: Runtime ─────────────────────────────────────────────────────────
 FROM python:3.12.9-slim-bookworm
 
+# tesseract + ghostscript are required by ocrmypdf for the in-app OCR
+# feature (adding a text layer to scanned documents)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng ghostscript \
+    && rm -rf /var/lib/apt/lists/*
+
 # Non-root user (principle of least privilege)
 RUN groupadd --gid 1000 appuser && \
     useradd --uid 1000 --gid 1000 --no-create-home --shell /sbin/nologin appuser
@@ -62,4 +68,6 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
 
 # exec replaces the shell so gunicorn receives SIGTERM directly (graceful shutdown).
 # Shell form is needed only for ${GUNICORN_WORKERS:-2} expansion.
-CMD ["sh", "-c", "exec python -m gunicorn --workers ${GUNICORN_WORKERS:-2} --bind 0.0.0.0:8000 --timeout 120 --access-logfile - --error-logfile - wsgi:app"]
+# Timeout default raised to 600s to cover synchronous OCR requests on
+# larger scanned documents (see services/ocr.py OCR_TIMEOUT_SECONDS).
+CMD ["sh", "-c", "exec python -m gunicorn --workers ${GUNICORN_WORKERS:-2} --bind 0.0.0.0:8000 --timeout ${GUNICORN_TIMEOUT:-600} --access-logfile - --error-logfile - wsgi:app"]

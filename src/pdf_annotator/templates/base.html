@@ -13,6 +13,7 @@
         window.__userAuthenticated = {{ 'true' if current_user.is_authenticated else 'false' }};
         window.__desktopMode = {{ 'true' if config.DESKTOP_MODE else 'false' }};
         window.__aiEnabled = {{ 'true' if config.AI_PROVIDER else 'false' }};
+        window.__ocrAvailable = {{ 'true' if ocr_available else 'false' }};
     </script>
     <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
     <style>
