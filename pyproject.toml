@@ -62,3 +62,43 @@ swb = { git = "https://github.com/jvanvinkenroye/swb.git" }
 
 [dependency-groups]
 dev = ["mkdocs>=1.6.1", "mkdocs-material>=9.7.3", "pytest-cov>=7.0.0"]
+
+# ── Briefcase (Toga desktop packaging, experimental) ─────────────────────────
+[tool.briefcase]
+project_name = "PDF Annotator"
+bundle = "de.vanvinkenroye"
+version = "0.3.0"
+license.file = "LICENSE"
+
+[tool.briefcase.app.pdf-annotator]
+formal_name = "PDF Annotator"
+description = "PDF annotation tool with side-by-side view for notes"
+sources = ["src/pdf_annotator"]
+icon = "src/pdf_annotator/resources/pdfannotator"
+# Desktop shell doesn't need flaskwebgui/playwright/gunicorn — keeping the
+# bundle small. ocrmypdf is also excluded: OCR needs system tesseract
+# (not bundled, so the OCR button stays hidden in the .app anyway) and
+# its pikepdf>=10 dependency has no wheels for the briefcase support
+# package's Python.
+requires = [
+  "flask>=3.0.0",
+  "pymupdf>=1.23.0",
+  "pillow>=10.0.0",
+  "flask-wtf>=1.2.2",
+  "flask-limiter>=4.1.1",
+  "flask-login>=0.6.3",
+  "anthropic>=0.117.0",
+  "openai>=2.46.0",
+  "python-dotenv>=1.2.2",
+  "swb @ git+https://github.com/jvanvinkenroye/swb.git",
+]
+
+[tool.briefcase.app.pdf-annotator.macOS]
+universal_build = false
+# pikepdf (via ocrmypdf) only ships macosx_14_0 wheels for cp312 — the
+# default macOS 11 deployment target would make pip unable to find them
+min_os_version = "14.0"
+requires = [
+  "toga-cocoa>=0.4.5",
+  "std-nslog>=1.0.3",
+]

@@ -50,3 +50,8 @@ dmypy.json
 .playwright-mcp/
 .ruff_cache/
 uploads/
+import_berichte.py
+# Briefcase build artifacts
+build/
+dist/
+logs/
