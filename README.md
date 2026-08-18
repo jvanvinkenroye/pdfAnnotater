@@ -49,6 +49,15 @@ docker compose up -d
 
 Die App ist unter `http://localhost:8000` erreichbar.
 
+> **Hinweis zum Produktionsbetrieb:** Im Container laeuft die App bereits
+> hinter **Gunicorn** (kein Flask-Dev-Server, siehe `Dockerfile`;
+> Worker-Anzahl via `GUNICORN_WORKERS`, Timeout via `GUNICORN_TIMEOUT`).
+> Der Container terminiert aber **kein TLS** und sollte nicht direkt im
+> Internet exponiert werden — fuer den oeffentlichen Betrieb einen
+> **Reverse Proxy** (nginx, Caddy oder Traefik) davorschalten, der HTTPS
+> uebernimmt und `X-Forwarded-Proto` setzt (nginx-Beispiel siehe unten,
+> Abschnitt "Reverse Proxy").
+
 ### Persistenz
 
 Alle Daten (Datenbank, hochgeladene PDFs, Exporte) werden in einem Docker-Volume gespeichert und ueberleben Container-Neustarts:
