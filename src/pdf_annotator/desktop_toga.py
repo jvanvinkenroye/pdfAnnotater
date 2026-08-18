@@ -65,8 +65,16 @@ def main() -> None:
 
     port = _find_free_port()
 
+    icon_path = Path(__file__).parent / "resources" / "pdfannotator"
+
     class PdfAnnotatorApp(toga.App):
         def startup(self) -> None:
+            # Set at runtime (dock icon via setApplicationIconImage) —
+            # for unbundled scripts this is the reliable path; the dock
+            # NAME however stays "python3.12" until a real .app bundle
+            # (briefcase package) provides an Info.plist.
+            self.icon = str(icon_path)
+
             flask_thread = threading.Thread(
                 target=_run_flask, args=(port,), daemon=True
             )
@@ -80,15 +88,9 @@ def main() -> None:
             self.main_window = window
             window.show()
 
-    # Pass the icon as a path (without extension — Toga resolves the
-    # platform-preferred format); constructing toga.Icon() here directly
-    # would fail because the App singleton doesn't exist yet.
-    icon_path = Path(__file__).parent / "resources" / "pdfannotator"
-
     PdfAnnotatorApp(
         formal_name="PDF Annotator",
         app_id="de.vanvinkenroye.pdfannotator",
-        icon=str(icon_path),
     ).main_loop()
 
 
