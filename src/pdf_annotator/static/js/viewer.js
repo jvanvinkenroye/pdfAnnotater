@@ -80,13 +80,18 @@
      * Load PDF page image
      * @param {number} pageNumber - Page number to load (1-indexed)
      */
+    // Bumped whenever the PDF content changes client-visibly (OCR, replace):
+    // page image and text-layout responses are browser-cached for 5 minutes,
+    // so without a URL change the browser would keep serving stale data.
+    let cacheVersion = '';
+
     function loadPage(pageNumber) {
         // Show loading spinner
         pageLoading.style.display = 'flex';
         pdfPage.style.display = 'none';
 
         // Build URL
-        const pageUrl = `/viewer/api/page/${docId}/${pageNumber}`;
+        const pageUrl = `/viewer/api/page/${docId}/${pageNumber}${cacheVersion}`;
 
         // Load image
         const img = new Image();
@@ -124,7 +129,7 @@
      * @param {number} pageNumber - Page number (1-indexed)
      */
     function loadTextLayer(pageNumber) {
-        const textUrl = `/viewer/api/page/${docId}/${pageNumber}/text`;
+        const textUrl = `/viewer/api/page/${docId}/${pageNumber}/text${cacheVersion}`;
         fetch(textUrl)
             .then(response => {
                 if (!response.ok) {
@@ -1004,6 +1009,8 @@
                 .then(() => {
                     showToast('Texterkennung abgeschlossen.', 'success');
                     noTextHint.style.display = 'none';
+                    // Bypass the 5-minute browser cache for image + text data
+                    cacheVersion = '?v=' + Date.now();
                     loadPage(currentPage);
                 })
                 .catch(error => {

@@ -2248,3 +2248,102 @@ body {
     text-transform: uppercase;
     letter-spacing: 0.08em;
 }
+
+/* ============================================================
+   Compact Theme — light colors, maximum screen real estate
+   ============================================================ */
+
+/* Hide the footer entirely: pure chrome, no function in daily use */
+[data-theme="compact"] .footer {
+    display: none;
+}
+
+[data-theme="compact"] .header {
+    padding: 0.35rem 0;
+}
+
+[data-theme="compact"] .logo {
+    font-size: 1.05rem;
+}
+
+[data-theme="compact"] .nav-link,
+[data-theme="compact"] .nav-user {
+    font-size: 0.85rem;
+}
+
+[data-theme="compact"] .main {
+    padding: 0.5rem 0;
+    min-height: calc(100vh - 60px);
+}
+
+/* Metadata collapses to a slim single row */
+[data-theme="compact"] .metadata-section {
+    padding: 0.3rem 0;
+}
+
+[data-theme="compact"] .metadata-header h3 {
+    font-size: 0.9rem;
+}
+
+[data-theme="compact"] .metadata-display {
+    gap: 0.75rem;
+    font-size: 0.8rem;
+}
+
+[data-theme="compact"] .viewer-controls {
+    padding: 0.35rem 0;
+}
+
+[data-theme="compact"] .viewer-controls .btn {
+    padding: 0.35rem 0.7rem;
+    font-size: 0.8rem;
+}
+
+[data-theme="compact"] .btn-zoom,
+[data-theme="compact"] .btn-zoom-fit,
+[data-theme="compact"] .btn-split {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.85rem;
+}
+
+[data-theme="compact"] .page-input {
+    padding: 0.2rem 0.3rem;
+    font-size: 0.85rem;
+}
+
+/* Give the freed-up vertical space to the panels */
+[data-theme="compact"] .viewer-container {
+    height: calc(100vh - 130px);
+    max-width: none;
+    padding: 0.5rem;
+    gap: 10px;
+}
+
+[data-theme="compact"] .editor-header {
+    padding: 0.4rem 0.75rem;
+}
+
+[data-theme="compact"] .editor-header h2 {
+    font-size: 0.95rem;
+}
+
+[data-theme="compact"] .note-textarea {
+    padding: 0.75rem;
+    font-size: 0.9rem;
+}
+
+[data-theme="compact"] .editor-footer {
+    display: none;
+}
+
+/* Documents page: tighter table */
+[data-theme="compact"] .documents-table th,
+[data-theme="compact"] .documents-table td {
+    padding: 0.45rem 0.5rem;
+    font-size: 0.8rem;
+}
+
+[data-theme="compact"] .page-header h1,
+[data-theme="compact"] .upload-content h1 {
+    font-size: 1.3rem;
+}

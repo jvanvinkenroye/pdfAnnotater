@@ -1,6 +1,6 @@
 /**
  * Theme Toggle for PDF Annotator
- * Supports light / dark / brutalist with system preference detection
+ * Supports light / dark / brutalist / compact with system preference detection
  * and localStorage persistence.
  */
 
@@ -8,7 +8,7 @@
     'use strict';
 
     var STORAGE_KEY = 'pdf-annotator-theme';
-    var THEMES = ['light', 'dark', 'brutalist'];
+    var THEMES = ['light', 'dark', 'brutalist', 'compact'];
 
     function getSystemPreference() {
         return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
@@ -43,7 +43,12 @@
             if (label) label.textContent = 'Brutal';
             btn.setAttribute('aria-label', 'Zum Brutalist-Modus wechseln');
         } else if (theme === 'brutalist') {
-            // In brutalist mode: next theme is light
+            // In brutalist mode: next theme is compact
+            if (brutalIcon) brutalIcon.style.display = 'inline-block';
+            if (label) label.textContent = 'Kompakt';
+            btn.setAttribute('aria-label', 'Zum kompakten Modus wechseln');
+        } else if (theme === 'compact') {
+            // In compact mode: next theme is light
             if (brutalIcon) brutalIcon.style.display = 'inline-block';
             if (label) label.textContent = 'Hell';
             btn.setAttribute('aria-label', 'Zum hellen Modus wechseln');

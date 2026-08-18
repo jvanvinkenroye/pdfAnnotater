@@ -60,7 +60,7 @@ window.__userTheme (set in base.html from DB)
 ## CSS
 
 Single stylesheet: `static/css/styles.css`  
-Uses CSS custom properties for theming (dark/light via `[data-theme="dark"]` on `<html>`).
+Uses CSS custom properties for theming via `[data-theme]` on `<html>`: `dark` (colors), `brutalist` (colors + typography), `compact` (light colors, minimal chrome/padding — footer and editor hints hidden, viewer gets nearly full viewport height).
 
 ## Icon Library (`icons.html`)
 

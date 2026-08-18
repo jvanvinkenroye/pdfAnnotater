@@ -253,11 +253,11 @@ def set_theme() -> ResponseReturnValue:
     """
     Save theme preference for the current user.
 
-    Accepts JSON body with 'theme' key (light/dark/brutalist).
+    Accepts JSON body with 'theme' key (light/dark/brutalist/compact).
     """
     data = request.get_json(silent=True) or {}
     theme = data.get("theme")
-    if theme not in ("light", "dark", "brutalist"):
+    if theme not in ("light", "dark", "brutalist", "compact"):
         return jsonify({"error": "Ungültiges Theme"}), 400
     db = DatabaseManager()
     db.set_user_theme(current_user.id, theme)

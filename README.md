@@ -19,7 +19,7 @@ Eine Flask-basierte Web-Applikation zum Annotieren von PDF-Dokumenten mit Side-b
 - **Bibliothekssuche ("🔎 SWB-Suche"):** Markierten PDF-Text direkt in deutschen Bibliothekskatalogen (SWB/K10plus/DNB/...) nachschlagen — öffnet die Treffer in einem neuen Tab, immer aktiv, kein Setup noetig
 - **OCR fuer gescannte Dokumente:** Erkennt Seiten ohne Textebene automatisch (Hinweis im Viewer) und fuegt per Klick eine durchsuchbare Textebene hinzu (tesseract erforderlich; im Docker-Image enthalten)
 - **Ansicht-Umschalter:** PDF-Fokus / geteilte Ansicht / Notizen-Fokus fuer bessere Lesbarkeit, Einstellung bleibt erhalten
-- **Themes:** Light, Dark und Brutalist — Einstellung wird pro Account serverseitig gespeichert
+- **Themes:** Light, Dark, Brutalist und Kompakt (platzsparend, maximale Flaeche fuer PDF und Notizen) — Einstellung wird pro Account serverseitig gespeichert
 - **Multi-User:** Registrierung und Login mit eigenem Dokumenten-Bereich
 - **Admin Panel:** Benutzerverwaltung (Aktivieren/Deaktivieren, Admin-Rechte, Loeschen)
 - **Persistente Speicherung:** Dokumente bleiben bis zur manuellen Loeschung erhalten
