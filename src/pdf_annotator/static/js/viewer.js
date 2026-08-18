@@ -460,6 +460,26 @@
             showToast('Kein Text im PDF markiert.', 'error');
             return;
         }
+        if (window.__desktopMode) {
+            // WebView shells (Toga/WKWebView) can't handle window.open —
+            // let the local server open the system's default browser instead
+            fetch('/swb/open?q=' + encodeURIComponent(selection), {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken },
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(data => {
+                            throw new Error(data.error || 'Öffnen fehlgeschlagen');
+                        });
+                    }
+                    showToast('Suche im Browser geöffnet.', 'success');
+                })
+                .catch(error => {
+                    showToast('Fehler: ' + error.message, 'error');
+                });
+            return;
+        }
         window.open('/swb/search?q=' + encodeURIComponent(selection), '_blank');
     });
 

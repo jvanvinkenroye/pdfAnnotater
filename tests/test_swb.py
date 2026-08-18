@@ -145,3 +145,29 @@ class TestSwbSearchRoute:
         monkeypatch.setattr("pdf_annotator.routes.swb.search_books", raise_error)
         response = logged_in_client.get("/swb/search?q=test")
         assert response.status_code == 503
+
+
+class TestSwbOpenInBrowser:
+    """Test the desktop-mode /swb/open endpoint."""
+
+    def test_requires_desktop_mode(self, app, logged_in_client):
+        response = logged_in_client.post("/swb/open?q=test")
+        assert response.status_code == 404
+
+    def test_opens_browser_in_desktop_mode(self, app, logged_in_client, monkeypatch):
+        opened = {}
+        monkeypatch.setitem(app.config, "DESKTOP_MODE", True)
+        monkeypatch.setattr(
+            "pdf_annotator.routes.swb.webbrowser",
+            type(
+                "FakeWB", (), {"open": staticmethod(lambda url: opened.update(url=url))}
+            ),
+        )
+        response = logged_in_client.post("/swb/open?q=Faust")
+        assert response.status_code == 200
+        assert "/swb/search?q=Faust" in opened["url"]
+
+    def test_invalid_query_rejected(self, app, logged_in_client, monkeypatch):
+        monkeypatch.setitem(app.config, "DESKTOP_MODE", True)
+        response = logged_in_client.post("/swb/open?q=")
+        assert response.status_code == 400
