@@ -15,6 +15,7 @@ import os
 import socket
 import threading
 import time
+from pathlib import Path
 
 from pdf_annotator.utils.logger import get_logger
 
@@ -79,9 +80,15 @@ def main() -> None:
             self.main_window = window
             window.show()
 
+    # Pass the icon as a path (without extension — Toga resolves the
+    # platform-preferred format); constructing toga.Icon() here directly
+    # would fail because the App singleton doesn't exist yet.
+    icon_path = Path(__file__).parent / "resources" / "pdfannotator"
+
     PdfAnnotatorApp(
         formal_name="PDF Annotator",
         app_id="de.vanvinkenroye.pdfannotator",
+        icon=str(icon_path),
     ).main_loop()
 
 
