@@ -96,5 +96,6 @@
 {% block extra_js %}
 <!-- Hidden file input for PDF replacement -->
 <input type="file" id="replace-pdf-file-input" accept=".pdf" style="display: none;">
+<script src="{{ url_for('static', filename='js/jobs.js') }}"></script>
 <script src="{{ url_for('static', filename='js/documents.js') }}"></script>
 {% endblock %}

@@ -4,16 +4,18 @@ Export route for PDF Annotator.
 Handles PDF and Markdown export with downloads.
 """
 
+import json
 import time
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from flask import Blueprint, current_app, jsonify
-from flask_login import login_required
+from flask import Blueprint, abort, current_app, jsonify
+from flask_login import current_user, login_required
 
 from pdf_annotator.models.database import get_db
 from pdf_annotator.routes._helpers import get_owned_document, handle_errors
+from pdf_annotator.services.jobs import submit_job
 from pdf_annotator.services.markdown_exporter import (
     export_to_markdown,
     generate_markdown_filename,
@@ -104,18 +106,20 @@ def export_pdf(doc_id: str) -> Any:
     """
     Export annotated PDF.
 
-    Creates PDF with annotations and timestamps, then sends as download.
+    The 300-DPI export runs as a background job: the response is 202 with
+    a job_id to poll via GET /viewer/api/jobs/<job_id>; the finished file
+    is fetched from GET /export/download/<job_id>.
 
     Args:
         doc_id: UUID of document
 
     Returns:
-        PDF file download or error response
+        JSON with job_id (202) or error response
 
     Example:
         POST /export/pdf/abc-123
 
-        Response: PDF file download
+        Response: {"success": true, "job_id": "..."}
     """
     doc_info = get_owned_document(doc_id)
 
@@ -145,26 +149,60 @@ def export_pdf(doc_id: str) -> Any:
     # Ensure export directory exists
     export_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Generate annotated PDF
-    success = create_annotated_pdf(
-        doc_id,
-        export_path,
-        db,
-        font_name=current_app.config.get("PDF_ANNOTATION_FONT", "courier"),
-        font_size=current_app.config.get("PDF_ANNOTATION_FONTSIZE", 9),
-        font_color=current_app.config.get("PDF_ANNOTATION_COLOR", (0, 0.5, 0)),
-    )
+    # Config values captured now — the runner must not touch current_app.
+    font_name = current_app.config.get("PDF_ANNOTATION_FONT", "courier")
+    font_size = current_app.config.get("PDF_ANNOTATION_FONTSIZE", 9)
+    font_color = current_app.config.get("PDF_ANNOTATION_COLOR", (0, 0.5, 0))
 
-    if not success:
-        logger.error(f"Failed to create annotated PDF for {doc_id}")
-        return (
-            jsonify({"error": "Fehler beim Erstellen des annotierten PDFs"}),
-            500,
+    def runner() -> dict[str, Any]:
+        success = create_annotated_pdf(
+            doc_id,
+            export_path,
+            db,
+            font_name=font_name,
+            font_size=font_size,
+            font_color=font_color,
         )
+        if not success:
+            raise RuntimeError("Fehler beim Erstellen des annotierten PDFs")
+        return {"result_path": str(export_path), "filename": export_filename}
 
-    # Send file
-    logger.info(f"Sending annotated PDF: {export_filename}")
-    return send_file_response(export_path, export_filename, "application/pdf")
+    job_id = submit_job(db, "export_pdf", doc_id, current_user.id, runner)
+
+    return jsonify({"success": True, "job_id": job_id}), 202
+
+
+@export_bp.route("/download/<job_id>", methods=["GET"])
+@login_required
+@handle_errors("Interner Serverfehler beim Download")
+def download_job_result(job_id: str) -> Any:
+    """
+    Download the artifact produced by a finished export job.
+
+    Args:
+        job_id: UUID of the export job
+
+    Returns:
+        File download (or Desktop-Mode JSON), 409 while the job is still
+        running, 404 for unknown jobs or vanished artifacts.
+    """
+    db = get_db()
+    job = db.get_job(job_id)
+
+    if not job:
+        abort(404, description="Job nicht gefunden")
+    if job["user_id"] != current_user.id:
+        abort(403, description="Nicht berechtigt")
+    if job["status"] != "done" or not job["result_path"]:
+        return jsonify({"error": "Export ist noch nicht fertig"}), 409
+
+    file_path = Path(job["result_path"])
+    if not file_path.is_file():
+        return jsonify({"error": "Exportdatei nicht mehr vorhanden"}), 404
+
+    result = json.loads(job["result_json"] or "{}")
+    filename = result.get("filename", file_path.name)
+    return send_file_response(file_path, filename, "application/pdf")
 
 
 @export_bp.route("/markdown/<doc_id>", methods=["POST"])

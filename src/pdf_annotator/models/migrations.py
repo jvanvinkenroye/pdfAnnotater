@@ -122,7 +122,31 @@ def _m001_baseline(conn: sqlite3.Connection) -> None:
     )
 
 
-MIGRATIONS: list[Migration] = [_m001_baseline]
+def _m002_jobs(conn: sqlite3.Connection) -> None:
+    """Background job tracking for OCR and annotated-PDF export."""
+    conn.execute(
+        """
+        CREATE TABLE jobs (
+            id TEXT PRIMARY KEY,
+            type TEXT NOT NULL,
+            doc_id TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            result_path TEXT,
+            result_json TEXT,
+            error TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            started_at TIMESTAMP,
+            finished_at TIMESTAMP,
+            FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute("CREATE INDEX idx_jobs_doc_type_status ON jobs(doc_id, type, status)")
+    conn.execute("CREATE INDEX idx_jobs_status ON jobs(status)")
+
+
+MIGRATIONS: list[Migration] = [_m001_baseline, _m002_jobs]
 
 
 def apply_migrations(conn: sqlite3.Connection) -> None:

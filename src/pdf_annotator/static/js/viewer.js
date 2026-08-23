@@ -1016,6 +1016,7 @@
                     }
                     return response.json();
                 })
+                .then(data => pollJob(data.job_id))
                 .then(() => {
                     showToast('Texterkennung abgeschlossen.', 'success');
                     noTextHint.style.display = 'none';

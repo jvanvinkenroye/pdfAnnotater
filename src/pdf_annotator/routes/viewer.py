@@ -4,16 +4,26 @@ Viewer route for PDF Annotator.
 Handles viewer page and API endpoints for PDF rendering and annotations.
 """
 
+import json
 from pathlib import Path
 from typing import Any
 
 import fitz
-from flask import Blueprint, Response, current_app, jsonify, render_template, request
+from flask import (
+    Blueprint,
+    Response,
+    abort,
+    current_app,
+    jsonify,
+    render_template,
+    request,
+)
 from flask.typing import ResponseReturnValue
-from flask_login import login_required
+from flask_login import current_user, login_required
 
 from pdf_annotator.models.database import get_db
 from pdf_annotator.routes._helpers import get_owned_document, handle_errors
+from pdf_annotator.services.jobs import submit_job
 from pdf_annotator.services.pdf_processor import (
     get_page_count,
     get_page_text_layout,
@@ -547,12 +557,15 @@ def ocr_document(doc_id: str) -> Any:
     Args:
         doc_id: UUID of document
 
+    OCR runs as a background job: the response is 202 with a job_id to
+    poll via GET /viewer/api/jobs/<job_id>.
+
     Returns:
-        JSON with success status or error response
+        JSON with job_id (202) or error response
     """
     doc_info = get_owned_document(doc_id)
 
-    from pdf_annotator.services.ocr import OCRError, ocr_available, ocr_pdf
+    from pdf_annotator.services.ocr import ocr_available, ocr_pdf
 
     if not ocr_available():
         return jsonify({"error": "OCR ist auf diesem Server nicht verfügbar"}), 501
@@ -562,13 +575,46 @@ def ocr_document(doc_id: str) -> Any:
         logger.error("Document file not found: %s", file_path)
         return jsonify({"error": "Dokumentdatei nicht gefunden"}), 404
 
-    logger.info("Running OCR for document %s", doc_id)
-    try:
-        ocr_pdf(file_path)
-    except OCRError as e:
-        return jsonify({"error": str(e)}), 500
+    db = get_db()
+    if db.get_active_job(doc_id, "ocr"):
+        return jsonify({"error": "OCR läuft bereits für dieses Dokument"}), 409
 
-    return jsonify({"success": True})
+    def runner() -> dict[str, Any]:
+        ocr_pdf(file_path)
+        return {}
+
+    logger.info("Starting OCR job for document %s", doc_id)
+    job_id = submit_job(db, "ocr", doc_id, current_user.id, runner)
+
+    return jsonify({"success": True, "job_id": job_id}), 202
+
+
+@viewer_bp.route("/api/jobs/<job_id>", methods=["GET"])
+@login_required
+@handle_errors()
+def get_job_status(job_id: str) -> Any:
+    """
+    Poll the status of a background job (OCR, PDF export).
+
+    Returns:
+        JSON with status (pending|running|done|error), error message if
+        any, and the job's result data.
+    """
+    db = get_db()
+    job = db.get_job(job_id)
+
+    if not job:
+        abort(404, description="Job nicht gefunden")
+    if job["user_id"] != current_user.id:
+        abort(403, description="Nicht berechtigt")
+
+    return jsonify(
+        {
+            "status": job["status"],
+            "error": job["error"],
+            "result": json.loads(job["result_json"]) if job["result_json"] else {},
+        }
+    )
 
 
 @viewer_bp.route("/api/page/<doc_id>/<int:page_number>", methods=["DELETE"])

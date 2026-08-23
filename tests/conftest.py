@@ -52,6 +52,20 @@ def client(app):
 
 
 @pytest.fixture()
+def inline_jobs(monkeypatch):
+    """Run background jobs synchronously so tests can poll immediately
+    after submitting and see a terminal status."""
+
+    class InlineExecutor:
+        def submit(self, fn, *args, **kwargs):
+            fn(*args, **kwargs)
+
+    monkeypatch.setattr(
+        "pdf_annotator.services.jobs._get_executor", lambda: InlineExecutor()
+    )
+
+
+@pytest.fixture()
 def db(tmp_path):
     """DatabaseManager with file-based temp database and default test user."""
     db_path = tmp_path / "test.db"

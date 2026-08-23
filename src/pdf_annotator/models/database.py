@@ -717,6 +717,117 @@ class DatabaseManager:
         except sqlite3.Error:
             return False
 
+    # --- Background jobs -------------------------------------------------
+
+    def create_job(self, job_type: str, doc_id: str, user_id: str) -> str:
+        """Insert a pending background job row and return its id."""
+        job_id = str(uuid4())
+        with self.get_connection() as conn:
+            conn.execute(
+                "INSERT INTO jobs (id, type, doc_id, user_id) VALUES (?, ?, ?, ?)",
+                (job_id, job_type, doc_id, user_id),
+            )
+        return job_id
+
+    def get_job(self, job_id: str) -> dict[str, Any] | None:
+        """Fetch a job row by id."""
+        with self.get_connection() as conn:
+            row = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
+            return dict(row) if row else None
+
+    def get_active_job(self, doc_id: str, job_type: str) -> dict[str, Any] | None:
+        """Fetch a pending/running job of the given type for a document."""
+        with self.get_connection() as conn:
+            row = conn.execute(
+                """
+                SELECT * FROM jobs
+                WHERE doc_id = ? AND type = ? AND status IN ('pending', 'running')
+                ORDER BY created_at DESC LIMIT 1
+                """,
+                (doc_id, job_type),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def mark_job_running(self, job_id: str) -> None:
+        """Transition a job to running and stamp started_at."""
+        with self.get_connection() as conn:
+            conn.execute(
+                """
+                UPDATE jobs
+                SET status = 'running', started_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (job_id,),
+            )
+
+    def finish_job(
+        self,
+        job_id: str,
+        status: str,
+        result_path: str | None = None,
+        result_json: str | None = None,
+        error: str | None = None,
+    ) -> None:
+        """Transition a job to a terminal status ('done' or 'error')."""
+        with self.get_connection() as conn:
+            conn.execute(
+                """
+                UPDATE jobs
+                SET status = ?, result_path = ?, result_json = ?, error = ?,
+                    finished_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (status, result_path, result_json, error, job_id),
+            )
+
+    def mark_stale_jobs_failed(self, older_than_seconds: int) -> int:
+        """
+        Flip pending/running jobs older than the cutoff to 'error'.
+
+        Recovers rows orphaned by a killed worker so clients stop polling.
+        Returns the number of jobs flipped.
+        """
+        with self.get_connection() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE jobs
+                SET status = 'error',
+                    error = 'Vorgang abgebrochen (Serverneustart oder Timeout)',
+                    finished_at = CURRENT_TIMESTAMP
+                WHERE status IN ('pending', 'running')
+                  AND created_at < datetime('now', ?)
+                """,
+                (f"-{int(older_than_seconds)} seconds",),
+            )
+            return int(cursor.rowcount)
+
+    def delete_finished_jobs(self, older_than_seconds: int) -> list[str]:
+        """
+        Delete done/error jobs older than the cutoff.
+
+        Returns the result_path values of the deleted rows so the caller
+        can remove the artifacts from disk.
+        """
+        with self.get_connection() as conn:
+            cutoff = f"-{int(older_than_seconds)} seconds"
+            rows = conn.execute(
+                """
+                SELECT result_path FROM jobs
+                WHERE status IN ('done', 'error')
+                  AND finished_at < datetime('now', ?)
+                """,
+                (cutoff,),
+            ).fetchall()
+            conn.execute(
+                """
+                DELETE FROM jobs
+                WHERE status IN ('done', 'error')
+                  AND finished_at < datetime('now', ?)
+                """,
+                (cutoff,),
+            )
+            return [row["result_path"] for row in rows if row["result_path"]]
+
 
 def get_db() -> DatabaseManager:
     """

@@ -83,7 +83,7 @@
         btn.addEventListener('click', function(event) {
             event.preventDefault();
             const docId = this.dataset.docId;
-            downloadFile(`/export/pdf/${docId}`, 'POST', this);
+            downloadExportedPdf(docId, this);
         });
     });
 
@@ -105,6 +105,36 @@
             downloadFile(`/export/original/${docId}`, 'GET', this);
         });
     });
+
+    // Annotated-PDF export runs as a background job: POST returns 202 with
+    // a job_id, we poll it (jobs.js) and fetch the artifact when done.
+    function downloadExportedPdf(docId, btn) {
+        const originalText = btn ? btn.textContent : null;
+        if (btn) { btn.disabled = true; btn.textContent = '...'; }
+        fetch(`/export/pdf/${docId}`, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrfToken },
+        })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().catch(() => ({})).then(data => {
+                        throw new Error(data.error || 'Export fehlgeschlagen');
+                    });
+                }
+                return response.json();
+            })
+            .then(data => pollJob(data.job_id).then(() => data.job_id))
+            .then(jobId => {
+                downloadFile(`/export/download/${jobId}`, 'GET', null);
+            })
+            .catch(error => {
+                console.error('Export error:', error);
+                showToast('Fehler beim Export: ' + error.message, 'error');
+            })
+            .finally(() => {
+                if (btn) { btn.disabled = false; btn.textContent = originalText; }
+            });
+    }
 
     function downloadFile(url, method, btn) {
         const originalText = btn ? btn.textContent : null;
