@@ -8,24 +8,37 @@
   ```bash
   export SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
   ```
+  Mit `PDF_ANNOTATOR_BEHIND_PROXY=1` ist `SECRET_KEY` **zwingend** — die App
+  bricht sonst beim Start mit einem Fehler ab. Ohne das Flag wird ein
+  fehlender Key automatisch generiert und unter `<data_dir>/secret_key`
+  (0600) persistiert (Sessions überleben Neustarts, Worker teilen den Key).
 
-- [ ] **CSRF-Protection** aktiviert (Flask-WTF installieren)
-  ```bash
-  uv add flask-wtf
-  ```
+- [ ] **PDF_ANNOTATOR_BEHIND_PROXY=1** gesetzt, wenn die App hinter einem
+  TLS-terminierenden Reverse Proxy läuft — aktiviert ProxyFix
+  (`X-Forwarded-For/Proto/Host`, 1 Hop), Secure-Session-Cookies, HSTS und
+  https-URL-Schema. Niemals setzen, wenn kein vertrauenswürdiger Proxy
+  davor steht (Header wären sonst angreifbar).
+
+- [ ] **Registrierung absichern** — nach dem Anlegen der benötigten Accounts
+  `PDF_ANNOTATOR_REGISTRATION=0` setzen (der erste Benutzer darf sich immer
+  registrieren) und/oder einen `PDF_ANNOTATOR_INVITE_CODE` vergeben
+
+- [ ] **CSRF-Protection** aktiv (Flask-WTF ist integriert; alle POST/DELETE
+  Endpoints erfordern einen CSRF-Token — auch `save_annotation`)
 
 - [ ] **HTTPS** konfiguriert (Let's Encrypt/Cloudflare)
   - Alle HTTP Requests zu HTTPS umleiten
-  - HSTS Header aktivieren
+  - HSTS Header aktivieren (setzt die App mit `PDF_ANNOTATOR_BEHIND_PROXY=1` selbst)
 
 - [ ] **Firewall** konfiguriert
   - Nur notwendige Ports öffnen (443, 80 für Redirect)
   - Administrativen Zugang beschränken
 
-- [ ] **Rate Limiting** implementieren (Flask-Limiter)
-  ```bash
-  uv add flask-limiter
-  ```
+- [ ] **Rate Limiting** konfiguriert (Flask-Limiter ist integriert;
+  Standard-Storage `memory://` ist pro Worker-Prozess — Limits
+  multiplizieren sich mit der Worker-Anzahl und werden bei Neustart
+  zurückgesetzt. Für harte Limits `RATELIMIT_STORAGE_URI` auf einen
+  gemeinsamen Store zeigen lassen, z.B. `redis://host:6379`)
 
 ### ✅ Konfiguration
 
@@ -116,6 +129,8 @@ uv sync
 # Umgebungsvariablen setzen
 export FLASK_ENV=production
 export SECRET_KEY="YOUR_SECURE_RANDOM_SECRET_KEY"
+# Hinter dem Nginx-Reverse-Proxy (siehe Schritt 6): Pflicht!
+export PDF_ANNOTATOR_BEHIND_PROXY=1
 export DATABASE_PATH="/var/www/pdfAnnotater/data/annotations.db"
 export UPLOAD_FOLDER="/var/www/pdfAnnotater/data/uploads"
 
@@ -222,22 +237,21 @@ server {
 
 ## Bekannte Sicherheitslücken (TODO)
 
-Diese müssen VOR Produktions-Deployment behoben werden:
+Behoben (integriert, keine Aktion nötig):
 
-### 🔴 KRITISCH
+- ✅ **CSRF-Protection** — Flask-WTF ist integriert; alle POST/DELETE
+  Endpoints (inkl. `save_annotation`) erfordern einen CSRF-Token
+- ✅ **Rate Limiting** — Flask-Limiter ist integriert (Storage via
+  `RATELIMIT_STORAGE_URI` konfigurierbar)
 
-1. **CSRF-Protection fehlt** - Alle POST/DELETE Endpoints anfällig
-   - **Fix**: Flask-WTF integrieren (siehe oben)
-
-2. **Rate Limiting fehlt** - DoS-anfällig
-   - **Fix**: Flask-Limiter installieren
+Noch offen:
 
 ### 🟡 WICHTIG
 
-3. **Session Management** - Keine Session-Timeouts
+1. **Session Management** - Keine Session-Timeouts
    - **Fix**: `PERMANENT_SESSION_LIFETIME` setzen
 
-4. **File Type Validation** - Nur Extension-Check
+2. **File Type Validation** - Nur Extension-Check
    - **Fix**: Magic Bytes prüfen mit `python-magic`
 
 ---
@@ -247,7 +261,9 @@ Diese müssen VOR Produktions-Deployment behoben werden:
 ### Regelmäßige Aufgaben
 
 - **Täglich**: Log-Files überprüfen
-- **Wöchentlich**: Disk Space überprüfen, alte Exports löschen
+- **Wöchentlich**: Disk Space überprüfen (alte Exports, abgelaufene
+  Hintergrund-Jobs und der Render-Cache werden automatisch vom
+  Cleanup-Thread aufgeräumt, der alle 15 Minuten läuft)
 - **Monatlich**: Security Updates installieren
 - **Quartalsweise**: Backup-Restore testen
 

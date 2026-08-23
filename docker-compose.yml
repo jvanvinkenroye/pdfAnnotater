@@ -17,6 +17,24 @@ services:
       # Generate one with: python -c "import secrets; print(secrets.token_hex(32))"
       SECRET_KEY: "${SECRET_KEY:?SECRET_KEY env variable is required}"
       GUNICORN_WORKERS: "${GUNICORN_WORKERS:-2}"
+      # GUNICORN_TIMEOUT defaults to 120s (set in the Dockerfile). OCR and
+      # annotated-PDF export run as background jobs off the request path,
+      # so a long timeout is no longer needed.
+      #
+      # When running behind a TLS-terminating reverse proxy (nginx/Caddy/
+      # Traefik), set PDF_ANNOTATOR_BEHIND_PROXY=1: it enables ProxyFix
+      # (X-Forwarded-For/Proto/Host, 1 hop), Secure session cookies, HSTS
+      # and https URLs — and makes SECRET_KEY mandatory (hard startup
+      # error if missing). Never set it without a trusted proxy in front.
+      # PDF_ANNOTATOR_BEHIND_PROXY: "1"
+      #
+      # Optional hardening: disable self-registration once accounts exist
+      # (the very first user may always register), or require an invite code.
+      # PDF_ANNOTATOR_REGISTRATION: "0"
+      # PDF_ANNOTATOR_INVITE_CODE: "..."
+      #
+      # Optional: shared rate-limit store (default memory:// is per worker).
+      # RATELIMIT_STORAGE_URI: "redis://host:6379"
     healthcheck:
       test: ["CMD", "python", "-c",
              "import urllib.request; urllib.request.urlopen('http://localhost:8000/auth/login')"]

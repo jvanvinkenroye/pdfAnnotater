@@ -39,6 +39,15 @@ These are the most serious operational issues, and they are framework-independen
 
 ## Cheaper alternative (recommended)
 
+> **Status:** implemented. All six steps below (plus form classes,
+> ownership/error-handling deduplication, a registration gate, and a
+> cleanup thread) landed on this branch — see the commit history and the
+> updated `ref/architecture.md` / `ref/database.md` / `ref/services.md`.
+> Deviations from the sketch: the render cache is disk-based (mtime/size
+> keyed) instead of Redis, and background jobs use an in-process worker
+> thread plus a SQLite jobs table instead of RQ — both chosen so the
+> desktop build needs no external services.
+
 Incremental hardening within Flask, ordered by impact:
 
 1. **Security config**: set `SESSION_COOKIE_SECURE/HTTPONLY/SAMESITE` in `config.py`, add `werkzeug.middleware.proxy_fix.ProxyFix` for the documented reverse-proxy deployment, and make production fail hard when `SECRET_KEY` is unset instead of generating an ephemeral one.
