@@ -30,6 +30,7 @@ def app(tmp_path):
             "DATABASE_PATH": db_path,
             "UPLOAD_FOLDER": upload_folder,
             "EXPORT_FOLDER": export_folder,
+            "RENDER_CACHE_FOLDER": tmp_path / "cache",
             # Isolate tests from any real AI provider config picked up
             # from a developer's local .env (repo-root or data-dir) —
             # tests that need specific values set them explicitly.

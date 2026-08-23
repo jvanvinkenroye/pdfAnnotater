@@ -148,6 +148,13 @@ class Config:
     EXPORT_FOLDER = BASE_DIR / "data" / "exports"
     ALLOWED_EXTENSIONS = {"pdf"}
 
+    # Disk cache for rendered page images and text layouts, shared by all
+    # workers (see services/render_cache.py). Entries are keyed by file
+    # mtime/size, so no manual invalidation is needed; the cleanup thread
+    # prunes it to RENDER_CACHE_MAX_BYTES.
+    RENDER_CACHE_FOLDER = BASE_DIR / "data" / "cache"
+    RENDER_CACHE_MAX_BYTES = 512 * 1024 * 1024  # 512 MB
+
     # Input validation limits
     MAX_FILENAME_LENGTH = 255
     MAX_NAME_LENGTH = 100  # For first/last name
@@ -213,6 +220,7 @@ class Config:
         """
         Config.UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
         Config.EXPORT_FOLDER.mkdir(parents=True, exist_ok=True)
+        Config.RENDER_CACHE_FOLDER.mkdir(parents=True, exist_ok=True)
         if isinstance(Config.DATABASE_PATH, Path):
             Config.DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
 
@@ -241,6 +249,7 @@ class ProductionConfig(Config):
     DATA_DIR = get_data_dir()
     UPLOAD_FOLDER = DATA_DIR / "uploads"
     EXPORT_FOLDER = DATA_DIR / "exports"
+    RENDER_CACHE_FOLDER = DATA_DIR / "cache"
     DATABASE_PATH = DATA_DIR / "annotations.db"
     LOG_FILE = DATA_DIR / "app.log"
 
@@ -281,6 +290,7 @@ class ProductionConfig(Config):
         # Use ProductionConfig paths, not base Config
         app.config["UPLOAD_FOLDER"].mkdir(parents=True, exist_ok=True)
         app.config["EXPORT_FOLDER"].mkdir(parents=True, exist_ok=True)
+        app.config["RENDER_CACHE_FOLDER"].mkdir(parents=True, exist_ok=True)
         app.config["DATABASE_PATH"].parent.mkdir(parents=True, exist_ok=True)
 
 

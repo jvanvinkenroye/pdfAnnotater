@@ -15,8 +15,6 @@ from flask_login import login_required
 from pdf_annotator.models.database import get_db
 from pdf_annotator.routes._helpers import get_owned_document, handle_errors
 from pdf_annotator.services.pdf_processor import (
-    clear_render_cache,
-    clear_text_layout_cache,
     get_page_count,
     get_page_text_layout,
     render_page_to_image,
@@ -424,10 +422,6 @@ def replace_pdf(doc_id: str) -> Any:
     file.save(file_path)
     logger.info("Saved new PDF to: %s", file_path)
 
-    # Clear render + text caches so stale data is not served
-    clear_render_cache()
-    clear_text_layout_cache()
-
     # Get new page count and update database
     new_page_count = get_page_count(file_path)
     db.update_page_count(doc_id, new_page_count)
@@ -510,9 +504,6 @@ def append_pdf(doc_id: str) -> Any:
         if tmp_new.exists():
             tmp_new.unlink()
 
-    clear_render_cache()
-    clear_text_layout_cache()
-
     old_page_count = doc_info["page_count"]
     new_page_count = old_page_count + added_pages
     with db.get_connection() as conn:
@@ -577,9 +568,6 @@ def ocr_document(doc_id: str) -> Any:
     except OCRError as e:
         return jsonify({"error": str(e)}), 500
 
-    clear_render_cache()
-    clear_text_layout_cache()
-
     return jsonify({"success": True})
 
 
@@ -628,10 +616,6 @@ def delete_page(doc_id: str, page_number: int) -> Any:
     pdf_doc.save(str(tmp_path), deflate=True)
     pdf_doc.close()
     tmp_path.replace(file_path)
-
-    # Clear render + text caches
-    clear_render_cache()
-    clear_text_layout_cache()
 
     # Delete annotation, renumber subsequent pages and decrement count atomically
     db.delete_annotation_and_renumber(doc_id, page_number)
