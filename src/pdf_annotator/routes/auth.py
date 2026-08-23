@@ -11,6 +11,12 @@ from flask.typing import ResponseReturnValue
 from flask_login import current_user, login_required, login_user, logout_user
 from werkzeug.security import check_password_hash, generate_password_hash
 
+from pdf_annotator.forms import (
+    ChangePasswordForm,
+    LoginForm,
+    RegisterForm,
+    _first_error,
+)
 from pdf_annotator.models.database import DatabaseManager
 from pdf_annotator.models.user import User
 
@@ -33,16 +39,12 @@ def login_post() -> ResponseReturnValue:
     Returns:
         Redirect to documents page on success, or re-render login with error
     """
-    username = request.form.get("username", "").strip()
-    password = request.form.get("password", "")
+    form = LoginForm()
+    if not form.validate_on_submit():
+        return render_template("auth/login.html", error=_first_error(form)), 400
 
-    if not username or not password:
-        return (
-            render_template(
-                "auth/login.html", error="Benutzername und Passwort erforderlich."
-            ),
-            400,
-        )
+    username = form.username.data or ""
+    password = form.password.data or ""
 
     db = DatabaseManager()
     user_data = db.get_user_by_username(username)
@@ -97,57 +99,13 @@ def register_post() -> ResponseReturnValue:
     Returns:
         Redirect to documents page on success, or re-render register with error
     """
-    username = request.form.get("username", "").strip()
-    email = request.form.get("email", "").strip()
-    password = request.form.get("password", "")
-    password_confirm = request.form.get("password_confirm", "")
+    form = RegisterForm()
+    if not form.validate_on_submit():
+        return render_template("auth/register.html", error=_first_error(form)), 400
 
-    # Validation
-    if not username or not email or not password:
-        return (
-            render_template(
-                "auth/register.html",
-                error="Alle Felder erforderlich.",
-            ),
-            400,
-        )
-
-    if len(username) < 3 or len(username) > 50:
-        return (
-            render_template(
-                "auth/register.html",
-                error="Benutzername muss zwischen 3 und 50 Zeichen lang sein.",
-            ),
-            400,
-        )
-
-    if len(password) < 8:
-        return (
-            render_template(
-                "auth/register.html",
-                error="Passwort muss mindestens 8 Zeichen lang sein.",
-            ),
-            400,
-        )
-
-    if password != password_confirm:
-        return (
-            render_template(
-                "auth/register.html",
-                error="Passwörter stimmen nicht überein.",
-            ),
-            400,
-        )
-
-    # Check if email format is valid (basic check)
-    if "@" not in email or "." not in email.split("@")[1]:
-        return (
-            render_template(
-                "auth/register.html",
-                error="Ungültige E-Mail-Adresse.",
-            ),
-            400,
-        )
+    username = form.username.data or ""
+    email = form.email.data or ""
+    password = form.password.data or ""
 
     db = DatabaseManager()
 
@@ -204,15 +162,15 @@ def change_password_post() -> ResponseReturnValue:
     Returns:
         Redirect to documents page on success, or re-render form with error
     """
-    current_password = request.form.get("current_password", "")
-    new_password = request.form.get("new_password", "")
-    new_password_confirm = request.form.get("new_password_confirm", "")
+    form = ChangePasswordForm()
 
+    # Verify the current password before any format validation, matching
+    # the previous behavior (wrong current password wins with a 401).
     db = DatabaseManager()
     user_data = db.get_user_by_id(current_user.id)
 
     if not user_data or not check_password_hash(
-        user_data["password_hash"], current_password
+        user_data["password_hash"], form.current_password.data or ""
     ):
         return (
             render_template(
@@ -222,25 +180,15 @@ def change_password_post() -> ResponseReturnValue:
             401,
         )
 
-    if len(new_password) < 8:
+    if not form.validate_on_submit():
         return (
-            render_template(
-                "auth/change_password.html",
-                error="Neues Passwort muss mindestens 8 Zeichen lang sein.",
-            ),
+            render_template("auth/change_password.html", error=_first_error(form)),
             400,
         )
 
-    if new_password != new_password_confirm:
-        return (
-            render_template(
-                "auth/change_password.html",
-                error="Neue Passwörter stimmen nicht überein.",
-            ),
-            400,
-        )
-
-    db.update_password(current_user.id, generate_password_hash(new_password))
+    db.update_password(
+        current_user.id, generate_password_hash(form.new_password.data or "")
+    )
 
     return render_template(
         "auth/change_password.html", success="Passwort erfolgreich geändert."
