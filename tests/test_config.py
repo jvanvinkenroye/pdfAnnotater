@@ -7,7 +7,9 @@ import stat
 
 import pytest
 from flask import Flask
+from werkzeug.middleware.proxy_fix import ProxyFix
 
+from pdf_annotator.app import create_app
 from pdf_annotator.config import ProductionConfig, _load_or_create_secret_key
 
 
@@ -107,3 +109,48 @@ class TestSessionCookieFlags:
         assert "SameSite=Lax" in session_cookies[0]
         # Plain http (desktop/dev) must not mark the cookie Secure
         assert "Secure" not in session_cookies[0]
+
+
+class TestBehindProxy:
+    """Tests for the PDF_ANNOTATOR_BEHIND_PROXY reverse-proxy switch."""
+
+    def test_flag_enables_proxyfix_secure_cookies_and_hsts(self, monkeypatch):
+        monkeypatch.setenv("PDF_ANNOTATOR_BEHIND_PROXY", "1")
+        app = create_app("testing")
+
+        assert isinstance(app.wsgi_app, ProxyFix)
+        assert app.config["SESSION_COOKIE_SECURE"] is True
+        assert app.config["REMEMBER_COOKIE_SECURE"] is True
+        assert app.config["PREFERRED_URL_SCHEME"] == "https"
+
+        response = app.test_client().get("/health")
+        assert response.headers["Strict-Transport-Security"].startswith("max-age=")
+
+    def test_forwarded_proto_reaches_request_scheme(self, monkeypatch):
+        monkeypatch.setenv("PDF_ANNOTATOR_BEHIND_PROXY", "1")
+        app = create_app("testing")
+
+        seen: dict[str, str] = {}
+
+        @app.route("/_test_scheme")
+        def _test_scheme() -> str:
+            from flask import request
+
+            seen["scheme"] = request.scheme
+            seen["remote_addr"] = request.remote_addr or ""
+            return "ok"
+
+        app.test_client().get(
+            "/_test_scheme",
+            headers={
+                "X-Forwarded-Proto": "https",
+                "X-Forwarded-For": "203.0.113.7",
+            },
+        )
+        assert seen["scheme"] == "https"
+        assert seen["remote_addr"] == "203.0.113.7"
+
+    def test_without_flag_no_proxyfix_and_no_hsts(self, client, app):
+        assert not isinstance(app.wsgi_app, ProxyFix)
+        response = client.get("/health")
+        assert "Strict-Transport-Security" not in response.headers

@@ -52,6 +52,22 @@ def create_app(config_name: str | None = None) -> Flask:
     app.config.from_object(config[config_name])
     config[config_name].init_app(app)
 
+    # Reverse-proxy deployments (PDF_ANNOTATOR_BEHIND_PROXY=1): trust the
+    # proxy's X-Forwarded-* headers and switch to https semantics. Never
+    # enabled for the desktop app or a directly exposed dev server, where
+    # forwarding headers would be attacker-controlled.
+    behind_proxy = os.environ.get("PDF_ANNOTATOR_BEHIND_PROXY") == "1"
+    app.config["BEHIND_PROXY"] = behind_proxy
+    if behind_proxy:
+        from werkzeug.middleware.proxy_fix import ProxyFix
+
+        app.wsgi_app = ProxyFix(  # type: ignore[method-assign]
+            app.wsgi_app, x_for=1, x_proto=1, x_host=1
+        )
+        app.config["PREFERRED_URL_SCHEME"] = "https"
+        app.config["SESSION_COOKIE_SECURE"] = True
+        app.config["REMEMBER_COOKIE_SECURE"] = True
+
     # Setup logging
     logger = setup_logger(
         name="pdf_annotator",
@@ -161,6 +177,10 @@ def create_app(config_name: str | None = None) -> Flask:
             "img-src 'self' data: blob:; "
             "font-src 'self' data:"
         )
+        if app.config.get("BEHIND_PROXY"):
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=31536000; includeSubDomains"
+            )
         return response
 
     # Error handlers
