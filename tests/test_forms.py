@@ -68,6 +68,47 @@ class TestRegisterForm:
         assert db.get_user_by_username("neueruser") is not None
 
 
+class TestRegistrationGate:
+    def test_disabled_blocks_get_and_post(self, app, client, user):
+        app.config["REGISTRATION_ENABLED"] = False
+
+        assert client.get("/auth/register").status_code == 403
+        response = _register(client)
+        assert response.status_code == 403
+        assert "Die Registrierung ist deaktiviert." in response.data.decode()
+
+    def test_disabled_still_allows_first_user(self, app, client):
+        app.config["REGISTRATION_ENABLED"] = False
+
+        response = _register(client)
+        assert response.status_code == 302
+
+    def test_wrong_invite_code_rejected(self, app, client):
+        app.config["REGISTRATION_INVITE_CODE"] = "geheim123"
+
+        response = _register(client, invite_code="falsch")
+        assert response.status_code == 403
+        assert "Ungültiger Einladungscode." in response.data.decode()
+
+    def test_missing_invite_code_rejected(self, app, client):
+        app.config["REGISTRATION_INVITE_CODE"] = "geheim123"
+
+        response = _register(client)
+        assert response.status_code == 403
+
+    def test_correct_invite_code_accepted(self, app, client):
+        app.config["REGISTRATION_INVITE_CODE"] = "geheim123"
+
+        response = _register(client, invite_code="geheim123")
+        assert response.status_code == 302
+
+    def test_login_page_hides_register_link_when_disabled(self, app, client):
+        app.config["REGISTRATION_ENABLED"] = False
+
+        html = client.get("/auth/login").data.decode()
+        assert "Jetzt registrieren" not in html
+
+
 class TestLoginForm:
     def test_missing_credentials(self, client):
         response = client.post("/auth/login", data={"username": "", "password": ""})

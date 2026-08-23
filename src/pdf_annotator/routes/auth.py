@@ -4,9 +4,18 @@ Authentication routes for login, logout, and registration.
 Provides endpoints for user authentication and session management.
 """
 
+import secrets
 import sqlite3
 
-from flask import Blueprint, jsonify, redirect, render_template, request, url_for
+from flask import (
+    Blueprint,
+    current_app,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 from flask.typing import ResponseReturnValue
 from flask_login import current_user, login_required, login_user, logout_user
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -83,9 +92,36 @@ def logout() -> ResponseReturnValue:
     return redirect(url_for("auth.login"))
 
 
+def _registration_blocked() -> ResponseReturnValue | None:
+    """
+    Return a 403 response when self-registration is disabled.
+
+    The very first user may always register (a locked-down fresh install
+    still needs its initial admin account).
+    """
+    if current_app.config.get("REGISTRATION_ENABLED", True):
+        return None
+    db = DatabaseManager()
+    if db.count_users() == 0:
+        return None
+    return (
+        render_template(
+            "auth/register.html",
+            error=(
+                "Die Registrierung ist deaktiviert. "
+                "Bitte wenden Sie sich an den Administrator."
+            ),
+        ),
+        403,
+    )
+
+
 @auth_bp.route("/register", methods=["GET"])
 def register() -> ResponseReturnValue:
     """Display registration form."""
+    blocked = _registration_blocked()
+    if blocked:
+        return blocked
     return render_template("auth/register.html")
 
 
@@ -99,9 +135,22 @@ def register_post() -> ResponseReturnValue:
     Returns:
         Redirect to documents page on success, or re-render register with error
     """
+    blocked = _registration_blocked()
+    if blocked:
+        return blocked
+
     form = RegisterForm()
     if not form.validate_on_submit():
         return render_template("auth/register.html", error=_first_error(form)), 400
+
+    invite_code = current_app.config.get("REGISTRATION_INVITE_CODE")
+    if invite_code and not secrets.compare_digest(
+        form.invite_code.data or "", invite_code
+    ):
+        return (
+            render_template("auth/register.html", error="Ungültiger Einladungscode."),
+            403,
+        )
 
     username = form.username.data or ""
     email = form.email.data or ""

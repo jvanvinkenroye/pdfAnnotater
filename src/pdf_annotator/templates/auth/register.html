@@ -124,6 +124,13 @@
                 <input type="password" id="password_confirm" name="password_confirm" minlength="8" required>
             </div>
 
+            {% if config.REGISTRATION_INVITE_CODE %}
+            <div class="form-group">
+                <label for="invite_code">Einladungscode</label>
+                <input type="text" id="invite_code" name="invite_code" required>
+            </div>
+            {% endif %}
+
             <button type="submit" class="btn-register">Registrieren</button>
         </form>
 

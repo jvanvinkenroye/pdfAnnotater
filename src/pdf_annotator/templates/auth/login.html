@@ -111,9 +111,11 @@
             <button type="submit" class="btn-login">Einloggen</button>
         </form>
 
+        {% if config.REGISTRATION_ENABLED %}
         <div class="auth-links">
             Noch kein Konto? <a href="{{ url_for('auth.register') }}">Jetzt registrieren</a>
         </div>
+        {% endif %}
     </div>
 </body>
 </html>

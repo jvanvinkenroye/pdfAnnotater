@@ -75,6 +75,8 @@ class RegisterForm(FlaskForm):
             EqualTo("password", message="Passwörter stimmen nicht überein."),
         ],
     )
+    # Only checked in the route when REGISTRATION_INVITE_CODE is configured.
+    invite_code = StringField("Einladungscode", filters=[_strip])
 
     def validate_email(self, field: StringField) -> None:
         # Same basic check as before; deliberately permissive so no

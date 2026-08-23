@@ -166,6 +166,14 @@ class Config:
     # (requires installing the matching `limits` backend extra).
     RATELIMIT_STORAGE_URI = os.environ.get("RATELIMIT_STORAGE_URI", "memory://")
 
+    # User self-registration. Open by default: the desktop app and the
+    # first-run server setup depend on it. Server operators should set
+    # PDF_ANNOTATOR_REGISTRATION=0 (and/or require an invite code) once
+    # the needed accounts exist. Registration of the very first user is
+    # always allowed so a locked-down fresh install can create its admin.
+    REGISTRATION_ENABLED = os.environ.get("PDF_ANNOTATOR_REGISTRATION", "1") != "0"
+    REGISTRATION_INVITE_CODE = os.environ.get("PDF_ANNOTATOR_INVITE_CODE") or None
+
     # Desktop-Mode: export routes write directly to disk instead of streaming
     # an HTTP download. Needed for WebView-based desktop shells (e.g. Toga)
     # that cannot handle Content-Disposition: attachment responses. Must
