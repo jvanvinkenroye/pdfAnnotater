@@ -182,33 +182,61 @@ def create_app(config_name: str | None = None) -> Flask:
             )
         return response
 
-    # Error handlers
+    # Error handlers. API requests (see wants_json) get JSON carrying the
+    # abort's description; browser page requests get the HTML error page
+    # with the same fixed German texts as before.
+    def _client_error_response(
+        e: Any, status: int, error_title: str, html_message: str, json_default: str
+    ) -> tuple:
+        from flask import render_template
+        from werkzeug.exceptions import HTTPException
+
+        from pdf_annotator.routes._helpers import wants_json
+
+        description = None
+        if isinstance(e, HTTPException) and e.description != type(e).description:
+            description = e.description
+
+        if wants_json():
+            return jsonify({"error": description or json_default}), status
+        return (
+            render_template(
+                "error.html", error_title=error_title, error_message=html_message
+            ),
+            status,
+        )
+
+    @app.errorhandler(400)
+    def bad_request(e: Any) -> tuple:
+        """Handle 400 errors."""
+        return _client_error_response(
+            e,
+            400,
+            error_title="Ungültige Anfrage",
+            html_message="Die Anfrage war ungültig.",
+            json_default="Ungültige Anfrage",
+        )
+
     @app.errorhandler(404)
     def not_found(e: Any) -> tuple:
         """Handle 404 errors."""
-        from flask import render_template
-
-        return (
-            render_template(
-                "error.html",
-                error_title="Seite nicht gefunden",
-                error_message="Die angeforderte Seite wurde nicht gefunden.",
-            ),
+        return _client_error_response(
+            e,
             404,
+            error_title="Seite nicht gefunden",
+            html_message="Die angeforderte Seite wurde nicht gefunden.",
+            json_default="Nicht gefunden",
         )
 
     @app.errorhandler(403)
     def forbidden(e: Any) -> tuple:
         """Handle 403 errors."""
-        from flask import render_template
-
-        return (
-            render_template(
-                "error.html",
-                error_title="Nicht berechtigt",
-                error_message="Sie haben keine Berechtigung für diese Seite.",
-            ),
+        return _client_error_response(
+            e,
             403,
+            error_title="Nicht berechtigt",
+            html_message="Sie haben keine Berechtigung für diese Seite.",
+            json_default="Nicht berechtigt",
         )
 
     @app.errorhandler(500)

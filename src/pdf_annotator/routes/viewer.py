@@ -10,9 +10,10 @@ from typing import Any
 import fitz
 from flask import Blueprint, Response, current_app, jsonify, render_template, request
 from flask.typing import ResponseReturnValue
-from flask_login import current_user, login_required
+from flask_login import login_required
 
 from pdf_annotator.models.database import DatabaseManager
+from pdf_annotator.routes._helpers import get_owned_document
 from pdf_annotator.services.pdf_processor import (
     clear_render_cache,
     clear_text_layout_cache,
@@ -22,7 +23,6 @@ from pdf_annotator.services.pdf_processor import (
 )
 from pdf_annotator.utils.logger import get_logger
 from pdf_annotator.utils.validators import (
-    validate_doc_id,
     validate_file_size,
     validate_file_type,
     validate_note_text,
@@ -33,35 +33,6 @@ logger = get_logger(__name__)
 
 # Create Blueprint
 viewer_bp = Blueprint("viewer", __name__, url_prefix="/viewer")
-
-
-def _get_doc_or_error(doc_id: str) -> tuple[dict, None] | tuple[None, tuple]:
-    """
-    Validate doc_id, fetch document, and verify ownership.
-
-    Returns (doc_info, None) on success or (None, error_response_tuple) on failure.
-    Used by all API endpoints to avoid repeating the same auth/ownership boilerplate.
-    """
-    is_valid, error_msg = validate_doc_id(doc_id)
-    if not is_valid:
-        return None, (jsonify({"error": error_msg}), 400)
-
-    db = DatabaseManager()
-    doc_info = db.get_document(doc_id)
-
-    if not doc_info:
-        logger.warning("Document not found: %s", doc_id)
-        return None, (jsonify({"error": "Dokument nicht gefunden"}), 404)
-
-    if doc_info.get("user_id") != current_user.id:
-        logger.warning(
-            "Unauthorized access: user %s tried to access document owned by %s",
-            current_user.id,
-            doc_info.get("user_id"),
-        )
-        return None, (jsonify({"error": "Nicht berechtigt"}), 403)
-
-    return doc_info, None
 
 
 @viewer_bp.route("/<doc_id>", methods=["GET"])
@@ -79,38 +50,9 @@ def view_document(doc_id: str) -> Any:
     Example:
         GET /viewer/abc-123-def-456
     """
+    doc_info = get_owned_document(doc_id)
+
     try:
-        is_valid, error_msg = validate_doc_id(doc_id)
-        if not is_valid:
-            return render_template(
-                "error.html",
-                error_title="Ungültige Anfrage",
-                error_message="Ungültige Dokument-ID.",
-            ), 400
-
-        db = DatabaseManager()
-        doc_info = db.get_document(doc_id)
-
-        if not doc_info:
-            logger.warning(f"Document not found: {doc_id}")
-            return render_template(
-                "error.html",
-                error_title="Dokument nicht gefunden",
-                error_message="Das Dokument wurde nicht gefunden.",
-            ), 404
-
-        # Check ownership
-        if doc_info.get("user_id") != current_user.id:
-            logger.warning(
-                f"Unauthorized access: user {current_user.id} tried to view "
-                f"document owned by {doc_info.get('user_id')}"
-            )
-            return render_template(
-                "error.html",
-                error_title="Nicht berechtigt",
-                error_message="Sie haben keine Berechtigung für dieses Dokument.",
-            ), 403
-
         logger.info(f"Viewing document: {doc_id} ({doc_info['original_filename']})")
 
         return render_template(
@@ -150,12 +92,9 @@ def get_page_image(doc_id: str, page_number: int) -> ResponseReturnValue:
     Example:
         GET /viewer/api/page/abc-123/1
     """
-    try:
-        doc_info, err = _get_doc_or_error(doc_id)
-        if err is not None:
-            return err
-        assert doc_info is not None
+    doc_info = get_owned_document(doc_id)
 
+    try:
         # Validate page number
         is_valid, error_msg = validate_page_number(page_number, doc_info["page_count"])
         if not is_valid:
@@ -204,12 +143,9 @@ def get_page_text(doc_id: str, page_number: int) -> Any:
     Example:
         GET /viewer/api/page/abc-123/1/text
     """
-    try:
-        doc_info, err = _get_doc_or_error(doc_id)
-        if err is not None:
-            return err
-        assert doc_info is not None
+    doc_info = get_owned_document(doc_id)
 
+    try:
         is_valid, error_msg = validate_page_number(page_number, doc_info["page_count"])
         if not is_valid:
             logger.warning(
@@ -262,12 +198,9 @@ def get_annotation(doc_id: str, page_number: int) -> Any:
             "updated_at": "2026-01-07 20:45:00"
         }
     """
-    try:
-        doc_info, err = _get_doc_or_error(doc_id)
-        if err is not None:
-            return err
-        assert doc_info is not None
+    doc_info = get_owned_document(doc_id)
 
+    try:
         db = DatabaseManager()
 
         # Validate page number
@@ -328,12 +261,9 @@ def save_annotation(doc_id: str, page_number: int) -> Any:
             "updated_at": "2026-01-07 20:45:00"
         }
     """
-    try:
-        doc_info, err = _get_doc_or_error(doc_id)
-        if err is not None:
-            return err
-        assert doc_info is not None
+    doc_info = get_owned_document(doc_id)
 
+    try:
         db = DatabaseManager()
 
         # Validate page number
@@ -393,11 +323,9 @@ def update_metadata(doc_id: str) -> Any:
         POST /viewer/api/metadata/abc-123
         Body: {"first_name": "Max", "last_name": "Mustermann", ...}
     """
-    try:
-        doc_info, err = _get_doc_or_error(doc_id)
-        if err is not None:
-            return err
+    get_owned_document(doc_id)
 
+    try:
         db = DatabaseManager()
 
         # Get metadata from request
@@ -502,12 +430,9 @@ def replace_pdf(doc_id: str) -> Any:
         POST /viewer/api/replace/abc-123
         File: new_version.pdf
     """
-    try:
-        doc_info, err = _get_doc_or_error(doc_id)
-        if err is not None:
-            return err
-        assert doc_info is not None
+    doc_info = get_owned_document(doc_id)
 
+    try:
         db = DatabaseManager()
 
         # Check if file was uploaded
@@ -586,12 +511,9 @@ def append_pdf(doc_id: str) -> Any:
         POST /viewer/api/append/abc-123
         File: additional_pages.pdf
     """
-    try:
-        doc_info, err = _get_doc_or_error(doc_id)
-        if err is not None:
-            return err
-        assert doc_info is not None
+    doc_info = get_owned_document(doc_id)
 
+    try:
         db = DatabaseManager()
 
         if "file" not in request.files:
@@ -701,13 +623,10 @@ def ocr_document(doc_id: str) -> Any:
     Returns:
         JSON with success status or error response
     """
+    doc_info = get_owned_document(doc_id)
+
     try:
         from pdf_annotator.services.ocr import OCRError, ocr_available, ocr_pdf
-
-        doc_info, err = _get_doc_or_error(doc_id)
-        if err is not None:
-            return err
-        assert doc_info is not None
 
         if not ocr_available():
             return jsonify({"error": "OCR ist auf diesem Server nicht verfügbar"}), 501
@@ -749,12 +668,9 @@ def delete_page(doc_id: str, page_number: int) -> Any:
     Returns:
         JSON response with new page_count or error
     """
-    try:
-        doc_info, err = _get_doc_or_error(doc_id)
-        if err is not None:
-            return err
-        assert doc_info is not None
+    doc_info = get_owned_document(doc_id)
 
+    try:
         db = DatabaseManager()
 
         # Validate page number

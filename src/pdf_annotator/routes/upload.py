@@ -21,13 +21,13 @@ from flask import (
 from flask_login import current_user, login_required
 
 from pdf_annotator.models.database import DatabaseManager
+from pdf_annotator.routes._helpers import get_owned_document
 from pdf_annotator.services.data_manager import DataManager
 from pdf_annotator.services.pdf_processor import get_page_count, validate_pdf
 from pdf_annotator.utils.downloads import send_file_response
 from pdf_annotator.utils.logger import get_logger
 from pdf_annotator.utils.validators import (
     sanitize_filename,
-    validate_doc_id,
     validate_uploaded_file,
 )
 
@@ -226,27 +226,10 @@ def delete_document(doc_id: str) -> Any:
         DELETE /delete/abc-123
         Response: {"success": true}
     """
+    doc_info = get_owned_document(doc_id)
+
     try:
-        is_valid, error_msg = validate_doc_id(doc_id)
-        if not is_valid:
-            return jsonify({"error": error_msg}), 400
-
         db = DatabaseManager()
-
-        # Get document info to access file path
-        doc_info = db.get_document(doc_id)
-
-        if not doc_info:
-            logger.warning(f"Delete attempt for non-existent document: {doc_id}")
-            return jsonify({"error": "Dokument nicht gefunden"}), 404
-
-        # Check ownership
-        if doc_info.get("user_id") != current_user.id:
-            logger.warning(
-                f"Unauthorized delete attempt: user {current_user.id} tried to delete "
-                f"document owned by {doc_info.get('user_id')}"
-            )
-            return jsonify({"error": "Nicht berechtigt"}), 403
 
         # Delete from database first (CASCADE deletes annotations)
         # This prevents data loss if database deletion fails

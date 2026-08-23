@@ -10,9 +10,10 @@ from typing import Any
 from uuid import uuid4
 
 from flask import Blueprint, current_app, jsonify
-from flask_login import current_user, login_required
+from flask_login import login_required
 
 from pdf_annotator.models.database import DatabaseManager
+from pdf_annotator.routes._helpers import get_owned_document
 from pdf_annotator.services.markdown_exporter import (
     export_to_markdown,
     generate_markdown_filename,
@@ -23,7 +24,7 @@ from pdf_annotator.services.pdf_generator import (
 )
 from pdf_annotator.utils.downloads import send_file_response
 from pdf_annotator.utils.logger import get_logger
-from pdf_annotator.utils.validators import validate_doc_id, validate_file_path
+from pdf_annotator.utils.validators import validate_file_path
 
 logger = get_logger(__name__)
 
@@ -71,26 +72,9 @@ def download_original_pdf(doc_id: str) -> Any:
 
         Response: Original PDF file download
     """
+    doc_info = get_owned_document(doc_id)
+
     try:
-        is_valid, error_msg = validate_doc_id(doc_id)
-        if not is_valid:
-            return jsonify({"error": error_msg}), 400
-
-        db = DatabaseManager()
-        doc_info = db.get_document(doc_id)
-
-        if not doc_info:
-            logger.warning(f"Document not found: {doc_id}")
-            return jsonify({"error": "Dokument nicht gefunden"}), 404
-
-        # Check ownership
-        if doc_info.get("user_id") != current_user.id:
-            logger.warning(
-                f"Unauthorized access: user {current_user.id} tried to access "
-                f"document owned by {doc_info.get('user_id')}"
-            )
-            return jsonify({"error": "Nicht berechtigt"}), 403
-
         logger.info(f"Downloading original PDF for document {doc_id}")
 
         # Get file path
@@ -139,25 +123,10 @@ def export_pdf(doc_id: str) -> Any:
 
         Response: PDF file download
     """
+    doc_info = get_owned_document(doc_id)
+
     try:
-        is_valid, error_msg = validate_doc_id(doc_id)
-        if not is_valid:
-            return jsonify({"error": error_msg}), 400
-
         db = DatabaseManager()
-        doc_info = db.get_document(doc_id)
-
-        if not doc_info:
-            logger.warning(f"Document not found: {doc_id}")
-            return jsonify({"error": "Dokument nicht gefunden"}), 404
-
-        # Check ownership
-        if doc_info.get("user_id") != current_user.id:
-            logger.warning(
-                f"Unauthorized access: user {current_user.id} tried to access "
-                f"document owned by {doc_info.get('user_id')}"
-            )
-            return jsonify({"error": "Nicht berechtigt"}), 403
 
         logger.info(f"Exporting annotated PDF for document {doc_id}")
 
@@ -228,25 +197,10 @@ def export_markdown(doc_id: str) -> Any:
 
         Response: Markdown file download
     """
+    doc_info = get_owned_document(doc_id)
+
     try:
-        is_valid, error_msg = validate_doc_id(doc_id)
-        if not is_valid:
-            return jsonify({"error": error_msg}), 400
-
         db = DatabaseManager()
-        doc_info = db.get_document(doc_id)
-
-        if not doc_info:
-            logger.warning(f"Document not found: {doc_id}")
-            return jsonify({"error": "Dokument nicht gefunden"}), 404
-
-        # Check ownership
-        if doc_info.get("user_id") != current_user.id:
-            logger.warning(
-                f"Unauthorized access: user {current_user.id} tried to access "
-                f"document owned by {doc_info.get('user_id')}"
-            )
-            return jsonify({"error": "Nicht berechtigt"}), 403
 
         logger.info(f"Exporting Markdown for document {doc_id}")
 
