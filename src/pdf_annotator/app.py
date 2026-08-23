@@ -128,6 +128,18 @@ def create_app(
     db.init_db()
     logger.info("Database initialized")
 
+    # Periodic maintenance (export/job/cache cleanup) off the request path.
+    # Skipped in tests, and in the Werkzeug reloader parent (the reloaded
+    # child, marked by WERKZEUG_RUN_MAIN, starts its own thread).
+    start_cleanup = not app.config.get("TESTING")
+    if app.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+        start_cleanup = False
+    if start_cleanup:
+        from pdf_annotator.services.cleanup import start_cleanup_thread
+
+        start_cleanup_thread(app)
+        logger.info("Cleanup thread started")
+
     # Register blueprints
     app.register_blueprint(auth_bp)
     app.register_blueprint(upload_bp)
