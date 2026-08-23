@@ -52,6 +52,27 @@ class TestJobLifecycle:
 
         assert job["status"] == "done"
 
+    def test_export_job_runs_on_real_thread(self, logged_in_client, uploaded_pdf, db):
+        """Full export flow through the actual executor — regression test
+        for runners accidentally touching the application context (the
+        inline test executor runs inside the request and masks that)."""
+        response = logged_in_client.post(f"/export/pdf/{uploaded_pdf}")
+        assert response.status_code == 202
+        job_id = response.get_json()["job_id"]
+
+        deadline = time.time() + 30
+        while time.time() < deadline:
+            job = db.get_job(job_id)
+            if job["status"] in ("done", "error"):
+                break
+            time.sleep(0.1)
+
+        assert job["status"] == "done", job["error"]
+
+        download = logged_in_client.get(f"/export/download/{job_id}")
+        assert download.status_code == 200
+        assert download.data[:5] == b"%PDF-"
+
 
 class TestJobStatusEndpoint:
     def test_unknown_job_404(self, logged_in_client):

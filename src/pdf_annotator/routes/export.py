@@ -128,6 +128,7 @@ def export_pdf(doc_id: str) -> Any:
     font_name = current_app.config.get("PDF_ANNOTATION_FONT", "courier")
     font_size = current_app.config.get("PDF_ANNOTATION_FONTSIZE", 9)
     font_color = current_app.config.get("PDF_ANNOTATION_COLOR", (0, 0.5, 0))
+    upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
 
     def runner() -> dict[str, Any]:
         success = create_annotated_pdf(
@@ -137,6 +138,7 @@ def export_pdf(doc_id: str) -> Any:
             font_name=font_name,
             font_size=font_size,
             font_color=font_color,
+            upload_folder=upload_folder,
         )
         if not success:
             raise RuntimeError("Fehler beim Erstellen des annotierten PDFs")
