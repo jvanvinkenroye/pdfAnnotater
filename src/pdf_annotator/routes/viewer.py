@@ -12,7 +12,7 @@ from flask import Blueprint, Response, current_app, jsonify, render_template, re
 from flask.typing import ResponseReturnValue
 from flask_login import login_required
 
-from pdf_annotator.models.database import DatabaseManager
+from pdf_annotator.models.database import get_db
 from pdf_annotator.routes._helpers import get_owned_document, handle_errors
 from pdf_annotator.services.pdf_processor import (
     clear_render_cache,
@@ -175,7 +175,7 @@ def get_annotation(doc_id: str, page_number: int) -> Any:
     """
     doc_info = get_owned_document(doc_id)
 
-    db = DatabaseManager()
+    db = get_db()
 
     # Validate page number
     is_valid, error_msg = validate_page_number(page_number, doc_info["page_count"])
@@ -229,7 +229,7 @@ def save_annotation(doc_id: str, page_number: int) -> Any:
     """
     doc_info = get_owned_document(doc_id)
 
-    db = DatabaseManager()
+    db = get_db()
 
     # Validate page number
     is_valid, error_msg = validate_page_number(page_number, doc_info["page_count"])
@@ -282,7 +282,7 @@ def update_metadata(doc_id: str) -> Any:
     """
     get_owned_document(doc_id)
 
-    db = DatabaseManager()
+    db = get_db()
 
     # Get metadata from request
     data = request.get_json()
@@ -382,7 +382,7 @@ def replace_pdf(doc_id: str) -> Any:
     """
     doc_info = get_owned_document(doc_id)
 
-    db = DatabaseManager()
+    db = get_db()
 
     # Check if file was uploaded
     if "file" not in request.files:
@@ -456,7 +456,7 @@ def append_pdf(doc_id: str) -> Any:
     """
     doc_info = get_owned_document(doc_id)
 
-    db = DatabaseManager()
+    db = get_db()
 
     if "file" not in request.files:
         logger.warning("No file in request")
@@ -602,7 +602,7 @@ def delete_page(doc_id: str, page_number: int) -> Any:
     """
     doc_info = get_owned_document(doc_id)
 
-    db = DatabaseManager()
+    db = get_db()
 
     # Validate page number
     is_valid, error_msg = validate_page_number(page_number, doc_info["page_count"])

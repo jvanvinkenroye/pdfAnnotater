@@ -20,7 +20,7 @@ from flask import (
 )
 from flask_login import current_user, login_required
 
-from pdf_annotator.models.database import DatabaseManager
+from pdf_annotator.models.database import get_db
 from pdf_annotator.routes._helpers import get_owned_document, handle_errors
 from pdf_annotator.services.data_manager import DataManager
 from pdf_annotator.services.pdf_processor import get_page_count, validate_pdf
@@ -60,7 +60,7 @@ def list_documents() -> str:
     Returns:
         str: Rendered HTML template
     """
-    db = DatabaseManager()
+    db = get_db()
     documents = db.get_all_documents(current_user.id)
 
     logger.info(f"Listing {len(documents)} documents for user {current_user.username}")
@@ -166,7 +166,7 @@ def upload_file() -> Any:
     subject = subject[:max_subject]
 
     # Create database entry
-    db = DatabaseManager()
+    db = get_db()
     doc_id = db.create_document(
         current_user.id,
         original_filename,
@@ -221,7 +221,7 @@ def delete_document(doc_id: str) -> Any:
     """
     doc_info = get_owned_document(doc_id)
 
-    db = DatabaseManager()
+    db = get_db()
 
     # Delete from database first (CASCADE deletes annotations)
     # This prevents data loss if database deletion fails
@@ -263,7 +263,7 @@ def export_data() -> Any:
         GET /export
         Response: PDF_Annotator_Backup_20260123.zip
     """
-    db = DatabaseManager()
+    db = get_db()
     upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
     manager = DataManager(upload_folder)
 
@@ -293,7 +293,7 @@ def export_info() -> Any:
         GET /export/info
         Response: {"document_count": 5, "annotation_count": 42, "estimated_size_mb": 12.5}
     """
-    db = DatabaseManager()
+    db = get_db()
     upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
     manager = DataManager(upload_folder)
 

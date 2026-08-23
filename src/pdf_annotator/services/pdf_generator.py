@@ -190,7 +190,7 @@ def create_annotated_pdf(
         bool: True if successful, False otherwise
 
     Example:
-        db = DatabaseManager()
+        db = get_db()
         success = create_annotated_pdf(
             "abc-123",
             Path("output_annotated.pdf"),

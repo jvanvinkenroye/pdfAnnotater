@@ -44,7 +44,7 @@ def export_to_markdown(doc_id: str, output_path: Path, db: DatabaseManager) -> b
         bool: True if successful, False otherwise
 
     Example:
-        db = DatabaseManager()
+        db = get_db()
         success = export_to_markdown(
             "abc-123",
             Path("notes.md"),

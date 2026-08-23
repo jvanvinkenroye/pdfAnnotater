@@ -12,7 +12,7 @@ from uuid import uuid4
 from flask import Blueprint, current_app, jsonify
 from flask_login import login_required
 
-from pdf_annotator.models.database import DatabaseManager
+from pdf_annotator.models.database import get_db
 from pdf_annotator.routes._helpers import get_owned_document, handle_errors
 from pdf_annotator.services.markdown_exporter import (
     export_to_markdown,
@@ -119,7 +119,7 @@ def export_pdf(doc_id: str) -> Any:
     """
     doc_info = get_owned_document(doc_id)
 
-    db = DatabaseManager()
+    db = get_db()
 
     logger.info(f"Exporting annotated PDF for document {doc_id}")
 
@@ -189,7 +189,7 @@ def export_markdown(doc_id: str) -> Any:
     """
     doc_info = get_owned_document(doc_id)
 
-    db = DatabaseManager()
+    db = get_db()
 
     logger.info(f"Exporting Markdown for document {doc_id}")
 

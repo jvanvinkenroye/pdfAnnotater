@@ -14,7 +14,7 @@ from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
 
 from pdf_annotator.config import config
-from pdf_annotator.models.database import DatabaseManager
+from pdf_annotator.models.database import DatabaseManager, get_db
 from pdf_annotator.models.user import User
 from pdf_annotator.routes.admin import admin_bp
 from pdf_annotator.routes.ai import ai_bp
@@ -26,13 +26,19 @@ from pdf_annotator.routes.viewer import viewer_bp
 from pdf_annotator.utils.logger import setup_logger
 
 
-def create_app(config_name: str | None = None) -> Flask:
+def create_app(
+    config_name: str | None = None,
+    config_overrides: dict[str, Any] | None = None,
+) -> Flask:
     """
     Application factory for creating Flask app.
 
     Args:
         config_name: Configuration name (development, production, testing)
                     If None, uses FLASK_ENV environment variable or defaults to 'development'
+        config_overrides: Config values applied on top of the named config
+                    before any of them are used (paths, feature flags, ...).
+                    Mainly for tests.
 
     Returns:
         Flask: Configured Flask application instance
@@ -50,6 +56,8 @@ def create_app(config_name: str | None = None) -> Flask:
 
     # Load configuration
     app.config.from_object(config[config_name])
+    if config_overrides:
+        app.config.update(config_overrides)
     config[config_name].init_app(app)
 
     # Reverse-proxy deployments (PDF_ANNOTATOR_BEHIND_PROXY=1): trust the
@@ -86,7 +94,7 @@ def create_app(config_name: str | None = None) -> Flask:
     @login_manager.user_loader
     def load_user(user_id: str) -> User | None:
         """Load user from database by ID."""
-        db = DatabaseManager()
+        db = get_db()
         data = db.get_user_by_id(user_id)
         if data:
             return User(
@@ -113,8 +121,10 @@ def create_app(config_name: str | None = None) -> Flask:
         storage_uri=app.config.get("RATELIMIT_STORAGE_URI", "memory://"),
     )
 
-    # Initialize database
+    # Initialize database; the instance lives on app.extensions so routes
+    # and services reach it via get_db() with the app's configured path.
     db = DatabaseManager(app.config["DATABASE_PATH"])
+    app.extensions["db"] = db
     db.init_db()
     logger.info("Database initialized")
 
@@ -133,7 +143,7 @@ def create_app(config_name: str | None = None) -> Flask:
     def health_check() -> Any:
         db_ok = True
         try:
-            with DatabaseManager().get_connection() as conn:
+            with get_db().get_connection() as conn:
                 conn.execute("SELECT 1")
         except Exception:
             db_ok = False

@@ -26,7 +26,7 @@ from pdf_annotator.forms import (
     RegisterForm,
     _first_error,
 )
-from pdf_annotator.models.database import DatabaseManager
+from pdf_annotator.models.database import get_db
 from pdf_annotator.models.user import User
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
@@ -55,7 +55,7 @@ def login_post() -> ResponseReturnValue:
     username = form.username.data or ""
     password = form.password.data or ""
 
-    db = DatabaseManager()
+    db = get_db()
     user_data = db.get_user_by_username(username)
 
     if not user_data or not check_password_hash(user_data["password_hash"], password):
@@ -101,7 +101,7 @@ def _registration_blocked() -> ResponseReturnValue | None:
     """
     if current_app.config.get("REGISTRATION_ENABLED", True):
         return None
-    db = DatabaseManager()
+    db = get_db()
     if db.count_users() == 0:
         return None
     return (
@@ -156,7 +156,7 @@ def register_post() -> ResponseReturnValue:
     email = form.email.data or ""
     password = form.password.data or ""
 
-    db = DatabaseManager()
+    db = get_db()
 
     # Check if username already exists
     if db.get_user_by_username(username):
@@ -215,7 +215,7 @@ def change_password_post() -> ResponseReturnValue:
 
     # Verify the current password before any format validation, matching
     # the previous behavior (wrong current password wins with a 401).
-    db = DatabaseManager()
+    db = get_db()
     user_data = db.get_user_by_id(current_user.id)
 
     if not user_data or not check_password_hash(
@@ -256,6 +256,6 @@ def set_theme() -> ResponseReturnValue:
     theme = data.get("theme")
     if theme not in ("light", "dark", "brutalist", "compact"):
         return jsonify({"error": "Ungültiges Theme"}), 400
-    db = DatabaseManager()
+    db = get_db()
     db.set_user_theme(current_user.id, theme)
     return jsonify({"success": True})

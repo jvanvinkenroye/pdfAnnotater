@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from pdf_annotator.models.database import DatabaseManager
+from pdf_annotator.models.database import DatabaseManager, get_db
 from pdf_annotator.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -37,10 +37,10 @@ class DataManager:
 
         Args:
             upload_folder: Path to uploads directory
-            db: DatabaseManager instance (uses singleton if not provided)
+            db: DatabaseManager instance (defaults to the app's instance)
         """
         self.upload_folder = Path(upload_folder)
-        self.db = db or DatabaseManager()
+        self.db = db or get_db()
 
     def export_data(
         self, doc_ids: list[str] | None = None, output_path: Path | None = None
@@ -200,7 +200,9 @@ class DataManager:
                 original_doc_id = doc_data.get("id")
                 doc_id = str(uuid4())
 
-                logger.debug("[Import] Doc #%d: %s → %s", doc_idx, original_doc_id, doc_id)
+                logger.debug(
+                    "[Import] Doc #%d: %s → %s", doc_idx, original_doc_id, doc_id
+                )
 
                 # Extract PDF file - try original doc_id first, then new doc_id
                 pdf_content = None
@@ -215,7 +217,10 @@ class DataManager:
                         pdf_content = None
 
                 if pdf_content is None:
-                    logger.debug("[Import] Skipped doc %s: PDF not found in archive", original_doc_id)
+                    logger.debug(
+                        "[Import] Skipped doc %s: PDF not found in archive",
+                        original_doc_id,
+                    )
                     stats["documents_skipped"] += 1
                     continue
 
@@ -223,14 +228,21 @@ class DataManager:
                     pdf_dest = self.upload_folder / f"{doc_id}.pdf"
 
                     # Ensure destination is safe (no path traversal)
-                    if not pdf_dest.resolve().is_relative_to(self.upload_folder.resolve()):
-                        logger.warning("[Import] Path traversal blocked for doc %s", original_doc_id)
+                    if not pdf_dest.resolve().is_relative_to(
+                        self.upload_folder.resolve()
+                    ):
+                        logger.warning(
+                            "[Import] Path traversal blocked for doc %s",
+                            original_doc_id,
+                        )
                         stats["documents_skipped"] += 1
                         continue
 
                     pdf_dest.write_bytes(pdf_content)
                 except OSError as e:
-                    logger.warning("[Import] File write error for doc %s: %s", original_doc_id, e)
+                    logger.warning(
+                        "[Import] File write error for doc %s: %s", original_doc_id, e
+                    )
                     stats["documents_skipped"] += 1
                     continue
 

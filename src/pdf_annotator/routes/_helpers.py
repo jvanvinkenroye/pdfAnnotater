@@ -10,7 +10,7 @@ from flask import abort, jsonify, render_template, request
 from flask_login import current_user
 from werkzeug.exceptions import HTTPException
 
-from pdf_annotator.models.database import DatabaseManager
+from pdf_annotator.models.database import get_db
 from pdf_annotator.utils.logger import get_logger
 from pdf_annotator.utils.validators import validate_doc_id
 
@@ -53,7 +53,7 @@ def get_owned_document(doc_id: str) -> dict[str, Any]:
     if not is_valid:
         abort(400, description=error_msg)
 
-    db = DatabaseManager()
+    db = get_db()
     doc_info = db.get_document(doc_id)
 
     if not doc_info:

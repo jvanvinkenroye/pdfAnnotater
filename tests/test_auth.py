@@ -4,7 +4,7 @@ Tests for authentication routes, focused on the change-password feature.
 
 from werkzeug.security import check_password_hash
 
-from pdf_annotator.models.database import DatabaseManager
+from pdf_annotator.models.database import get_db
 
 
 class TestChangePassword:
@@ -31,9 +31,8 @@ class TestChangePassword:
         assert response.status_code == 200
         assert "erfolgreich" in response.get_data(as_text=True)
 
-        db = DatabaseManager()
         with app.app_context():
-            user_data = db.get_user_by_id(user)
+            user_data = get_db().get_user_by_id(user)
         assert check_password_hash(user_data["password_hash"], "newpassword123")
 
     def test_wrong_current_password_rejected(self, app, logged_in_client, user):
@@ -47,9 +46,8 @@ class TestChangePassword:
         )
         assert response.status_code == 401
 
-        db = DatabaseManager()
         with app.app_context():
-            user_data = db.get_user_by_id(user)
+            user_data = get_db().get_user_by_id(user)
         assert check_password_hash(user_data["password_hash"], "testpassword")
 
     def test_too_short_new_password_rejected(self, app, logged_in_client):

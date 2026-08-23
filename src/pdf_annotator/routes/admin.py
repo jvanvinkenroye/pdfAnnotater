@@ -10,7 +10,7 @@ from typing import Any
 from flask import Blueprint, Response, abort, jsonify, render_template
 from flask_login import current_user, login_required
 
-from pdf_annotator.models.database import DatabaseManager
+from pdf_annotator.models.database import DatabaseManager, get_db
 
 admin_bp = Blueprint("admin", __name__)
 
@@ -53,7 +53,7 @@ def _guard_user_action(
 
 def _toggle_user_flag(user_id: str, field: str) -> tuple[Response, int] | Response:
     spec = _TOGGLE_SPECS[field]
-    db = DatabaseManager()
+    db = get_db()
 
     user_data, error = _guard_user_action(
         db, user_id, spec["self_error"], spec["last_admin_error"]
@@ -94,7 +94,7 @@ def admin_required(f):
 @admin_required
 def index() -> str:
     """Display admin panel with user list."""
-    db = DatabaseManager()
+    db = get_db()
     users = db.get_all_users()
     return render_template("admin/index.html", users=users, current_user=current_user)
 
@@ -117,7 +117,7 @@ def toggle_admin(user_id: str) -> tuple[Response, int] | Response:
 @admin_required
 def delete_user(user_id: str) -> tuple[Response, int] | Response:
     """Delete a user and all their documents."""
-    db = DatabaseManager()
+    db = get_db()
 
     user_data, error = _guard_user_action(
         db,
