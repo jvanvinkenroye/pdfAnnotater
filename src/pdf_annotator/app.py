@@ -102,12 +102,15 @@ def create_app(config_name: str | None = None) -> Flask:
     # Initialize CSRF protection
     CSRFProtect(app)
 
-    # Initialize rate limiter
+    # Initialize rate limiter. The default memory:// storage is
+    # per-process: with N Gunicorn workers, effective limits are up to
+    # N x the configured value and reset on worker restart. Operators
+    # with a shared store can point RATELIMIT_STORAGE_URI at it.
     limiter = Limiter(
         get_remote_address,
         app=app,
         default_limits=["200 per minute"],
-        storage_uri="memory://",
+        storage_uri=app.config.get("RATELIMIT_STORAGE_URI", "memory://"),
     )
 
     # Initialize database

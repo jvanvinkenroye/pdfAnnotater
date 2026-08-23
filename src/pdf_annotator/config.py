@@ -160,6 +160,12 @@ class Config:
     # Database settings
     DATABASE_PATH: Path | str = BASE_DIR / "data" / "annotations.db"
 
+    # Rate limiter storage. memory:// is per-process (limits multiply by
+    # the number of Gunicorn workers and reset on restart); deployments
+    # with a shared store can point this at e.g. redis://host:6379
+    # (requires installing the matching `limits` backend extra).
+    RATELIMIT_STORAGE_URI = os.environ.get("RATELIMIT_STORAGE_URI", "memory://")
+
     # Desktop-Mode: export routes write directly to disk instead of streaming
     # an HTTP download. Needed for WebView-based desktop shells (e.g. Toga)
     # that cannot handle Content-Disposition: attachment responses. Must
