@@ -13,7 +13,7 @@ from flask import Blueprint, current_app, jsonify
 from flask_login import login_required
 
 from pdf_annotator.models.database import DatabaseManager
-from pdf_annotator.routes._helpers import get_owned_document
+from pdf_annotator.routes._helpers import get_owned_document, handle_errors
 from pdf_annotator.services.markdown_exporter import (
     export_to_markdown,
     generate_markdown_filename,
@@ -55,6 +55,7 @@ def cleanup_old_exports() -> None:
 
 @export_bp.route("/original/<doc_id>", methods=["GET"])
 @login_required
+@handle_errors("Interner Serverfehler beim Download")
 def download_original_pdf(doc_id: str) -> Any:
     """
     Download original PDF file.
@@ -74,38 +75,31 @@ def download_original_pdf(doc_id: str) -> Any:
     """
     doc_info = get_owned_document(doc_id)
 
-    try:
-        logger.info(f"Downloading original PDF for document {doc_id}")
+    logger.info(f"Downloading original PDF for document {doc_id}")
 
-        # Get file path
-        file_path = Path(doc_info["file_path"])
+    # Get file path
+    file_path = Path(doc_info["file_path"])
 
-        # Validate path to prevent path traversal attacks
-        upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
-        is_valid, error_msg = validate_file_path(file_path, upload_folder)
-        if not is_valid:
-            logger.error(f"Path traversal attempt blocked: {file_path}")
-            return jsonify({"error": "Ungültiger Dateipfad"}), 400
+    # Validate path to prevent path traversal attacks
+    upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
+    is_valid, error_msg = validate_file_path(file_path, upload_folder)
+    if not is_valid:
+        logger.error(f"Path traversal attempt blocked: {file_path}")
+        return jsonify({"error": "Ungültiger Dateipfad"}), 400
 
-        if not file_path.exists():
-            logger.error(f"PDF file not found: {file_path}")
-            return jsonify({"error": "PDF-Datei nicht gefunden"}), 404
+    if not file_path.exists():
+        logger.error(f"PDF file not found: {file_path}")
+        return jsonify({"error": "PDF-Datei nicht gefunden"}), 404
 
-        # Send file
-        original_filename = doc_info["original_filename"]
-        logger.info(f"Sending original PDF: {original_filename}")
-        return send_file_response(file_path, original_filename, "application/pdf")
-
-    except Exception as e:
-        logger.error(
-            f"Error downloading original PDF for document {doc_id}: {e}",
-            exc_info=True,
-        )
-        return jsonify({"error": "Interner Serverfehler beim Download"}), 500
+    # Send file
+    original_filename = doc_info["original_filename"]
+    logger.info(f"Sending original PDF: {original_filename}")
+    return send_file_response(file_path, original_filename, "application/pdf")
 
 
 @export_bp.route("/pdf/<doc_id>", methods=["POST"])
 @login_required
+@handle_errors("Interner Serverfehler beim Export")
 def export_pdf(doc_id: str) -> Any:
     """
     Export annotated PDF.
@@ -125,61 +119,57 @@ def export_pdf(doc_id: str) -> Any:
     """
     doc_info = get_owned_document(doc_id)
 
-    try:
-        db = DatabaseManager()
+    db = DatabaseManager()
 
-        logger.info(f"Exporting annotated PDF for document {doc_id}")
+    logger.info(f"Exporting annotated PDF for document {doc_id}")
 
-        # Clean up old export files before creating new ones
-        cleanup_old_exports()
+    # Clean up old export files before creating new ones
+    cleanup_old_exports()
 
-        # Get last edited timestamp from annotations
-        annotations = db.get_all_annotations(doc_id)
-        last_edited = None
-        if annotations:
-            # Find the most recent updated_at timestamp
-            last_edited = max(ann["updated_at"] for ann in annotations)
+    # Get last edited timestamp from annotations
+    annotations = db.get_all_annotations(doc_id)
+    last_edited = None
+    if annotations:
+        # Find the most recent updated_at timestamp
+        last_edited = max(ann["updated_at"] for ann in annotations)
 
-        # Generate output filename with metadata
-        export_filename = generate_annotated_filename(doc_info, last_edited)
+    # Generate output filename with metadata
+    export_filename = generate_annotated_filename(doc_info, last_edited)
 
-        # Create unique temporary file path
-        export_id = str(uuid4())
-        export_path = (
-            Path(current_app.config["EXPORT_FOLDER"]) / f"{export_id}_{export_filename}"
+    # Create unique temporary file path
+    export_id = str(uuid4())
+    export_path = (
+        Path(current_app.config["EXPORT_FOLDER"]) / f"{export_id}_{export_filename}"
+    )
+
+    # Ensure export directory exists
+    export_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Generate annotated PDF
+    success = create_annotated_pdf(
+        doc_id,
+        export_path,
+        db,
+        font_name=current_app.config.get("PDF_ANNOTATION_FONT", "courier"),
+        font_size=current_app.config.get("PDF_ANNOTATION_FONTSIZE", 9),
+        font_color=current_app.config.get("PDF_ANNOTATION_COLOR", (0, 0.5, 0)),
+    )
+
+    if not success:
+        logger.error(f"Failed to create annotated PDF for {doc_id}")
+        return (
+            jsonify({"error": "Fehler beim Erstellen des annotierten PDFs"}),
+            500,
         )
 
-        # Ensure export directory exists
-        export_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # Generate annotated PDF
-        success = create_annotated_pdf(
-            doc_id,
-            export_path,
-            db,
-            font_name=current_app.config.get("PDF_ANNOTATION_FONT", "courier"),
-            font_size=current_app.config.get("PDF_ANNOTATION_FONTSIZE", 9),
-            font_color=current_app.config.get("PDF_ANNOTATION_COLOR", (0, 0.5, 0)),
-        )
-
-        if not success:
-            logger.error(f"Failed to create annotated PDF for {doc_id}")
-            return (
-                jsonify({"error": "Fehler beim Erstellen des annotierten PDFs"}),
-                500,
-            )
-
-        # Send file
-        logger.info(f"Sending annotated PDF: {export_filename}")
-        return send_file_response(export_path, export_filename, "application/pdf")
-
-    except Exception as e:
-        logger.error(f"Error exporting PDF for document {doc_id}: {e}", exc_info=True)
-        return jsonify({"error": "Interner Serverfehler beim Export"}), 500
+    # Send file
+    logger.info(f"Sending annotated PDF: {export_filename}")
+    return send_file_response(export_path, export_filename, "application/pdf")
 
 
 @export_bp.route("/markdown/<doc_id>", methods=["POST"])
 @login_required
+@handle_errors("Interner Serverfehler beim Export")
 def export_markdown(doc_id: str) -> Any:
     """
     Export annotations as Markdown.
@@ -199,50 +189,42 @@ def export_markdown(doc_id: str) -> Any:
     """
     doc_info = get_owned_document(doc_id)
 
-    try:
-        db = DatabaseManager()
+    db = DatabaseManager()
 
-        logger.info(f"Exporting Markdown for document {doc_id}")
+    logger.info(f"Exporting Markdown for document {doc_id}")
 
-        # Clean up old export files before creating new ones
-        cleanup_old_exports()
+    # Clean up old export files before creating new ones
+    cleanup_old_exports()
 
-        # Get last edited timestamp from annotations
-        annotations = db.get_all_annotations(doc_id)
-        last_edited = None
-        if annotations:
-            # Find the most recent updated_at timestamp
-            last_edited = max(ann["updated_at"] for ann in annotations)
+    # Get last edited timestamp from annotations
+    annotations = db.get_all_annotations(doc_id)
+    last_edited = None
+    if annotations:
+        # Find the most recent updated_at timestamp
+        last_edited = max(ann["updated_at"] for ann in annotations)
 
-        # Generate output filename with metadata
-        export_filename = generate_markdown_filename(doc_info, last_edited)
+    # Generate output filename with metadata
+    export_filename = generate_markdown_filename(doc_info, last_edited)
 
-        # Create unique temporary file path
-        export_id = str(uuid4())
-        export_path = (
-            Path(current_app.config["EXPORT_FOLDER"]) / f"{export_id}_{export_filename}"
+    # Create unique temporary file path
+    export_id = str(uuid4())
+    export_path = (
+        Path(current_app.config["EXPORT_FOLDER"]) / f"{export_id}_{export_filename}"
+    )
+
+    # Ensure export directory exists
+    export_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Generate Markdown
+    success = export_to_markdown(doc_id, export_path, db)
+
+    if not success:
+        logger.error(f"Failed to create Markdown export for {doc_id}")
+        return (
+            jsonify({"error": "Fehler beim Erstellen der Markdown-Datei"}),
+            500,
         )
 
-        # Ensure export directory exists
-        export_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # Generate Markdown
-        success = export_to_markdown(doc_id, export_path, db)
-
-        if not success:
-            logger.error(f"Failed to create Markdown export for {doc_id}")
-            return (
-                jsonify({"error": "Fehler beim Erstellen der Markdown-Datei"}),
-                500,
-            )
-
-        # Send file
-        logger.info(f"Sending Markdown file: {export_filename}")
-        return send_file_response(export_path, export_filename, "text/markdown")
-
-    except Exception as e:
-        logger.error(
-            f"Error exporting Markdown for document {doc_id}: {e}",
-            exc_info=True,
-        )
-        return jsonify({"error": "Interner Serverfehler beim Export"}), 500
+    # Send file
+    logger.info(f"Sending Markdown file: {export_filename}")
+    return send_file_response(export_path, export_filename, "text/markdown")

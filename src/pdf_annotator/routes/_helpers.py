@@ -2,10 +2,13 @@
 Shared helpers for route modules.
 """
 
-from typing import Any
+from collections.abc import Callable
+from functools import wraps
+from typing import Any, TypeVar
 
-from flask import abort, request
+from flask import abort, jsonify, render_template, request
 from flask_login import current_user
+from werkzeug.exceptions import HTTPException
 
 from pdf_annotator.models.database import DatabaseManager
 from pdf_annotator.utils.logger import get_logger
@@ -66,3 +69,44 @@ def get_owned_document(doc_id: str) -> dict[str, Any]:
         abort(403, description="Nicht berechtigt")
 
     return doc_info
+
+
+F = TypeVar("F", bound=Callable[..., Any])
+
+
+def handle_errors(
+    message: str = "Interner Serverfehler",
+    html_message: str = "Ein interner Serverfehler ist aufgetreten.",
+) -> Callable[[F], F]:
+    """
+    Replace per-route try/except Exception blocks.
+
+    HTTPExceptions (aborts from get_owned_document etc.) are re-raised so
+    they reach the app error handlers. Any other exception is logged and
+    answered as 500 with the route's German message — JSON for API paths,
+    the HTML error page otherwise.
+    """
+
+    def decorator(f: F) -> F:
+        @wraps(f)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            try:
+                return f(*args, **kwargs)
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.error("Error in %s: %s", request.path, e, exc_info=True)
+                if wants_json():
+                    return jsonify({"error": message}), 500
+                return (
+                    render_template(
+                        "error.html",
+                        error_title="Serverfehler",
+                        error_message=html_message,
+                    ),
+                    500,
+                )
+
+        return wrapper  # type: ignore[return-value]
+
+    return decorator

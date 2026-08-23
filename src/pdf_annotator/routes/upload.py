@@ -21,7 +21,7 @@ from flask import (
 from flask_login import current_user, login_required
 
 from pdf_annotator.models.database import DatabaseManager
-from pdf_annotator.routes._helpers import get_owned_document
+from pdf_annotator.routes._helpers import get_owned_document, handle_errors
 from pdf_annotator.services.data_manager import DataManager
 from pdf_annotator.services.pdf_processor import get_page_count, validate_pdf
 from pdf_annotator.utils.downloads import send_file_response
@@ -70,6 +70,7 @@ def list_documents() -> str:
 
 @upload_bp.route("/upload", methods=["POST"])
 @login_required
+@handle_errors("Interner Serverfehler beim Upload")
 def upload_file() -> Any:
     """
     Handle PDF file upload.
@@ -86,132 +87,124 @@ def upload_file() -> Any:
     Example:
         curl -F "file=@document.pdf" http://localhost:5000/upload
     """
+    # Check if file is in request
+    if "file" not in request.files:
+        logger.warning("Upload attempt without file")
+        return jsonify({"error": "Keine Datei gefunden"}), 400
+
+    file = request.files["file"]
+
+    # Validate file
+    is_valid, error_msg = validate_uploaded_file(
+        file,
+        max_size=current_app.config["MAX_CONTENT_LENGTH"],
+        allowed_extensions=current_app.config["ALLOWED_EXTENSIONS"],
+    )
+
+    if not is_valid:
+        logger.warning(f"File validation failed: {error_msg}")
+        return jsonify({"error": error_msg}), 400
+
+    # Sanitize original filename
+    original_filename = sanitize_filename(file.filename)
+    logger.info(f"Processing upload: {original_filename}")
+
+    # Generate unique filename for storage
+    storage_id = str(uuid4())
+    file_extension = Path(original_filename).suffix
+    storage_filename = f"{storage_id}{file_extension}"
+    storage_path = Path(current_app.config["UPLOAD_FOLDER"]) / storage_filename
+
+    # Save file
+    storage_path.parent.mkdir(parents=True, exist_ok=True)
+    file.save(str(storage_path))
+    logger.info(f"File saved to: {storage_path}")
+
+    # Validate PDF
+    if not validate_pdf(storage_path):
+        # Clean up invalid file
+        storage_path.unlink()
+        logger.error(f"Invalid PDF file: {original_filename}")
+        return (
+            jsonify(
+                {"error": "Ungültige PDF-Datei. Bitte versuchen Sie eine andere Datei."}
+            ),
+            400,
+        )
+
+    # Get page count
     try:
-        # Check if file is in request
-        if "file" not in request.files:
-            logger.warning("Upload attempt without file")
-            return jsonify({"error": "Keine Datei gefunden"}), 400
-
-        file = request.files["file"]
-
-        # Validate file
-        is_valid, error_msg = validate_uploaded_file(
-            file,
-            max_size=current_app.config["MAX_CONTENT_LENGTH"],
-            allowed_extensions=current_app.config["ALLOWED_EXTENSIONS"],
-        )
-
-        if not is_valid:
-            logger.warning(f"File validation failed: {error_msg}")
-            return jsonify({"error": error_msg}), 400
-
-        # Sanitize original filename
-        original_filename = sanitize_filename(file.filename)
-        logger.info(f"Processing upload: {original_filename}")
-
-        # Generate unique filename for storage
-        storage_id = str(uuid4())
-        file_extension = Path(original_filename).suffix
-        storage_filename = f"{storage_id}{file_extension}"
-        storage_path = Path(current_app.config["UPLOAD_FOLDER"]) / storage_filename
-
-        # Save file
-        storage_path.parent.mkdir(parents=True, exist_ok=True)
-        file.save(str(storage_path))
-        logger.info(f"File saved to: {storage_path}")
-
-        # Validate PDF
-        if not validate_pdf(storage_path):
-            # Clean up invalid file
-            storage_path.unlink()
-            logger.error(f"Invalid PDF file: {original_filename}")
-            return (
-                jsonify(
-                    {
-                        "error": "Ungültige PDF-Datei. Bitte versuchen Sie eine andere Datei."
-                    }
-                ),
-                400,
-            )
-
-        # Get page count
-        try:
-            page_count = get_page_count(storage_path)
-            logger.info(f"PDF has {page_count} pages")
-        except Exception as e:
-            # Clean up file
-            storage_path.unlink()
-            logger.error(f"Failed to get page count: {e}")
-            return (
-                jsonify(
-                    {
-                        "error": "Fehler beim Lesen der PDF-Datei. Ist die Datei beschädigt?"
-                    }
-                ),
-                400,
-            )
-
-        # Get metadata from form
-        first_name = request.form.get("first_name", "").strip()
-        last_name = request.form.get("last_name", "").strip()
-        title = request.form.get("title", "").strip()
-        year = request.form.get("year", "").strip()
-        subject = request.form.get("subject", "").strip()
-
-        # Truncate metadata to configured max lengths
-        max_name = current_app.config.get("MAX_NAME_LENGTH", 100)
-        max_title = current_app.config.get("MAX_TITLE_LENGTH", 200)
-        max_year = current_app.config.get("MAX_YEAR_LENGTH", 4)
-        max_subject = current_app.config.get("MAX_SUBJECT_LENGTH", 200)
-        first_name = first_name[:max_name]
-        last_name = last_name[:max_name]
-        title = title[:max_title]
-        year = year[:max_year]
-        subject = subject[:max_subject]
-
-        # Create database entry
-        db = DatabaseManager()
-        doc_id = db.create_document(
-            current_user.id,
-            original_filename,
-            str(storage_path),
-            page_count,
-            first_name,
-            last_name,
-            title,
-            year,
-            subject,
-        )
-
-        # Initialize empty annotations for all pages
-        for page_num in range(1, page_count + 1):
-            db.upsert_annotation(doc_id, page_num, "")
-
-        logger.info(f"Document created: {doc_id} with {page_count} pages")
-
-        # Return success response with redirect URL
-        # For AJAX requests, return JSON
-        if request.headers.get("Accept") == "application/json":
-            return jsonify(
-                {
-                    "success": True,
-                    "doc_id": doc_id,
-                    "page_count": page_count,
-                    "redirect_url": url_for("viewer.view_document", doc_id=doc_id),
-                }
-            )
-
-        # For regular form submit, redirect
-        flash(f"PDF erfolgreich hochgeladen: {original_filename}", "success")
-        return redirect(url_for("viewer.view_document", doc_id=doc_id))
-
+        page_count = get_page_count(storage_path)
+        logger.info(f"PDF has {page_count} pages")
     except Exception as e:
-        logger.error(f"Upload failed: {e}", exc_info=True)
-        return jsonify({"error": "Interner Serverfehler beim Upload"}), 500
+        # Clean up file
+        storage_path.unlink()
+        logger.error(f"Failed to get page count: {e}")
+        return (
+            jsonify(
+                {"error": "Fehler beim Lesen der PDF-Datei. Ist die Datei beschädigt?"}
+            ),
+            400,
+        )
+
+    # Get metadata from form
+    first_name = request.form.get("first_name", "").strip()
+    last_name = request.form.get("last_name", "").strip()
+    title = request.form.get("title", "").strip()
+    year = request.form.get("year", "").strip()
+    subject = request.form.get("subject", "").strip()
+
+    # Truncate metadata to configured max lengths
+    max_name = current_app.config.get("MAX_NAME_LENGTH", 100)
+    max_title = current_app.config.get("MAX_TITLE_LENGTH", 200)
+    max_year = current_app.config.get("MAX_YEAR_LENGTH", 4)
+    max_subject = current_app.config.get("MAX_SUBJECT_LENGTH", 200)
+    first_name = first_name[:max_name]
+    last_name = last_name[:max_name]
+    title = title[:max_title]
+    year = year[:max_year]
+    subject = subject[:max_subject]
+
+    # Create database entry
+    db = DatabaseManager()
+    doc_id = db.create_document(
+        current_user.id,
+        original_filename,
+        str(storage_path),
+        page_count,
+        first_name,
+        last_name,
+        title,
+        year,
+        subject,
+    )
+
+    # Initialize empty annotations for all pages
+    for page_num in range(1, page_count + 1):
+        db.upsert_annotation(doc_id, page_num, "")
+
+    logger.info(f"Document created: {doc_id} with {page_count} pages")
+
+    # Return success response with redirect URL
+    # For AJAX requests, return JSON
+    if request.headers.get("Accept") == "application/json":
+        return jsonify(
+            {
+                "success": True,
+                "doc_id": doc_id,
+                "page_count": page_count,
+                "redirect_url": url_for("viewer.view_document", doc_id=doc_id),
+            }
+        )
+
+    # For regular form submit, redirect
+    flash(f"PDF erfolgreich hochgeladen: {original_filename}", "success")
+    return redirect(url_for("viewer.view_document", doc_id=doc_id))
 
 
 @upload_bp.route("/delete/<doc_id>", methods=["DELETE"])
 @login_required
+@handle_errors("Interner Serverfehler beim Löschen")
 def delete_document(doc_id: str) -> Any:
     """
     Delete document, annotations, and PDF file for current user.
@@ -228,41 +221,37 @@ def delete_document(doc_id: str) -> Any:
     """
     doc_info = get_owned_document(doc_id)
 
-    try:
-        db = DatabaseManager()
+    db = DatabaseManager()
 
-        # Delete from database first (CASCADE deletes annotations)
-        # This prevents data loss if database deletion fails
-        success = db.delete_document(doc_id)
+    # Delete from database first (CASCADE deletes annotations)
+    # This prevents data loss if database deletion fails
+    success = db.delete_document(doc_id)
 
-        if not success:
-            logger.error(f"Failed to delete document from database: {doc_id}")
-            return jsonify({"error": "Fehler beim Löschen aus der Datenbank"}), 500
+    if not success:
+        logger.error(f"Failed to delete document from database: {doc_id}")
+        return jsonify({"error": "Fehler beim Löschen aus der Datenbank"}), 500
 
-        # Only delete file after successful database deletion
-        file_path = Path(doc_info["file_path"])
-        if file_path.exists():
-            try:
-                file_path.unlink()
-                logger.info(f"Deleted file: {file_path}")
-            except OSError as e:
-                logger.warning(
-                    f"File deletion failed but DB entry removed: {file_path}, {e}"
-                )
-                # Continue - file can be cleaned up later
-        else:
-            logger.warning(f"File not found during deletion: {file_path}")
+    # Only delete file after successful database deletion
+    file_path = Path(doc_info["file_path"])
+    if file_path.exists():
+        try:
+            file_path.unlink()
+            logger.info(f"Deleted file: {file_path}")
+        except OSError as e:
+            logger.warning(
+                f"File deletion failed but DB entry removed: {file_path}, {e}"
+            )
+            # Continue - file can be cleaned up later
+    else:
+        logger.warning(f"File not found during deletion: {file_path}")
 
-        logger.info(f"Document deleted: {doc_id}")
-        return jsonify({"success": True, "message": "Dokument erfolgreich gelöscht"})
-
-    except Exception as e:
-        logger.error(f"Error deleting document {doc_id}: {e}", exc_info=True)
-        return jsonify({"error": "Interner Serverfehler beim Löschen"}), 500
+    logger.info(f"Document deleted: {doc_id}")
+    return jsonify({"success": True, "message": "Dokument erfolgreich gelöscht"})
 
 
 @upload_bp.route("/export", methods=["GET"])
 @login_required
+@handle_errors("Fehler beim Exportieren der Daten")
 def export_data() -> Any:
     """
     Export all user's documents and annotations as ZIP archive.
@@ -274,29 +263,25 @@ def export_data() -> Any:
         GET /export
         Response: PDF_Annotator_Backup_20260123.zip
     """
-    try:
-        db = DatabaseManager()
-        upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
-        manager = DataManager(upload_folder)
+    db = DatabaseManager()
+    upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
+    manager = DataManager(upload_folder)
 
-        # Get user's documents
-        user_docs = db.get_all_documents(current_user.id)
-        doc_ids = [doc["id"] for doc in user_docs]
+    # Get user's documents
+    user_docs = db.get_all_documents(current_user.id)
+    doc_ids = [doc["id"] for doc in user_docs]
 
-        # Create export
-        zip_path = manager.export_data(doc_ids)
+    # Create export
+    zip_path = manager.export_data(doc_ids)
 
-        logger.info(f"Data exported to: {zip_path}")
+    logger.info(f"Data exported to: {zip_path}")
 
-        return send_file_response(zip_path, zip_path.name, "application/zip")
-
-    except Exception as e:
-        logger.error(f"Export failed: {e}", exc_info=True)
-        return jsonify({"error": "Fehler beim Exportieren der Daten"}), 500
+    return send_file_response(zip_path, zip_path.name, "application/zip")
 
 
 @upload_bp.route("/export/info", methods=["GET"])
 @login_required
+@handle_errors("Fehler beim Abrufen der Export-Informationen")
 def export_info() -> Any:
     """
     Get information about current user's data for export.
@@ -308,25 +293,21 @@ def export_info() -> Any:
         GET /export/info
         Response: {"document_count": 5, "annotation_count": 42, "estimated_size_mb": 12.5}
     """
-    try:
-        db = DatabaseManager()
-        upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
-        manager = DataManager(upload_folder)
+    db = DatabaseManager()
+    upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
+    manager = DataManager(upload_folder)
 
-        # Get user's documents
-        user_docs = db.get_all_documents(current_user.id)
-        doc_ids = [doc["id"] for doc in user_docs]
+    # Get user's documents
+    user_docs = db.get_all_documents(current_user.id)
+    doc_ids = [doc["id"] for doc in user_docs]
 
-        info = manager.get_export_info(doc_ids)
-        return jsonify(info)
-
-    except Exception as e:
-        logger.error(f"Export info failed: {e}", exc_info=True)
-        return jsonify({"error": "Fehler beim Abrufen der Export-Informationen"}), 500
+    info = manager.get_export_info(doc_ids)
+    return jsonify(info)
 
 
 @upload_bp.route("/import", methods=["POST"])
 @login_required
+@handle_errors("Fehler beim Importieren der Daten. Bitte versuchen Sie es später.")
 def import_data() -> Any:
     """
     Import data from ZIP archive and associate with current user.
@@ -420,10 +401,3 @@ def import_data() -> Any:
         elif "groß" in error_msg.lower() or "size" in error_msg.lower():
             error_msg = "Backup-Datei ist zu groß (max. 500 MB)"
         return jsonify({"error": error_msg}), 400
-    except Exception as e:
-        logger.error(f"Import failed: {e}", exc_info=True)
-        return jsonify(
-            {
-                "error": "Fehler beim Importieren der Daten. Bitte versuchen Sie es später."
-            }
-        ), 500
