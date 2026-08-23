@@ -100,11 +100,7 @@ def create_app(config_name: str | None = None) -> Flask:
         return None
 
     # Initialize CSRF protection
-    csrf = CSRFProtect(app)
-
-    # Exempt save_annotation from CSRF for sendBeacon support
-    # (sendBeacon cannot send custom headers; endpoint validates doc_id UUID)
-    csrf.exempt("pdf_annotator.routes.viewer.save_annotation")
+    CSRFProtect(app)
 
     # Initialize rate limiter
     limiter = Limiter(

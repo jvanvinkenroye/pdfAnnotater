@@ -111,6 +111,21 @@ class TestSessionCookieFlags:
         assert "Secure" not in session_cookies[0]
 
 
+class TestCsrfCoverage:
+    """The annotation save endpoint is no longer CSRF-exempt."""
+
+    def test_save_annotation_requires_csrf_token(
+        self, app, logged_in_client, uploaded_pdf
+    ):
+        app.config["WTF_CSRF_ENABLED"] = True
+
+        response = logged_in_client.post(
+            f"/viewer/api/annotation/{uploaded_pdf}/1",
+            json={"note_text": "ohne Token"},
+        )
+        assert response.status_code == 400
+
+
 class TestBehindProxy:
     """Tests for the PDF_ANNOTATOR_BEHIND_PROXY reverse-proxy switch."""
 
