@@ -59,6 +59,36 @@ def get_data_dir() -> Path:
 load_dotenv(get_data_dir() / ".env")
 
 
+def _load_or_create_secret_key(data_dir: Path) -> str:
+    """
+    Load the persistent SECRET_KEY from the data directory, creating it on
+    first use.
+
+    Keeping the key in a file (instead of generating a fresh one per process)
+    keeps sessions valid across restarts and, on servers, consistent across
+    Gunicorn workers that share the data directory.
+    """
+    key_file = data_dir / "secret_key"
+    try:
+        existing = key_file.read_text(encoding="utf-8").strip()
+        if existing:
+            return existing
+    except FileNotFoundError:
+        pass
+
+    data_dir.mkdir(parents=True, exist_ok=True)
+    new_key = secrets.token_hex(32)
+    try:
+        # O_EXCL so concurrent first-boot workers agree on a single key:
+        # exactly one writer wins, everyone else reads the winner's file.
+        fd = os.open(key_file, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        return key_file.read_text(encoding="utf-8").strip() or new_key
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(new_key)
+    return new_key
+
+
 def get_downloads_dir() -> Path:
     """
     Get platform-specific Downloads directory, used by DESKTOP_MODE exports.
@@ -101,6 +131,16 @@ class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
     DEBUG = False
     TESTING = False
+
+    # Session cookie hardening. SECURE stays off here because the desktop
+    # app and dev server run over plain http on 127.0.0.1; it is enabled
+    # at app creation when PDF_ANNOTATOR_BEHIND_PROXY=1 (TLS-terminating
+    # reverse proxy in front).
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+    SESSION_COOKIE_SECURE = False
+    REMEMBER_COOKIE_HTTPONLY = True
+    REMEMBER_COOKIE_SECURE = False
 
     # Upload settings
     MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50 MB max file size
@@ -182,7 +222,6 @@ class ProductionConfig(Config):
     """
 
     DEBUG = False
-    SECRET_KEY = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
 
     # Use platform-specific data directory
     DATA_DIR = get_data_dir()
@@ -200,10 +239,17 @@ class ProductionConfig(Config):
             app: Flask application instance
         """
         if not os.environ.get("SECRET_KEY"):
-            warnings.warn(
-                "SECRET_KEY ist nicht gesetzt! Sessions werden nach Neustart ungültig. "
-                "Setzen Sie die Umgebungsvariable SECRET_KEY für Production.",
-                stacklevel=2,
+            if os.environ.get("PDF_ANNOTATOR_BEHIND_PROXY") == "1":
+                raise RuntimeError(
+                    "SECRET_KEY ist nicht gesetzt! Für Server-Deployments hinter "
+                    "einem Reverse-Proxy (PDF_ANNOTATOR_BEHIND_PROXY=1) muss die "
+                    "Umgebungsvariable SECRET_KEY gesetzt sein."
+                )
+            # Desktop / standalone server: persist a generated key in the
+            # data directory so sessions survive restarts and all workers
+            # sharing the directory sign with the same key.
+            app.config["SECRET_KEY"] = _load_or_create_secret_key(
+                ProductionConfig.DATA_DIR
             )
         ai_provider = app.config.get("AI_PROVIDER")
         if ai_provider == "anthropic" and not app.config.get("ANTHROPIC_API_KEY"):
