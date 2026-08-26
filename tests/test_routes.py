@@ -158,14 +158,20 @@ class TestPageTextApi:
 class TestOcrApi:
     """Test the OCR endpoint (OCR run itself is mocked — no tesseract in CI)."""
 
-    def test_ocr_success(self, app, logged_in_client, uploaded_pdf, monkeypatch):
+    def test_ocr_success(
+        self, app, logged_in_client, uploaded_pdf, monkeypatch, inline_jobs
+    ):
         monkeypatch.setattr("pdf_annotator.services.ocr.ocr_available", lambda: True)
         monkeypatch.setattr(
             "pdf_annotator.services.ocr.ocr_pdf", lambda file_path: None
         )
         response = logged_in_client.post(f"/viewer/api/ocr/{uploaded_pdf}")
-        assert response.status_code == 200
-        assert response.get_json()["success"] is True
+        assert response.status_code == 202
+        job_id = response.get_json()["job_id"]
+
+        status = logged_in_client.get(f"/viewer/api/jobs/{job_id}")
+        assert status.status_code == 200
+        assert status.get_json()["status"] == "done"
 
     def test_ocr_unavailable_returns_501(
         self, app, logged_in_client, uploaded_pdf, monkeypatch
@@ -174,8 +180,8 @@ class TestOcrApi:
         response = logged_in_client.post(f"/viewer/api/ocr/{uploaded_pdf}")
         assert response.status_code == 501
 
-    def test_ocr_failure_returns_500(
-        self, app, logged_in_client, uploaded_pdf, monkeypatch
+    def test_ocr_failure_reported_via_job_status(
+        self, app, logged_in_client, uploaded_pdf, monkeypatch, inline_jobs
     ):
         from pdf_annotator.services.ocr import OCRError
 
@@ -185,7 +191,12 @@ class TestOcrApi:
         monkeypatch.setattr("pdf_annotator.services.ocr.ocr_available", lambda: True)
         monkeypatch.setattr("pdf_annotator.services.ocr.ocr_pdf", raise_error)
         response = logged_in_client.post(f"/viewer/api/ocr/{uploaded_pdf}")
-        assert response.status_code == 500
+        assert response.status_code == 202
+        job_id = response.get_json()["job_id"]
+
+        status = logged_in_client.get(f"/viewer/api/jobs/{job_id}").get_json()
+        assert status["status"] == "error"
+        assert status["error"] == "boom"
 
     def test_ocr_invalid_doc(self, logged_in_client):
         response = logged_in_client.post("/viewer/api/ocr/not-a-uuid")
@@ -338,7 +349,7 @@ class TestDeletePage:
 class TestExportRoutes:
     """Test PDF and Markdown export."""
 
-    def test_export_pdf(self, app, logged_in_client, uploaded_pdf):
+    def test_export_pdf(self, app, logged_in_client, uploaded_pdf, inline_jobs):
         # Add an annotation first
         logged_in_client.post(
             f"/viewer/api/annotation/{uploaded_pdf}/1",
@@ -347,8 +358,16 @@ class TestExportRoutes:
         )
 
         response = logged_in_client.post(f"/export/pdf/{uploaded_pdf}")
-        assert response.status_code == 200
-        assert response.content_type == "application/pdf"
+        assert response.status_code == 202
+        job_id = response.get_json()["job_id"]
+
+        status = logged_in_client.get(f"/viewer/api/jobs/{job_id}").get_json()
+        assert status["status"] == "done"
+        assert status["result"]["filename"].endswith(".pdf")
+
+        download = logged_in_client.get(f"/export/download/{job_id}")
+        assert download.status_code == 200
+        assert download.content_type == "application/pdf"
 
     def test_export_markdown(self, app, logged_in_client, uploaded_pdf):
         # Add an annotation first
@@ -386,14 +405,18 @@ class TestDesktopModeExports:
     Content-Disposition: attachment responses."""
 
     def test_export_pdf_desktop_mode(
-        self, app, logged_in_client, uploaded_pdf, tmp_path, monkeypatch
+        self, app, logged_in_client, uploaded_pdf, tmp_path, monkeypatch, inline_jobs
     ):
         monkeypatch.setitem(app.config, "DESKTOP_MODE", True)
         monkeypatch.setitem(app.config, "DESKTOP_EXPORT_DIR", tmp_path)
 
         response = logged_in_client.post(f"/export/pdf/{uploaded_pdf}")
-        assert response.status_code == 200
-        data = response.get_json()
+        assert response.status_code == 202
+        job_id = response.get_json()["job_id"]
+
+        download = logged_in_client.get(f"/export/download/{job_id}")
+        assert download.status_code == 200
+        data = download.get_json()
         assert data["success"] is True
         assert Path(data["path"]).exists()
         assert Path(data["path"]).parent == tmp_path

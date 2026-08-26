@@ -4,25 +4,33 @@ Viewer route for PDF Annotator.
 Handles viewer page and API endpoints for PDF rendering and annotations.
 """
 
+import json
 from pathlib import Path
 from typing import Any
 
 import fitz
-from flask import Blueprint, Response, current_app, jsonify, render_template, request
+from flask import (
+    Blueprint,
+    Response,
+    abort,
+    current_app,
+    jsonify,
+    render_template,
+    request,
+)
 from flask.typing import ResponseReturnValue
 from flask_login import current_user, login_required
 
-from pdf_annotator.models.database import DatabaseManager
+from pdf_annotator.models.database import get_db
+from pdf_annotator.routes._helpers import get_owned_document, handle_errors
+from pdf_annotator.services.jobs import submit_job
 from pdf_annotator.services.pdf_processor import (
-    clear_render_cache,
-    clear_text_layout_cache,
     get_page_count,
     get_page_text_layout,
     render_page_to_image,
 )
 from pdf_annotator.utils.logger import get_logger
 from pdf_annotator.utils.validators import (
-    validate_doc_id,
     validate_file_size,
     validate_file_type,
     validate_note_text,
@@ -35,37 +43,9 @@ logger = get_logger(__name__)
 viewer_bp = Blueprint("viewer", __name__, url_prefix="/viewer")
 
 
-def _get_doc_or_error(doc_id: str) -> tuple[dict, None] | tuple[None, tuple]:
-    """
-    Validate doc_id, fetch document, and verify ownership.
-
-    Returns (doc_info, None) on success or (None, error_response_tuple) on failure.
-    Used by all API endpoints to avoid repeating the same auth/ownership boilerplate.
-    """
-    is_valid, error_msg = validate_doc_id(doc_id)
-    if not is_valid:
-        return None, (jsonify({"error": error_msg}), 400)
-
-    db = DatabaseManager()
-    doc_info = db.get_document(doc_id)
-
-    if not doc_info:
-        logger.warning("Document not found: %s", doc_id)
-        return None, (jsonify({"error": "Dokument nicht gefunden"}), 404)
-
-    if doc_info.get("user_id") != current_user.id:
-        logger.warning(
-            "Unauthorized access: user %s tried to access document owned by %s",
-            current_user.id,
-            doc_info.get("user_id"),
-        )
-        return None, (jsonify({"error": "Nicht berechtigt"}), 403)
-
-    return doc_info, None
-
-
 @viewer_bp.route("/<doc_id>", methods=["GET"])
 @login_required
+@handle_errors(html_message="Beim Laden des Dokuments ist ein Fehler aufgetreten.")
 def view_document(doc_id: str) -> Any:
     """
     Render viewer page for document.
@@ -79,63 +59,26 @@ def view_document(doc_id: str) -> Any:
     Example:
         GET /viewer/abc-123-def-456
     """
-    try:
-        is_valid, error_msg = validate_doc_id(doc_id)
-        if not is_valid:
-            return render_template(
-                "error.html",
-                error_title="Ungültige Anfrage",
-                error_message="Ungültige Dokument-ID.",
-            ), 400
+    doc_info = get_owned_document(doc_id)
 
-        db = DatabaseManager()
-        doc_info = db.get_document(doc_id)
+    logger.info(f"Viewing document: {doc_id} ({doc_info['original_filename']})")
 
-        if not doc_info:
-            logger.warning(f"Document not found: {doc_id}")
-            return render_template(
-                "error.html",
-                error_title="Dokument nicht gefunden",
-                error_message="Das Dokument wurde nicht gefunden.",
-            ), 404
-
-        # Check ownership
-        if doc_info.get("user_id") != current_user.id:
-            logger.warning(
-                f"Unauthorized access: user {current_user.id} tried to view "
-                f"document owned by {doc_info.get('user_id')}"
-            )
-            return render_template(
-                "error.html",
-                error_title="Nicht berechtigt",
-                error_message="Sie haben keine Berechtigung für dieses Dokument.",
-            ), 403
-
-        logger.info(f"Viewing document: {doc_id} ({doc_info['original_filename']})")
-
-        return render_template(
-            "viewer.html",
-            doc_id=doc_id,
-            original_filename=doc_info["original_filename"],
-            page_count=doc_info["page_count"],
-            first_name=doc_info.get("first_name", ""),
-            last_name=doc_info.get("last_name", ""),
-            title=doc_info.get("title", ""),
-            year=doc_info.get("year", ""),
-            subject=doc_info.get("subject", ""),
-        )
-
-    except Exception as e:
-        logger.error(f"Error viewing document {doc_id}: {e}", exc_info=True)
-        return render_template(
-            "error.html",
-            error_title="Serverfehler",
-            error_message="Beim Laden des Dokuments ist ein Fehler aufgetreten.",
-        ), 500
+    return render_template(
+        "viewer.html",
+        doc_id=doc_id,
+        original_filename=doc_info["original_filename"],
+        page_count=doc_info["page_count"],
+        first_name=doc_info.get("first_name", ""),
+        last_name=doc_info.get("last_name", ""),
+        title=doc_info.get("title", ""),
+        year=doc_info.get("year", ""),
+        subject=doc_info.get("subject", ""),
+    )
 
 
 @viewer_bp.route("/api/page/<doc_id>/<int:page_number>", methods=["GET"])
 @login_required
+@handle_errors()
 def get_page_image(doc_id: str, page_number: int) -> ResponseReturnValue:
     """
     Render PDF page as PNG image.
@@ -150,43 +93,31 @@ def get_page_image(doc_id: str, page_number: int) -> ResponseReturnValue:
     Example:
         GET /viewer/api/page/abc-123/1
     """
-    try:
-        doc_info, err = _get_doc_or_error(doc_id)
-        if err is not None:
-            return err
-        assert doc_info is not None
+    doc_info = get_owned_document(doc_id)
 
-        # Validate page number
-        is_valid, error_msg = validate_page_number(page_number, doc_info["page_count"])
-        if not is_valid:
-            logger.warning(
-                "Invalid page number %d for document %s", page_number, doc_id
-            )
-            return jsonify({"error": error_msg}), 400
+    # Validate page number
+    is_valid, error_msg = validate_page_number(page_number, doc_info["page_count"])
+    if not is_valid:
+        logger.warning("Invalid page number %d for document %s", page_number, doc_id)
+        return jsonify({"error": error_msg}), 400
 
-        # Render page
-        dpi = current_app.config.get("PDF_RENDER_DPI", 300)
-        image_bytes = render_page_to_image(doc_info["file_path"], page_number, dpi=dpi)
+    # Render page
+    dpi = current_app.config.get("PDF_RENDER_DPI", 300)
+    image_bytes = render_page_to_image(doc_info["file_path"], page_number, dpi=dpi)
 
-        if image_bytes is None:
-            logger.error(f"Failed to render page {page_number} of document {doc_id}")
-            return jsonify({"error": "Fehler beim Rendern der Seite"}), 500
+    if image_bytes is None:
+        logger.error(f"Failed to render page {page_number} of document {doc_id}")
+        return jsonify({"error": "Fehler beim Rendern der Seite"}), 500
 
-        # Return PNG image with cache headers
-        resp = Response(image_bytes, mimetype="image/png")
-        resp.headers["Cache-Control"] = "private, max-age=300"
-        return resp
-
-    except Exception as e:
-        logger.error(
-            f"Error rendering page {page_number} of {doc_id}: {e}",
-            exc_info=True,
-        )
-        return jsonify({"error": "Interner Serverfehler"}), 500
+    # Return PNG image with cache headers
+    resp = Response(image_bytes, mimetype="image/png")
+    resp.headers["Cache-Control"] = "private, max-age=300"
+    return resp
 
 
 @viewer_bp.route("/api/page/<doc_id>/<int:page_number>/text", methods=["GET"])
 @login_required
+@handle_errors()
 def get_page_text(doc_id: str, page_number: int) -> Any:
     """
     Get word-level text with bounding boxes for a PDF page.
@@ -204,44 +135,32 @@ def get_page_text(doc_id: str, page_number: int) -> Any:
     Example:
         GET /viewer/api/page/abc-123/1/text
     """
+    doc_info = get_owned_document(doc_id)
+
+    is_valid, error_msg = validate_page_number(page_number, doc_info["page_count"])
+    if not is_valid:
+        logger.warning("Invalid page number %d for document %s", page_number, doc_id)
+        return jsonify({"error": error_msg}), 400
+
     try:
-        doc_info, err = _get_doc_or_error(doc_id)
-        if err is not None:
-            return err
-        assert doc_info is not None
-
-        is_valid, error_msg = validate_page_number(page_number, doc_info["page_count"])
-        if not is_valid:
-            logger.warning(
-                "Invalid page number %d for document %s", page_number, doc_id
-            )
-            return jsonify({"error": error_msg}), 400
-
-        try:
-            layout = get_page_text_layout(doc_info["file_path"], page_number)
-        except Exception as e:
-            logger.error(
-                "Failed to extract text layout for page %d of %s: %s",
-                page_number,
-                doc_id,
-                e,
-            )
-            return jsonify({"error": "Fehler beim Extrahieren des Textes"}), 500
-
-        resp = jsonify(layout)
-        resp.headers["Cache-Control"] = "private, max-age=300"
-        return resp
-
+        layout = get_page_text_layout(doc_info["file_path"], page_number)
     except Exception as e:
         logger.error(
-            f"Error getting text layout for page {page_number} of {doc_id}: {e}",
-            exc_info=True,
+            "Failed to extract text layout for page %d of %s: %s",
+            page_number,
+            doc_id,
+            e,
         )
-        return jsonify({"error": "Interner Serverfehler"}), 500
+        return jsonify({"error": "Fehler beim Extrahieren des Textes"}), 500
+
+    resp = jsonify(layout)
+    resp.headers["Cache-Control"] = "private, max-age=300"
+    return resp
 
 
 @viewer_bp.route("/api/annotation/<doc_id>/<int:page_number>", methods=["GET"])
 @login_required
+@handle_errors()
 def get_annotation(doc_id: str, page_number: int) -> Any:
     """
     Get annotation for specific page.
@@ -262,46 +181,34 @@ def get_annotation(doc_id: str, page_number: int) -> Any:
             "updated_at": "2026-01-07 20:45:00"
         }
     """
-    try:
-        doc_info, err = _get_doc_or_error(doc_id)
-        if err is not None:
-            return err
-        assert doc_info is not None
+    doc_info = get_owned_document(doc_id)
 
-        db = DatabaseManager()
+    db = get_db()
 
-        # Validate page number
-        is_valid, error_msg = validate_page_number(page_number, doc_info["page_count"])
-        if not is_valid:
-            logger.warning(
-                "Invalid page number %d for document %s", page_number, doc_id
-            )
-            return jsonify({"error": error_msg}), 400
+    # Validate page number
+    is_valid, error_msg = validate_page_number(page_number, doc_info["page_count"])
+    if not is_valid:
+        logger.warning("Invalid page number %d for document %s", page_number, doc_id)
+        return jsonify({"error": error_msg}), 400
 
-        # Get annotation
-        annotation = db.get_annotation(doc_id, page_number)
+    # Get annotation
+    annotation = db.get_annotation(doc_id, page_number)
 
-        if annotation:
-            return jsonify(
-                {
-                    "note_text": annotation["note_text"],
-                    "updated_at": str(annotation["updated_at"]),
-                }
-            )
-        else:
-            # Return empty annotation
-            return jsonify({"note_text": "", "updated_at": None})
-
-    except Exception as e:
-        logger.error(
-            f"Error getting annotation for page {page_number} of {doc_id}: {e}",
-            exc_info=True,
+    if annotation:
+        return jsonify(
+            {
+                "note_text": annotation["note_text"],
+                "updated_at": str(annotation["updated_at"]),
+            }
         )
-        return jsonify({"error": "Interner Serverfehler"}), 500
+    else:
+        # Return empty annotation
+        return jsonify({"note_text": "", "updated_at": None})
 
 
 @viewer_bp.route("/api/annotation/<doc_id>/<int:page_number>", methods=["POST"])
 @login_required
+@handle_errors()
 def save_annotation(doc_id: str, page_number: int) -> Any:
     """
     Save or update annotation for specific page.
@@ -328,57 +235,45 @@ def save_annotation(doc_id: str, page_number: int) -> Any:
             "updated_at": "2026-01-07 20:45:00"
         }
     """
-    try:
-        doc_info, err = _get_doc_or_error(doc_id)
-        if err is not None:
-            return err
-        assert doc_info is not None
+    doc_info = get_owned_document(doc_id)
 
-        db = DatabaseManager()
+    db = get_db()
 
-        # Validate page number
-        is_valid, error_msg = validate_page_number(page_number, doc_info["page_count"])
-        if not is_valid:
-            logger.warning(
-                "Invalid page number %d for document %s", page_number, doc_id
-            )
-            return jsonify({"error": error_msg}), 400
+    # Validate page number
+    is_valid, error_msg = validate_page_number(page_number, doc_info["page_count"])
+    if not is_valid:
+        logger.warning("Invalid page number %d for document %s", page_number, doc_id)
+        return jsonify({"error": error_msg}), 400
 
-        # Get note text from request
-        data = request.get_json()
-        if not data:
-            logger.warning("No JSON data in request")
-            return jsonify({"error": "Keine Daten gesendet"}), 400
+    # Get note text from request
+    data = request.get_json()
+    if not data:
+        logger.warning("No JSON data in request")
+        return jsonify({"error": "Keine Daten gesendet"}), 400
 
-        note_text = data.get("note_text", "")
+    note_text = data.get("note_text", "")
 
-        # Validate note text
-        is_valid, error_msg = validate_note_text(note_text)
-        if not is_valid:
-            logger.warning(f"Invalid note text: {error_msg}")
-            return jsonify({"error": error_msg}), 400
+    # Validate note text
+    is_valid, error_msg = validate_note_text(note_text)
+    if not is_valid:
+        logger.warning(f"Invalid note text: {error_msg}")
+        return jsonify({"error": error_msg}), 400
 
-        # Save annotation
-        db.upsert_annotation(doc_id, page_number, note_text)
+    # Save annotation
+    db.upsert_annotation(doc_id, page_number, note_text)
 
-        # Get updated annotation to return timestamp
-        annotation = db.get_annotation(doc_id, page_number)
-        assert annotation is not None
+    # Get updated annotation to return timestamp
+    annotation = db.get_annotation(doc_id, page_number)
+    assert annotation is not None
 
-        logger.info(f"Saved annotation for page {page_number} of document {doc_id}")
+    logger.info(f"Saved annotation for page {page_number} of document {doc_id}")
 
-        return jsonify({"success": True, "updated_at": str(annotation["updated_at"])})
-
-    except Exception as e:
-        logger.error(
-            f"Error saving annotation for page {page_number} of {doc_id}: {e}",
-            exc_info=True,
-        )
-        return jsonify({"error": "Interner Serverfehler"}), 500
+    return jsonify({"success": True, "updated_at": str(annotation["updated_at"])})
 
 
 @viewer_bp.route("/api/metadata/<doc_id>", methods=["POST"])
 @login_required
+@handle_errors()
 def update_metadata(doc_id: str) -> Any:
     """
     Update document metadata.
@@ -393,99 +288,90 @@ def update_metadata(doc_id: str) -> Any:
         POST /viewer/api/metadata/abc-123
         Body: {"first_name": "Max", "last_name": "Mustermann", ...}
     """
-    try:
-        doc_info, err = _get_doc_or_error(doc_id)
-        if err is not None:
-            return err
+    get_owned_document(doc_id)
 
-        db = DatabaseManager()
+    db = get_db()
 
-        # Get metadata from request
-        data = request.get_json()
-        if not data:
-            logger.warning("No JSON data in request")
-            return jsonify({"error": "Keine Daten gesendet"}), 400
+    # Get metadata from request
+    data = request.get_json()
+    if not data:
+        logger.warning("No JSON data in request")
+        return jsonify({"error": "Keine Daten gesendet"}), 400
 
-        # Extract metadata fields
-        first_name = data.get("first_name", "").strip()
-        last_name = data.get("last_name", "").strip()
-        title = data.get("title", "").strip()
-        year = data.get("year", "").strip()
-        subject = data.get("subject", "").strip()
+    # Extract metadata fields
+    first_name = data.get("first_name", "").strip()
+    last_name = data.get("last_name", "").strip()
+    title = data.get("title", "").strip()
+    year = data.get("year", "").strip()
+    subject = data.get("subject", "").strip()
 
-        # Validate input lengths
-        if len(first_name) > current_app.config["MAX_NAME_LENGTH"]:
-            return (
-                jsonify(
-                    {
-                        "error": f"Vorname zu lang (max. {current_app.config['MAX_NAME_LENGTH']} Zeichen)"
-                    }
-                ),
-                400,
-            )
-        if len(last_name) > current_app.config["MAX_NAME_LENGTH"]:
-            return (
-                jsonify(
-                    {
-                        "error": f"Nachname zu lang (max. {current_app.config['MAX_NAME_LENGTH']} Zeichen)"
-                    }
-                ),
-                400,
-            )
-        if len(title) > current_app.config["MAX_TITLE_LENGTH"]:
-            return (
-                jsonify(
-                    {
-                        "error": f"Titel zu lang (max. {current_app.config['MAX_TITLE_LENGTH']} Zeichen)"
-                    }
-                ),
-                400,
-            )
-        if len(year) > current_app.config["MAX_YEAR_LENGTH"]:
-            return (
-                jsonify(
-                    {
-                        "error": f"Jahr zu lang (max. {current_app.config['MAX_YEAR_LENGTH']} Zeichen)"
-                    }
-                ),
-                400,
-            )
-        if len(subject) > current_app.config["MAX_SUBJECT_LENGTH"]:
-            return (
-                jsonify(
-                    {
-                        "error": f"Thema zu lang (max. {current_app.config['MAX_SUBJECT_LENGTH']} Zeichen)"
-                    }
-                ),
-                400,
-            )
-
-        # Update metadata in database
-        success = db.update_document_metadata(
-            doc_id, first_name, last_name, title, year, subject
+    # Validate input lengths
+    if len(first_name) > current_app.config["MAX_NAME_LENGTH"]:
+        return (
+            jsonify(
+                {
+                    "error": f"Vorname zu lang (max. {current_app.config['MAX_NAME_LENGTH']} Zeichen)"
+                }
+            ),
+            400,
+        )
+    if len(last_name) > current_app.config["MAX_NAME_LENGTH"]:
+        return (
+            jsonify(
+                {
+                    "error": f"Nachname zu lang (max. {current_app.config['MAX_NAME_LENGTH']} Zeichen)"
+                }
+            ),
+            400,
+        )
+    if len(title) > current_app.config["MAX_TITLE_LENGTH"]:
+        return (
+            jsonify(
+                {
+                    "error": f"Titel zu lang (max. {current_app.config['MAX_TITLE_LENGTH']} Zeichen)"
+                }
+            ),
+            400,
+        )
+    if len(year) > current_app.config["MAX_YEAR_LENGTH"]:
+        return (
+            jsonify(
+                {
+                    "error": f"Jahr zu lang (max. {current_app.config['MAX_YEAR_LENGTH']} Zeichen)"
+                }
+            ),
+            400,
+        )
+    if len(subject) > current_app.config["MAX_SUBJECT_LENGTH"]:
+        return (
+            jsonify(
+                {
+                    "error": f"Thema zu lang (max. {current_app.config['MAX_SUBJECT_LENGTH']} Zeichen)"
+                }
+            ),
+            400,
         )
 
-        if not success:
-            logger.error(f"Failed to update metadata for document {doc_id}")
-            return (
-                jsonify({"error": "Fehler beim Aktualisieren der Metadaten"}),
-                500,
-            )
+    # Update metadata in database
+    success = db.update_document_metadata(
+        doc_id, first_name, last_name, title, year, subject
+    )
 
-        logger.info(f"Updated metadata for document {doc_id}")
-
-        return jsonify({"success": True})
-
-    except Exception as e:
-        logger.error(
-            f"Error updating metadata for document {doc_id}: {e}",
-            exc_info=True,
+    if not success:
+        logger.error(f"Failed to update metadata for document {doc_id}")
+        return (
+            jsonify({"error": "Fehler beim Aktualisieren der Metadaten"}),
+            500,
         )
-        return jsonify({"error": "Interner Serverfehler"}), 500
+
+    logger.info(f"Updated metadata for document {doc_id}")
+
+    return jsonify({"success": True})
 
 
 @viewer_bp.route("/api/replace/<doc_id>", methods=["POST"])
 @login_required
+@handle_errors()
 def replace_pdf(doc_id: str) -> Any:
     """
     Replace existing PDF with a new version.
@@ -502,76 +388,62 @@ def replace_pdf(doc_id: str) -> Any:
         POST /viewer/api/replace/abc-123
         File: new_version.pdf
     """
-    try:
-        doc_info, err = _get_doc_or_error(doc_id)
-        if err is not None:
-            return err
-        assert doc_info is not None
+    doc_info = get_owned_document(doc_id)
 
-        db = DatabaseManager()
+    db = get_db()
 
-        # Check if file was uploaded
-        if "file" not in request.files:
-            logger.warning("No file in request")
-            return jsonify({"error": "Keine Datei hochgeladen"}), 400
+    # Check if file was uploaded
+    if "file" not in request.files:
+        logger.warning("No file in request")
+        return jsonify({"error": "Keine Datei hochgeladen"}), 400
 
-        file = request.files["file"]
+    file = request.files["file"]
 
-        if file.filename == "":
-            logger.warning("Empty filename")
-            return jsonify({"error": "Kein Dateiname"}), 400
+    if file.filename == "":
+        logger.warning("Empty filename")
+        return jsonify({"error": "Kein Dateiname"}), 400
 
-        # Validate file type
-        is_valid, error_msg = validate_file_type(file.filename)
-        if not is_valid:
-            logger.warning(f"Invalid file type: {file.filename}")
-            return jsonify({"error": error_msg}), 400
+    # Validate file type
+    is_valid, error_msg = validate_file_type(file.filename)
+    if not is_valid:
+        logger.warning(f"Invalid file type: {file.filename}")
+        return jsonify({"error": error_msg}), 400
 
-        # Validate file size
-        file.seek(0, 2)  # Seek to end
-        file_size = file.tell()
-        file.seek(0)  # Reset to beginning
+    # Validate file size
+    file.seek(0, 2)  # Seek to end
+    file_size = file.tell()
+    file.seek(0)  # Reset to beginning
 
-        is_valid, error_msg = validate_file_size(
-            file_size, current_app.config["MAX_CONTENT_LENGTH"]
-        )
-        if not is_valid:
-            logger.warning(f"File too large: {file_size} bytes")
-            return jsonify({"error": error_msg}), 400
+    is_valid, error_msg = validate_file_size(
+        file_size, current_app.config["MAX_CONTENT_LENGTH"]
+    )
+    if not is_valid:
+        logger.warning(f"File too large: {file_size} bytes")
+        return jsonify({"error": error_msg}), 400
 
-        logger.info(f"Replacing PDF for document {doc_id}")
+    logger.info(f"Replacing PDF for document {doc_id}")
 
-        file_path = Path(doc_info["file_path"])
-        if not file_path.is_file():
-            logger.error("Document file not found: %s", file_path)
-            return jsonify({"error": "Dokumentdatei nicht gefunden"}), 404
+    file_path = Path(doc_info["file_path"])
+    if not file_path.is_file():
+        logger.error("Document file not found: %s", file_path)
+        return jsonify({"error": "Dokumentdatei nicht gefunden"}), 404
 
-        # Save new file (overwrites old one)
-        file.save(file_path)
-        logger.info("Saved new PDF to: %s", file_path)
+    # Save new file (overwrites old one)
+    file.save(file_path)
+    logger.info("Saved new PDF to: %s", file_path)
 
-        # Clear render + text caches so stale data is not served
-        clear_render_cache()
-        clear_text_layout_cache()
+    # Get new page count and update database
+    new_page_count = get_page_count(file_path)
+    db.update_page_count(doc_id, new_page_count)
 
-        # Get new page count and update database
-        new_page_count = get_page_count(file_path)
-        db.update_page_count(doc_id, new_page_count)
+    logger.info("Successfully replaced PDF for document %s", doc_id)
 
-        logger.info("Successfully replaced PDF for document %s", doc_id)
-
-        return jsonify({"success": True, "page_count": new_page_count})
-
-    except Exception as e:
-        logger.error(
-            f"Error replacing PDF for document {doc_id}: {e}",
-            exc_info=True,
-        )
-        return jsonify({"error": "Interner Serverfehler"}), 500
+    return jsonify({"success": True, "page_count": new_page_count})
 
 
 @viewer_bp.route("/api/append/<doc_id>", methods=["POST"])
 @login_required
+@handle_errors()
 def append_pdf(doc_id: str) -> Any:
     """
     Append pages from another PDF to the end of an existing document.
@@ -586,107 +458,94 @@ def append_pdf(doc_id: str) -> Any:
         POST /viewer/api/append/abc-123
         File: additional_pages.pdf
     """
+    doc_info = get_owned_document(doc_id)
+
+    db = get_db()
+
+    if "file" not in request.files:
+        logger.warning("No file in request")
+        return jsonify({"error": "Keine Datei hochgeladen"}), 400
+
+    file = request.files["file"]
+
+    if file.filename == "":
+        logger.warning("Empty filename")
+        return jsonify({"error": "Kein Dateiname"}), 400
+
+    is_valid, error_msg = validate_file_type(file.filename)
+    if not is_valid:
+        logger.warning(f"Invalid file type: {file.filename}")
+        return jsonify({"error": error_msg}), 400
+
+    file.seek(0, 2)
+    file_size = file.tell()
+    file.seek(0)
+
+    is_valid, error_msg = validate_file_size(
+        file_size, current_app.config["MAX_CONTENT_LENGTH"]
+    )
+    if not is_valid:
+        logger.warning(f"File too large: {file_size} bytes")
+        return jsonify({"error": error_msg}), 400
+
+    file_path = Path(doc_info["file_path"])
+    if not file_path.is_file():
+        logger.error(f"Document file not found: {file_path}")
+        return jsonify({"error": "Dokumentdatei nicht gefunden"}), 404
+
+    # Save uploaded PDF to temp file
+    tmp_new = file_path.with_suffix(".append.pdf")
+    file.save(tmp_new)
+
     try:
-        doc_info, err = _get_doc_or_error(doc_id)
-        if err is not None:
-            return err
-        assert doc_info is not None
+        original_doc = fitz.open(str(file_path))
+        new_doc = fitz.open(str(tmp_new))
+        added_pages = len(new_doc)
 
-        db = DatabaseManager()
+        original_doc.insert_pdf(new_doc)
 
-        if "file" not in request.files:
-            logger.warning("No file in request")
-            return jsonify({"error": "Keine Datei hochgeladen"}), 400
+        tmp_save = file_path.with_suffix(".tmp.pdf")
+        original_doc.save(str(tmp_save), deflate=True)
+        original_doc.close()
+        new_doc.close()
 
-        file = request.files["file"]
+        tmp_save.replace(file_path)
+    finally:
+        if tmp_new.exists():
+            tmp_new.unlink()
 
-        if file.filename == "":
-            logger.warning("Empty filename")
-            return jsonify({"error": "Kein Dateiname"}), 400
-
-        is_valid, error_msg = validate_file_type(file.filename)
-        if not is_valid:
-            logger.warning(f"Invalid file type: {file.filename}")
-            return jsonify({"error": error_msg}), 400
-
-        file.seek(0, 2)
-        file_size = file.tell()
-        file.seek(0)
-
-        is_valid, error_msg = validate_file_size(
-            file_size, current_app.config["MAX_CONTENT_LENGTH"]
+    old_page_count = doc_info["page_count"]
+    new_page_count = old_page_count + added_pages
+    with db.get_connection() as conn:
+        conn.execute(
+            "UPDATE documents SET page_count = ? WHERE id = ?",
+            (new_page_count, doc_id),
         )
-        if not is_valid:
-            logger.warning(f"File too large: {file_size} bytes")
-            return jsonify({"error": error_msg}), 400
-
-        file_path = Path(doc_info["file_path"])
-        if not file_path.is_file():
-            logger.error(f"Document file not found: {file_path}")
-            return jsonify({"error": "Dokumentdatei nicht gefunden"}), 404
-
-        # Save uploaded PDF to temp file
-        tmp_new = file_path.with_suffix(".append.pdf")
-        file.save(tmp_new)
-
-        try:
-            original_doc = fitz.open(str(file_path))
-            new_doc = fitz.open(str(tmp_new))
-            added_pages = len(new_doc)
-
-            original_doc.insert_pdf(new_doc)
-
-            tmp_save = file_path.with_suffix(".tmp.pdf")
-            original_doc.save(str(tmp_save), deflate=True)
-            original_doc.close()
-            new_doc.close()
-
-            tmp_save.replace(file_path)
-        finally:
-            if tmp_new.exists():
-                tmp_new.unlink()
-
-        clear_render_cache()
-        clear_text_layout_cache()
-
-        old_page_count = doc_info["page_count"]
-        new_page_count = old_page_count + added_pages
-        with db.get_connection() as conn:
+        for p in range(old_page_count + 1, new_page_count + 1):
             conn.execute(
-                "UPDATE documents SET page_count = ? WHERE id = ?",
-                (new_page_count, doc_id),
+                """INSERT INTO annotations (doc_id, page_number, note_text)
+                   VALUES (?, ?, '')
+                   ON CONFLICT(doc_id, page_number) DO NOTHING""",
+                (doc_id, p),
             )
-            for p in range(old_page_count + 1, new_page_count + 1):
-                conn.execute(
-                    """INSERT INTO annotations (doc_id, page_number, note_text)
-                       VALUES (?, ?, '')
-                       ON CONFLICT(doc_id, page_number) DO NOTHING""",
-                    (doc_id, p),
-                )
 
-        logger.info(
-            f"Appended {added_pages} pages to document {doc_id}, "
-            f"new page count: {new_page_count}"
-        )
+    logger.info(
+        f"Appended {added_pages} pages to document {doc_id}, "
+        f"new page count: {new_page_count}"
+    )
 
-        return jsonify(
-            {
-                "success": True,
-                "page_count": new_page_count,
-                "added_pages": added_pages,
-            }
-        )
-
-    except Exception as e:
-        logger.error(
-            f"Error appending PDF to document {doc_id}: {e}",
-            exc_info=True,
-        )
-        return jsonify({"error": "Interner Serverfehler"}), 500
+    return jsonify(
+        {
+            "success": True,
+            "page_count": new_page_count,
+            "added_pages": added_pages,
+        }
+    )
 
 
 @viewer_bp.route("/api/ocr/<doc_id>", methods=["POST"])
 @login_required
+@handle_errors()
 def ocr_document(doc_id: str) -> Any:
     """
     Run OCR on the document's PDF, adding a searchable text layer.
@@ -698,43 +557,69 @@ def ocr_document(doc_id: str) -> Any:
     Args:
         doc_id: UUID of document
 
+    OCR runs as a background job: the response is 202 with a job_id to
+    poll via GET /viewer/api/jobs/<job_id>.
+
     Returns:
-        JSON with success status or error response
+        JSON with job_id (202) or error response
     """
-    try:
-        from pdf_annotator.services.ocr import OCRError, ocr_available, ocr_pdf
+    doc_info = get_owned_document(doc_id)
 
-        doc_info, err = _get_doc_or_error(doc_id)
-        if err is not None:
-            return err
-        assert doc_info is not None
+    from pdf_annotator.services.ocr import ocr_available, ocr_pdf
 
-        if not ocr_available():
-            return jsonify({"error": "OCR ist auf diesem Server nicht verfügbar"}), 501
+    if not ocr_available():
+        return jsonify({"error": "OCR ist auf diesem Server nicht verfügbar"}), 501
 
-        file_path = Path(doc_info["file_path"])
-        if not file_path.is_file():
-            logger.error("Document file not found: %s", file_path)
-            return jsonify({"error": "Dokumentdatei nicht gefunden"}), 404
+    file_path = Path(doc_info["file_path"])
+    if not file_path.is_file():
+        logger.error("Document file not found: %s", file_path)
+        return jsonify({"error": "Dokumentdatei nicht gefunden"}), 404
 
-        logger.info("Running OCR for document %s", doc_id)
-        try:
-            ocr_pdf(file_path)
-        except OCRError as e:
-            return jsonify({"error": str(e)}), 500
+    db = get_db()
+    if db.get_active_job(doc_id, "ocr"):
+        return jsonify({"error": "OCR läuft bereits für dieses Dokument"}), 409
 
-        clear_render_cache()
-        clear_text_layout_cache()
+    def runner() -> dict[str, Any]:
+        ocr_pdf(file_path)
+        return {}
 
-        return jsonify({"success": True})
+    logger.info("Starting OCR job for document %s", doc_id)
+    job_id = submit_job(db, "ocr", doc_id, current_user.id, runner)
 
-    except Exception as e:
-        logger.error(f"Error running OCR for document {doc_id}: {e}", exc_info=True)
-        return jsonify({"error": "Interner Serverfehler"}), 500
+    return jsonify({"success": True, "job_id": job_id}), 202
+
+
+@viewer_bp.route("/api/jobs/<job_id>", methods=["GET"])
+@login_required
+@handle_errors()
+def get_job_status(job_id: str) -> Any:
+    """
+    Poll the status of a background job (OCR, PDF export).
+
+    Returns:
+        JSON with status (pending|running|done|error), error message if
+        any, and the job's result data.
+    """
+    db = get_db()
+    job = db.get_job(job_id)
+
+    if not job:
+        abort(404, description="Job nicht gefunden")
+    if job["user_id"] != current_user.id:
+        abort(403, description="Nicht berechtigt")
+
+    return jsonify(
+        {
+            "status": job["status"],
+            "error": job["error"],
+            "result": json.loads(job["result_json"]) if job["result_json"] else {},
+        }
+    )
 
 
 @viewer_bp.route("/api/page/<doc_id>/<int:page_number>", methods=["DELETE"])
 @login_required
+@handle_errors()
 def delete_page(doc_id: str, page_number: int) -> Any:
     """
     Delete a page from the PDF document.
@@ -749,58 +634,43 @@ def delete_page(doc_id: str, page_number: int) -> Any:
     Returns:
         JSON response with new page_count or error
     """
-    try:
-        doc_info, err = _get_doc_or_error(doc_id)
-        if err is not None:
-            return err
-        assert doc_info is not None
+    doc_info = get_owned_document(doc_id)
 
-        db = DatabaseManager()
+    db = get_db()
 
-        # Validate page number
-        is_valid, error_msg = validate_page_number(page_number, doc_info["page_count"])
-        if not is_valid:
-            return jsonify({"error": error_msg}), 400
+    # Validate page number
+    is_valid, error_msg = validate_page_number(page_number, doc_info["page_count"])
+    if not is_valid:
+        return jsonify({"error": error_msg}), 400
 
-        # Must have more than 1 page
-        if doc_info["page_count"] <= 1:
-            return (
-                jsonify({"error": "Die letzte Seite kann nicht gelöscht werden"}),
-                400,
-            )
-
-        # Delete page from PDF (fitz uses 0-indexed pages)
-        file_path = Path(doc_info["file_path"])
-        if not file_path.is_file():
-            logger.error(f"Document file not found: {file_path}")
-            return jsonify({"error": "Dokumentdatei nicht gefunden"}), 404
-
-        pdf_doc = fitz.open(str(file_path))
-        pdf_doc.delete_page(page_number - 1)
-        tmp_path = file_path.with_suffix(".tmp.pdf")
-        pdf_doc.save(str(tmp_path), deflate=True)
-        pdf_doc.close()
-        tmp_path.replace(file_path)
-
-        # Clear render + text caches
-        clear_render_cache()
-        clear_text_layout_cache()
-
-        # Delete annotation, renumber subsequent pages and decrement count atomically
-        db.delete_annotation_and_renumber(doc_id, page_number)
-
-        new_page_count = doc_info["page_count"] - 1
-
-        logger.info(
-            f"Deleted page {page_number} from document {doc_id}, "
-            f"new page count: {new_page_count}"
+    # Must have more than 1 page
+    if doc_info["page_count"] <= 1:
+        return (
+            jsonify({"error": "Die letzte Seite kann nicht gelöscht werden"}),
+            400,
         )
 
-        return jsonify({"success": True, "page_count": new_page_count})
+    # Delete page from PDF (fitz uses 0-indexed pages)
+    file_path = Path(doc_info["file_path"])
+    if not file_path.is_file():
+        logger.error(f"Document file not found: {file_path}")
+        return jsonify({"error": "Dokumentdatei nicht gefunden"}), 404
 
-    except Exception as e:
-        logger.error(
-            f"Error deleting page {page_number} from {doc_id}: {e}",
-            exc_info=True,
-        )
-        return jsonify({"error": "Interner Serverfehler"}), 500
+    pdf_doc = fitz.open(str(file_path))
+    pdf_doc.delete_page(page_number - 1)
+    tmp_path = file_path.with_suffix(".tmp.pdf")
+    pdf_doc.save(str(tmp_path), deflate=True)
+    pdf_doc.close()
+    tmp_path.replace(file_path)
+
+    # Delete annotation, renumber subsequent pages and decrement count atomically
+    db.delete_annotation_and_renumber(doc_id, page_number)
+
+    new_page_count = doc_info["page_count"] - 1
+
+    logger.info(
+        f"Deleted page {page_number} from document {doc_id}, "
+        f"new page count: {new_page_count}"
+    )
+
+    return jsonify({"success": True, "page_count": new_page_count})

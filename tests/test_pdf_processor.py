@@ -1,16 +1,15 @@
 """
 Unit tests for PDF processor service.
 
-Tests PDF validation, page counting, rendering, and cache.
+Tests PDF validation, page counting, rendering, and text layout.
+The disk cache itself is covered in test_render_cache.py; outside an app
+context these functions render/extract uncached.
 """
 
 import fitz
 import pytest
 
 from pdf_annotator.services.pdf_processor import (
-    clear_render_cache,
-    clear_text_layout_cache,
-    get_cache_info,
     get_page_count,
     get_page_dimensions,
     get_page_text_layout,
@@ -58,9 +57,6 @@ class TestGetPageCount:
 class TestRenderPageToImage:
     """Test page rendering."""
 
-    def setup_method(self):
-        clear_render_cache()
-
     def test_render_valid_page(self, sample_pdf):
         result = render_page_to_image(str(sample_pdf), 1, dpi=72)
         assert result is not None
@@ -81,31 +77,8 @@ class TestRenderPageToImage:
         assert result is None
 
 
-class TestCache:
-    """Test render cache functions."""
-
-    def setup_method(self):
-        clear_render_cache()
-
-    def test_clear_cache(self, sample_pdf):
-        render_page_to_image(str(sample_pdf), 1, dpi=72)
-        clear_render_cache()
-        info = get_cache_info()
-        assert info["size"] == 0
-
-    def test_cache_info_structure(self):
-        info = get_cache_info()
-        assert "hits" in info
-        assert "misses" in info
-        assert "size" in info
-        assert "maxsize" in info
-
-
 class TestGetPageTextLayout:
     """Test word/bbox text extraction for the selectable text overlay."""
-
-    def setup_method(self):
-        clear_text_layout_cache()
 
     def test_page_dimensions_match_get_page_dimensions(self, sample_pdf):
         width, height = get_page_dimensions(sample_pdf, 1)
@@ -180,8 +153,3 @@ class TestGetPageTextLayout:
         assert marker["y0"] > layout["page_height"] / 2
         assert marker["x0"] < marker["x1"]
         assert marker["y0"] < marker["y1"]
-
-    def test_clear_text_layout_cache(self, sample_pdf):
-        get_page_text_layout(str(sample_pdf), 1)
-        clear_text_layout_cache()
-        assert get_page_text_layout.cache_info().currsize == 0

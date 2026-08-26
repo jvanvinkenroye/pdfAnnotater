@@ -14,7 +14,7 @@ from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
 
 from pdf_annotator.config import config
-from pdf_annotator.models.database import DatabaseManager
+from pdf_annotator.models.database import DatabaseManager, get_db
 from pdf_annotator.models.user import User
 from pdf_annotator.routes.admin import admin_bp
 from pdf_annotator.routes.ai import ai_bp
@@ -26,13 +26,19 @@ from pdf_annotator.routes.viewer import viewer_bp
 from pdf_annotator.utils.logger import setup_logger
 
 
-def create_app(config_name: str | None = None) -> Flask:
+def create_app(
+    config_name: str | None = None,
+    config_overrides: dict[str, Any] | None = None,
+) -> Flask:
     """
     Application factory for creating Flask app.
 
     Args:
         config_name: Configuration name (development, production, testing)
                     If None, uses FLASK_ENV environment variable or defaults to 'development'
+        config_overrides: Config values applied on top of the named config
+                    before any of them are used (paths, feature flags, ...).
+                    Mainly for tests.
 
     Returns:
         Flask: Configured Flask application instance
@@ -50,7 +56,25 @@ def create_app(config_name: str | None = None) -> Flask:
 
     # Load configuration
     app.config.from_object(config[config_name])
+    if config_overrides:
+        app.config.update(config_overrides)
     config[config_name].init_app(app)
+
+    # Reverse-proxy deployments (PDF_ANNOTATOR_BEHIND_PROXY=1): trust the
+    # proxy's X-Forwarded-* headers and switch to https semantics. Never
+    # enabled for the desktop app or a directly exposed dev server, where
+    # forwarding headers would be attacker-controlled.
+    behind_proxy = os.environ.get("PDF_ANNOTATOR_BEHIND_PROXY") == "1"
+    app.config["BEHIND_PROXY"] = behind_proxy
+    if behind_proxy:
+        from werkzeug.middleware.proxy_fix import ProxyFix
+
+        app.wsgi_app = ProxyFix(  # type: ignore[method-assign]
+            app.wsgi_app, x_for=1, x_proto=1, x_host=1
+        )
+        app.config["PREFERRED_URL_SCHEME"] = "https"
+        app.config["SESSION_COOKIE_SECURE"] = True
+        app.config["REMEMBER_COOKIE_SECURE"] = True
 
     # Setup logging
     logger = setup_logger(
@@ -70,7 +94,7 @@ def create_app(config_name: str | None = None) -> Flask:
     @login_manager.user_loader
     def load_user(user_id: str) -> User | None:
         """Load user from database by ID."""
-        db = DatabaseManager()
+        db = get_db()
         data = db.get_user_by_id(user_id)
         if data:
             return User(
@@ -84,24 +108,37 @@ def create_app(config_name: str | None = None) -> Flask:
         return None
 
     # Initialize CSRF protection
-    csrf = CSRFProtect(app)
+    CSRFProtect(app)
 
-    # Exempt save_annotation from CSRF for sendBeacon support
-    # (sendBeacon cannot send custom headers; endpoint validates doc_id UUID)
-    csrf.exempt("pdf_annotator.routes.viewer.save_annotation")
-
-    # Initialize rate limiter
+    # Initialize rate limiter. The default memory:// storage is
+    # per-process: with N Gunicorn workers, effective limits are up to
+    # N x the configured value and reset on worker restart. Operators
+    # with a shared store can point RATELIMIT_STORAGE_URI at it.
     limiter = Limiter(
         get_remote_address,
         app=app,
         default_limits=["200 per minute"],
-        storage_uri="memory://",
+        storage_uri=app.config.get("RATELIMIT_STORAGE_URI", "memory://"),
     )
 
-    # Initialize database
+    # Initialize database; the instance lives on app.extensions so routes
+    # and services reach it via get_db() with the app's configured path.
     db = DatabaseManager(app.config["DATABASE_PATH"])
+    app.extensions["db"] = db
     db.init_db()
     logger.info("Database initialized")
+
+    # Periodic maintenance (export/job/cache cleanup) off the request path.
+    # Skipped in tests, and in the Werkzeug reloader parent (the reloaded
+    # child, marked by WERKZEUG_RUN_MAIN, starts its own thread).
+    start_cleanup = not app.config.get("TESTING")
+    if app.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+        start_cleanup = False
+    if start_cleanup:
+        from pdf_annotator.services.cleanup import start_cleanup_thread
+
+        start_cleanup_thread(app)
+        logger.info("Cleanup thread started")
 
     # Register blueprints
     app.register_blueprint(auth_bp)
@@ -118,7 +155,7 @@ def create_app(config_name: str | None = None) -> Flask:
     def health_check() -> Any:
         db_ok = True
         try:
-            with DatabaseManager().get_connection() as conn:
+            with get_db().get_connection() as conn:
                 conn.execute("SELECT 1")
         except Exception:
             db_ok = False
@@ -161,35 +198,67 @@ def create_app(config_name: str | None = None) -> Flask:
             "img-src 'self' data: blob:; "
             "font-src 'self' data:"
         )
+        if app.config.get("BEHIND_PROXY"):
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=31536000; includeSubDomains"
+            )
         return response
 
-    # Error handlers
+    # Error handlers. API requests (see wants_json) get JSON carrying the
+    # abort's description; browser page requests get the HTML error page
+    # with the same fixed German texts as before.
+    def _client_error_response(
+        e: Any, status: int, error_title: str, html_message: str, json_default: str
+    ) -> tuple:
+        from flask import render_template
+        from werkzeug.exceptions import HTTPException
+
+        from pdf_annotator.routes._helpers import wants_json
+
+        description = None
+        if isinstance(e, HTTPException) and e.description != type(e).description:
+            description = e.description
+
+        if wants_json():
+            return jsonify({"error": description or json_default}), status
+        return (
+            render_template(
+                "error.html", error_title=error_title, error_message=html_message
+            ),
+            status,
+        )
+
+    @app.errorhandler(400)
+    def bad_request(e: Any) -> tuple:
+        """Handle 400 errors."""
+        return _client_error_response(
+            e,
+            400,
+            error_title="Ungültige Anfrage",
+            html_message="Die Anfrage war ungültig.",
+            json_default="Ungültige Anfrage",
+        )
+
     @app.errorhandler(404)
     def not_found(e: Any) -> tuple:
         """Handle 404 errors."""
-        from flask import render_template
-
-        return (
-            render_template(
-                "error.html",
-                error_title="Seite nicht gefunden",
-                error_message="Die angeforderte Seite wurde nicht gefunden.",
-            ),
+        return _client_error_response(
+            e,
             404,
+            error_title="Seite nicht gefunden",
+            html_message="Die angeforderte Seite wurde nicht gefunden.",
+            json_default="Nicht gefunden",
         )
 
     @app.errorhandler(403)
     def forbidden(e: Any) -> tuple:
         """Handle 403 errors."""
-        from flask import render_template
-
-        return (
-            render_template(
-                "error.html",
-                error_title="Nicht berechtigt",
-                error_message="Sie haben keine Berechtigung für diese Seite.",
-            ),
+        return _client_error_response(
+            e,
             403,
+            error_title="Nicht berechtigt",
+            html_message="Sie haben keine Berechtigung für diese Seite.",
+            json_default="Nicht berechtigt",
         )
 
     @app.errorhandler(500)

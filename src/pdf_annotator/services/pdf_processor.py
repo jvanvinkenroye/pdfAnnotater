@@ -4,14 +4,24 @@ PDF Processing module for PDF Annotator.
 Handles PDF rendering and validation using PyMuPDF (fitz).
 """
 
-from functools import lru_cache
 from pathlib import Path
 
 import fitz  # PyMuPDF
+from flask import current_app, has_app_context
 
+from pdf_annotator.services import render_cache
 from pdf_annotator.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+def _cache_dir() -> Path | None:
+    """The configured render cache directory, or None outside app context."""
+    if has_app_context():
+        folder = current_app.config.get("RENDER_CACHE_FOLDER")
+        if folder:
+            return Path(folder)
+    return None
 
 
 def validate_pdf(file_path: Path) -> bool:
@@ -95,13 +105,8 @@ def get_page_dimensions(file_path: Path, page_num: int) -> tuple[float, float]:
         raise
 
 
-@lru_cache(maxsize=50)
-def _render_page_cached(file_path: str, page_num: int, dpi: int) -> bytes:
-    """
-    Internal cached page rendering. Raises on failure so errors are never cached.
-
-    File path must be a string (not Path) for LRU cache compatibility.
-    """
+def _render_page(file_path: str, page_num: int, dpi: int) -> bytes:
+    """Internal page rendering. Raises on failure so errors are never cached."""
     logger.debug("Rendering page %d from %s", page_num, Path(file_path).name)
     doc = fitz.open(file_path)
 
@@ -133,8 +138,11 @@ def render_page_to_image(file_path: str, page_num: int, dpi: int = 300) -> bytes
     """
     Render PDF page to PNG image.
 
-    Wraps the cached internal renderer. Returns None on error instead of raising,
-    so callers do not need to handle exceptions.
+    Serves from the shared disk cache when an app context provides
+    RENDER_CACHE_FOLDER (entries are keyed by the PDF's mtime/size, so a
+    modified file is re-rendered automatically in every worker). Returns
+    None on error instead of raising, so callers do not need to handle
+    exceptions.
 
     Args:
         file_path: Path to PDF file (as string)
@@ -151,36 +159,32 @@ def render_page_to_image(file_path: str, page_num: int, dpi: int = 300) -> bytes
                 f.write(image_bytes)
     """
     try:
-        return _render_page_cached(file_path, page_num, dpi)
+        cache_dir = _cache_dir()
+        if cache_dir is not None:
+            return render_cache.get_or_render_page(
+                cache_dir,
+                Path(file_path),
+                page_num,
+                dpi,
+                lambda: _render_page(file_path, page_num, dpi),
+            )
+        return _render_page(file_path, page_num, dpi)
     except Exception as e:
         logger.error("Failed to render page %d from %s: %s", page_num, file_path, e)
         return None
 
 
-def clear_render_cache() -> None:
-    """
-    Clear the LRU cache for rendered pages.
-
-    Useful for freeing memory or when PDF files are updated.
-
-    Example:
-        clear_render_cache()
-        logger.info("Render cache cleared")
-    """
-    _render_page_cached.cache_clear()
-    logger.info("PDF render cache cleared")
-
-
-@lru_cache(maxsize=50)
 def get_page_text_layout(file_path: str, page_num: int) -> dict:
     """
     Extract word-level text with bounding boxes for a PDF page.
 
     Used to build a selectable/copyable text overlay on top of the raster
     page image. Coordinates are in PDF points, matching get_page_dimensions.
+    Served from the shared disk cache when an app context provides
+    RENDER_CACHE_FOLDER; extraction errors are never cached.
 
     Args:
-        file_path: Path to PDF file (as string, for LRU cache compatibility)
+        file_path: Path to PDF file (as string)
         page_num: Page number (1-indexed)
 
     Raises:
@@ -190,6 +194,19 @@ def get_page_text_layout(file_path: str, page_num: int) -> dict:
         dict with page_width, page_height (points) and lines, each a list
         of words with text and x0/y0/x1/y1 bounding box in points.
     """
+    cache_dir = _cache_dir()
+    if cache_dir is not None:
+        return render_cache.get_or_load_layout(
+            cache_dir,
+            Path(file_path),
+            page_num,
+            lambda: _extract_text_layout(file_path, page_num),
+        )
+    return _extract_text_layout(file_path, page_num)
+
+
+def _extract_text_layout(file_path: str, page_num: int) -> dict:
+    """Internal text-layout extraction. Raises on invalid pages."""
     doc = fitz.open(file_path)
     try:
         if page_num < 1 or page_num > len(doc):
@@ -234,35 +251,3 @@ def get_page_text_layout(file_path: str, page_num: int) -> dict:
         }
     finally:
         doc.close()
-
-
-def clear_text_layout_cache() -> None:
-    """
-    Clear the LRU cache for extracted text layouts.
-
-    Must be called alongside clear_render_cache() whenever a PDF's content
-    changes (replace/append/delete page), otherwise stale word/bbox data
-    could be served after the image cache has already been invalidated.
-    """
-    get_page_text_layout.cache_clear()
-    logger.info("PDF text layout cache cleared")
-
-
-def get_cache_info() -> dict:
-    """
-    Get information about the render cache.
-
-    Returns:
-        dict: Cache statistics (hits, misses, size, maxsize)
-
-    Example:
-        info = get_cache_info()
-        print(f"Cache hits: {info['hits']}, misses: {info['misses']}")
-    """
-    cache_info = _render_page_cached.cache_info()
-    return {
-        "hits": cache_info.hits,
-        "misses": cache_info.misses,
-        "size": cache_info.currsize,
-        "maxsize": cache_info.maxsize,
-    }

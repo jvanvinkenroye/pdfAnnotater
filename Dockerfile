@@ -68,6 +68,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
 
 # exec replaces the shell so gunicorn receives SIGTERM directly (graceful shutdown).
 # Shell form is needed only for ${GUNICORN_WORKERS:-2} expansion.
-# Timeout default raised to 600s to cover synchronous OCR requests on
-# larger scanned documents (see services/ocr.py OCR_TIMEOUT_SECONDS).
-CMD ["sh", "-c", "exec python -m gunicorn --workers ${GUNICORN_WORKERS:-2} --bind 0.0.0.0:8000 --timeout ${GUNICORN_TIMEOUT:-600} --access-logfile - --error-logfile - wsgi:app"]
+# OCR and annotated-PDF export run as background jobs off the request
+# path; 120s covers the remaining synchronous heavy requests (ZIP
+# backup export/import of large libraries).
+CMD ["sh", "-c", "exec python -m gunicorn --workers ${GUNICORN_WORKERS:-2} --bind 0.0.0.0:8000 --timeout ${GUNICORN_TIMEOUT:-120} --access-logfile - --error-logfile - wsgi:app"]

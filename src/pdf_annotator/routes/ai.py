@@ -11,6 +11,7 @@ from typing import Any
 from flask import Blueprint, jsonify, request
 from flask_login import login_required
 
+from pdf_annotator.routes._helpers import handle_errors
 from pdf_annotator.services.ai_client import (
     AIConfigError,
     AIFeatureDisabledError,
@@ -32,6 +33,7 @@ MODES_REQUIRING_SOURCE_TEXT = {"edit", "context"}
 
 @ai_bp.route("/text", methods=["POST"])
 @login_required
+@handle_errors()
 def generate_or_edit_text() -> Any:
     """
     Edit selected note text, generate new note text, or formulate a note
@@ -93,7 +95,4 @@ def generate_or_edit_text() -> Any:
         return jsonify({"error": "KI-Dienst nicht konfiguriert"}), 503
     except AIProviderError as e:
         logger.error("AI provider error: %s", e)
-        return jsonify({"error": "Interner Serverfehler"}), 500
-    except Exception as e:
-        logger.error(f"Error in AI text endpoint: {e}", exc_info=True)
         return jsonify({"error": "Interner Serverfehler"}), 500

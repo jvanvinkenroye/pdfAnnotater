@@ -59,6 +59,36 @@ def get_data_dir() -> Path:
 load_dotenv(get_data_dir() / ".env")
 
 
+def _load_or_create_secret_key(data_dir: Path) -> str:
+    """
+    Load the persistent SECRET_KEY from the data directory, creating it on
+    first use.
+
+    Keeping the key in a file (instead of generating a fresh one per process)
+    keeps sessions valid across restarts and, on servers, consistent across
+    Gunicorn workers that share the data directory.
+    """
+    key_file = data_dir / "secret_key"
+    try:
+        existing = key_file.read_text(encoding="utf-8").strip()
+        if existing:
+            return existing
+    except FileNotFoundError:
+        pass
+
+    data_dir.mkdir(parents=True, exist_ok=True)
+    new_key = secrets.token_hex(32)
+    try:
+        # O_EXCL so concurrent first-boot workers agree on a single key:
+        # exactly one writer wins, everyone else reads the winner's file.
+        fd = os.open(key_file, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        return key_file.read_text(encoding="utf-8").strip() or new_key
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(new_key)
+    return new_key
+
+
 def get_downloads_dir() -> Path:
     """
     Get platform-specific Downloads directory, used by DESKTOP_MODE exports.
@@ -102,11 +132,28 @@ class Config:
     DEBUG = False
     TESTING = False
 
+    # Session cookie hardening. SECURE stays off here because the desktop
+    # app and dev server run over plain http on 127.0.0.1; it is enabled
+    # at app creation when PDF_ANNOTATOR_BEHIND_PROXY=1 (TLS-terminating
+    # reverse proxy in front).
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+    SESSION_COOKIE_SECURE = False
+    REMEMBER_COOKIE_HTTPONLY = True
+    REMEMBER_COOKIE_SECURE = False
+
     # Upload settings
     MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50 MB max file size
     UPLOAD_FOLDER = BASE_DIR / "data" / "uploads"
     EXPORT_FOLDER = BASE_DIR / "data" / "exports"
     ALLOWED_EXTENSIONS = {"pdf"}
+
+    # Disk cache for rendered page images and text layouts, shared by all
+    # workers (see services/render_cache.py). Entries are keyed by file
+    # mtime/size, so no manual invalidation is needed; the cleanup thread
+    # prunes it to RENDER_CACHE_MAX_BYTES.
+    RENDER_CACHE_FOLDER = BASE_DIR / "data" / "cache"
+    RENDER_CACHE_MAX_BYTES = 512 * 1024 * 1024  # 512 MB
 
     # Input validation limits
     MAX_FILENAME_LENGTH = 255
@@ -119,6 +166,20 @@ class Config:
 
     # Database settings
     DATABASE_PATH: Path | str = BASE_DIR / "data" / "annotations.db"
+
+    # Rate limiter storage. memory:// is per-process (limits multiply by
+    # the number of Gunicorn workers and reset on restart); deployments
+    # with a shared store can point this at e.g. redis://host:6379
+    # (requires installing the matching `limits` backend extra).
+    RATELIMIT_STORAGE_URI = os.environ.get("RATELIMIT_STORAGE_URI", "memory://")
+
+    # User self-registration. Open by default: the desktop app and the
+    # first-run server setup depend on it. Server operators should set
+    # PDF_ANNOTATOR_REGISTRATION=0 (and/or require an invite code) once
+    # the needed accounts exist. Registration of the very first user is
+    # always allowed so a locked-down fresh install can create its admin.
+    REGISTRATION_ENABLED = os.environ.get("PDF_ANNOTATOR_REGISTRATION", "1") != "0"
+    REGISTRATION_INVITE_CODE = os.environ.get("PDF_ANNOTATOR_INVITE_CODE") or None
 
     # Desktop-Mode: export routes write directly to disk instead of streaming
     # an HTTP download. Needed for WebView-based desktop shells (e.g. Toga)
@@ -159,6 +220,7 @@ class Config:
         """
         Config.UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
         Config.EXPORT_FOLDER.mkdir(parents=True, exist_ok=True)
+        Config.RENDER_CACHE_FOLDER.mkdir(parents=True, exist_ok=True)
         if isinstance(Config.DATABASE_PATH, Path):
             Config.DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
 
@@ -182,12 +244,12 @@ class ProductionConfig(Config):
     """
 
     DEBUG = False
-    SECRET_KEY = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
 
     # Use platform-specific data directory
     DATA_DIR = get_data_dir()
     UPLOAD_FOLDER = DATA_DIR / "uploads"
     EXPORT_FOLDER = DATA_DIR / "exports"
+    RENDER_CACHE_FOLDER = DATA_DIR / "cache"
     DATABASE_PATH = DATA_DIR / "annotations.db"
     LOG_FILE = DATA_DIR / "app.log"
 
@@ -200,10 +262,17 @@ class ProductionConfig(Config):
             app: Flask application instance
         """
         if not os.environ.get("SECRET_KEY"):
-            warnings.warn(
-                "SECRET_KEY ist nicht gesetzt! Sessions werden nach Neustart ungültig. "
-                "Setzen Sie die Umgebungsvariable SECRET_KEY für Production.",
-                stacklevel=2,
+            if os.environ.get("PDF_ANNOTATOR_BEHIND_PROXY") == "1":
+                raise RuntimeError(
+                    "SECRET_KEY ist nicht gesetzt! Für Server-Deployments hinter "
+                    "einem Reverse-Proxy (PDF_ANNOTATOR_BEHIND_PROXY=1) muss die "
+                    "Umgebungsvariable SECRET_KEY gesetzt sein."
+                )
+            # Desktop / standalone server: persist a generated key in the
+            # data directory so sessions survive restarts and all workers
+            # sharing the directory sign with the same key.
+            app.config["SECRET_KEY"] = _load_or_create_secret_key(
+                ProductionConfig.DATA_DIR
             )
         ai_provider = app.config.get("AI_PROVIDER")
         if ai_provider == "anthropic" and not app.config.get("ANTHROPIC_API_KEY"):
@@ -221,6 +290,7 @@ class ProductionConfig(Config):
         # Use ProductionConfig paths, not base Config
         app.config["UPLOAD_FOLDER"].mkdir(parents=True, exist_ok=True)
         app.config["EXPORT_FOLDER"].mkdir(parents=True, exist_ok=True)
+        app.config["RENDER_CACHE_FOLDER"].mkdir(parents=True, exist_ok=True)
         app.config["DATABASE_PATH"].parent.mkdir(parents=True, exist_ok=True)
 
 

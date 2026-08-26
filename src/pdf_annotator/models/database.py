@@ -6,46 +6,35 @@ for documents and annotations.
 """
 
 import sqlite3
-import threading
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 from uuid import uuid4
+
+from flask import current_app
+
+from pdf_annotator.models.migrations import apply_migrations
 
 
 class DatabaseManager:
     """
-    Singleton database manager for SQLite operations.
+    SQLite database access for documents, annotations, and users.
 
-    Handles connection management, schema creation, and all database operations
-    for documents and annotations.
+    One instance per application, created in create_app() and stored in
+    app.extensions["db"] (fetch it with get_db()). Instances are cheap
+    and thread-safe: every operation opens its own connection, so a
+    background thread may share an instance with request handlers.
     """
 
-    _instance: Optional["DatabaseManager"] = None
-    _db_path: str | Path | None = None
-    _lock = threading.Lock()
-
-    def __new__(cls, db_path: str | Path | None = None) -> "DatabaseManager":
+    def __init__(self, db_path: str | Path | None = None) -> None:
         """
-        Create or return singleton instance.
-
-        Thread-safe via _lock to prevent race conditions during initialization.
-
         Args:
-            db_path: Path to SQLite database file (str for ':memory:', Path otherwise)
-
-        Returns:
-            DatabaseManager instance
+            db_path: Path to SQLite database file (str for ':memory:',
+                Path otherwise). Defaults to the repo-local data path.
         """
-        with cls._lock:
-            if cls._instance is None:
-                cls._instance = super().__new__(cls)
-                if db_path:
-                    cls._db_path = db_path
-                elif cls._db_path is None:
-                    # Default path
-                    cls._db_path = Path(__file__).parents[3] / "data" / "annotations.db"
-        return cls._instance
+        if db_path is None:
+            db_path = Path(__file__).parents[3] / "data" / "annotations.db"
+        self._db_path = db_path
 
     @contextmanager
     def get_connection(self) -> Any:
@@ -64,6 +53,11 @@ class DatabaseManager:
         conn.row_factory = sqlite3.Row  # Enable column access by name
         conn.execute("PRAGMA foreign_keys = ON")
         conn.execute("PRAGMA journal_mode=WAL")
+        # Wait instead of failing with "database is locked" when another
+        # worker/thread holds the write lock.
+        conn.execute("PRAGMA busy_timeout = 10000")
+        # Safe with WAL and considerably faster than FULL.
+        conn.execute("PRAGMA synchronous = NORMAL")
         try:
             yield conn
             conn.commit()
@@ -75,128 +69,13 @@ class DatabaseManager:
 
     def init_db(self) -> None:
         """
-        Initialize database schema.
+        Create or upgrade the database schema.
 
-        Creates tables, indices, and triggers if they don't exist.
-        Safe to call multiple times (idempotent).
+        Versioned via PRAGMA user_version; see models/migrations.py.
+        Safe to call multiple times.
         """
         with self.get_connection() as conn:
-            cursor = conn.cursor()
-
-            # Create users table
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS users (
-                    id TEXT PRIMARY KEY,
-                    username TEXT NOT NULL UNIQUE,
-                    email TEXT NOT NULL UNIQUE,
-                    password_hash TEXT NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    is_active INTEGER DEFAULT 1
-                )
-            """
-            )
-
-            # Create documents table
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS documents (
-                    id TEXT PRIMARY KEY,
-                    user_id TEXT NOT NULL,
-                    original_filename TEXT NOT NULL,
-                    file_path TEXT NOT NULL,
-                    page_count INTEGER NOT NULL,
-                    first_name TEXT DEFAULT '',
-                    last_name TEXT DEFAULT '',
-                    title TEXT DEFAULT '',
-                    year TEXT DEFAULT '',
-                    subject TEXT DEFAULT '',
-                    upload_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-                )
-            """
-            )
-
-            # Migrate existing database (add new columns if they don't exist)
-            migration_columns = [
-                "first_name TEXT DEFAULT ''",
-                "last_name TEXT DEFAULT ''",
-                "title TEXT DEFAULT ''",
-                "year TEXT DEFAULT ''",
-                "subject TEXT DEFAULT ''",
-                "user_id TEXT",
-            ]
-            for col_def in migration_columns:
-                try:
-                    cursor.execute(f"ALTER TABLE documents ADD COLUMN {col_def}")
-                except sqlite3.OperationalError:
-                    pass  # Column already exists
-
-            # Add is_admin column to users table if it doesn't exist
-            try:
-                cursor.execute(
-                    "ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0"
-                )
-            except sqlite3.OperationalError:
-                pass  # Column already exists
-
-            # Add theme column to users table if it doesn't exist
-            try:
-                cursor.execute("ALTER TABLE users ADD COLUMN theme TEXT DEFAULT NULL")
-            except sqlite3.OperationalError:
-                pass  # Column already exists
-
-            # Create annotations table
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS annotations (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    doc_id TEXT NOT NULL,
-                    page_number INTEGER NOT NULL,
-                    note_text TEXT DEFAULT '',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE,
-                    UNIQUE(doc_id, page_number)
-                )
-            """
-            )
-
-            # Create indices for performance
-            cursor.execute(
-                """
-                CREATE INDEX IF NOT EXISTS idx_annotations_doc_id
-                ON annotations(doc_id)
-            """
-            )
-
-            cursor.execute(
-                """
-                CREATE INDEX IF NOT EXISTS idx_annotations_page
-                ON annotations(doc_id, page_number)
-            """
-            )
-
-            cursor.execute(
-                """
-                CREATE INDEX IF NOT EXISTS idx_annotations_updated_at
-                ON annotations(updated_at)
-            """
-            )
-
-            # Create trigger for automatic updated_at
-            cursor.execute(
-                """
-                CREATE TRIGGER IF NOT EXISTS update_annotation_timestamp
-                AFTER UPDATE ON annotations
-                FOR EACH ROW
-                BEGIN
-                    UPDATE annotations
-                    SET updated_at = CURRENT_TIMESTAMP
-                    WHERE id = NEW.id;
-                END
-            """
-            )
+            apply_migrations(conn)
 
     def create_document(
         self,
@@ -837,3 +716,127 @@ class DatabaseManager:
                 return bool(cursor.rowcount > 0)
         except sqlite3.Error:
             return False
+
+    # --- Background jobs -------------------------------------------------
+
+    def create_job(self, job_type: str, doc_id: str, user_id: str) -> str:
+        """Insert a pending background job row and return its id."""
+        job_id = str(uuid4())
+        with self.get_connection() as conn:
+            conn.execute(
+                "INSERT INTO jobs (id, type, doc_id, user_id) VALUES (?, ?, ?, ?)",
+                (job_id, job_type, doc_id, user_id),
+            )
+        return job_id
+
+    def get_job(self, job_id: str) -> dict[str, Any] | None:
+        """Fetch a job row by id."""
+        with self.get_connection() as conn:
+            row = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
+            return dict(row) if row else None
+
+    def get_active_job(self, doc_id: str, job_type: str) -> dict[str, Any] | None:
+        """Fetch a pending/running job of the given type for a document."""
+        with self.get_connection() as conn:
+            row = conn.execute(
+                """
+                SELECT * FROM jobs
+                WHERE doc_id = ? AND type = ? AND status IN ('pending', 'running')
+                ORDER BY created_at DESC LIMIT 1
+                """,
+                (doc_id, job_type),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def mark_job_running(self, job_id: str) -> None:
+        """Transition a job to running and stamp started_at."""
+        with self.get_connection() as conn:
+            conn.execute(
+                """
+                UPDATE jobs
+                SET status = 'running', started_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (job_id,),
+            )
+
+    def finish_job(
+        self,
+        job_id: str,
+        status: str,
+        result_path: str | None = None,
+        result_json: str | None = None,
+        error: str | None = None,
+    ) -> None:
+        """Transition a job to a terminal status ('done' or 'error')."""
+        with self.get_connection() as conn:
+            conn.execute(
+                """
+                UPDATE jobs
+                SET status = ?, result_path = ?, result_json = ?, error = ?,
+                    finished_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (status, result_path, result_json, error, job_id),
+            )
+
+    def mark_stale_jobs_failed(self, older_than_seconds: int) -> int:
+        """
+        Flip pending/running jobs older than the cutoff to 'error'.
+
+        Recovers rows orphaned by a killed worker so clients stop polling.
+        Returns the number of jobs flipped.
+        """
+        with self.get_connection() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE jobs
+                SET status = 'error',
+                    error = 'Vorgang abgebrochen (Serverneustart oder Timeout)',
+                    finished_at = CURRENT_TIMESTAMP
+                WHERE status IN ('pending', 'running')
+                  AND created_at < datetime('now', ?)
+                """,
+                (f"-{int(older_than_seconds)} seconds",),
+            )
+            return int(cursor.rowcount)
+
+    def delete_finished_jobs(self, older_than_seconds: int) -> list[str]:
+        """
+        Delete done/error jobs older than the cutoff.
+
+        Returns the result_path values of the deleted rows so the caller
+        can remove the artifacts from disk.
+        """
+        with self.get_connection() as conn:
+            cutoff = f"-{int(older_than_seconds)} seconds"
+            rows = conn.execute(
+                """
+                SELECT result_path FROM jobs
+                WHERE status IN ('done', 'error')
+                  AND finished_at < datetime('now', ?)
+                """,
+                (cutoff,),
+            ).fetchall()
+            conn.execute(
+                """
+                DELETE FROM jobs
+                WHERE status IN ('done', 'error')
+                  AND finished_at < datetime('now', ?)
+                """,
+                (cutoff,),
+            )
+            return [row["result_path"] for row in rows if row["result_path"]]
+
+
+def get_db() -> DatabaseManager:
+    """
+    Return the application's DatabaseManager instance.
+
+    Created once per app in create_app() and stored in app.extensions,
+    so it always reflects the running app's DATABASE_PATH. Requires an
+    application context; background jobs receive the instance explicitly
+    instead of calling this.
+    """
+    db: DatabaseManager = current_app.extensions["db"]
+    return db

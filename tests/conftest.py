@@ -15,14 +15,6 @@ from pdf_annotator.app import create_app
 from pdf_annotator.models.database import DatabaseManager
 
 
-@pytest.fixture(autouse=True)
-def reset_db_singleton():
-    """Reset DatabaseManager singleton between tests."""
-    yield
-    DatabaseManager._instance = None
-    DatabaseManager._db_path = None
-
-
 @pytest.fixture()
 def app(tmp_path):
     """Create Flask app configured for testing."""
@@ -32,30 +24,23 @@ def app(tmp_path):
     export_folder.mkdir()
     db_path = tmp_path / "test.db"
 
-    # Reset singleton before creating app so it picks up our db_path
-    DatabaseManager._instance = None
-    DatabaseManager._db_path = None
-
-    app = create_app("testing")
-    app.config["UPLOAD_FOLDER"] = upload_folder
-    app.config["EXPORT_FOLDER"] = export_folder
-    app.config["DATABASE_PATH"] = db_path
-
-    # Isolate tests from any real AI provider config picked up from a
-    # developer's local .env (repo-root or data-dir) — tests that need
-    # specific values set them explicitly.
-    app.config["AI_PROVIDER"] = None
-    app.config["AI_MODEL"] = None
-    app.config["ANTHROPIC_API_KEY"] = None
-    app.config["OPENAI_API_KEY"] = None
-    app.config["OPENAI_BASE_URL"] = None
-
-    # Re-init DB with the file-based path (create_app used :memory:
-    # which doesn't work across connections)
-    DatabaseManager._instance = None
-    DatabaseManager._db_path = None
-    db = DatabaseManager(db_path)
-    db.init_db()
+    app = create_app(
+        "testing",
+        config_overrides={
+            "DATABASE_PATH": db_path,
+            "UPLOAD_FOLDER": upload_folder,
+            "EXPORT_FOLDER": export_folder,
+            "RENDER_CACHE_FOLDER": tmp_path / "cache",
+            # Isolate tests from any real AI provider config picked up
+            # from a developer's local .env (repo-root or data-dir) —
+            # tests that need specific values set them explicitly.
+            "AI_PROVIDER": None,
+            "AI_MODEL": None,
+            "ANTHROPIC_API_KEY": None,
+            "OPENAI_API_KEY": None,
+            "OPENAI_BASE_URL": None,
+        },
+    )
 
     yield app
 
@@ -64,6 +49,20 @@ def app(tmp_path):
 def client(app):
     """Flask test client."""
     return app.test_client()
+
+
+@pytest.fixture()
+def inline_jobs(monkeypatch):
+    """Run background jobs synchronously so tests can poll immediately
+    after submitting and see a terminal status."""
+
+    class InlineExecutor:
+        def submit(self, fn, *args, **kwargs):
+            fn(*args, **kwargs)
+
+    monkeypatch.setattr(
+        "pdf_annotator.services.jobs._get_executor", lambda: InlineExecutor()
+    )
 
 
 @pytest.fixture()

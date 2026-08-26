@@ -8,7 +8,7 @@ from pathlib import Path
 
 import fitz
 
-from pdf_annotator.models.database import DatabaseManager
+from pdf_annotator.models.database import get_db
 from pdf_annotator.services.pdf_generator import (
     add_annotation_to_page,
     calculate_footer_rect,
@@ -155,7 +155,7 @@ class TestCreateAnnotatedPdf:
 
     def test_create_annotated_pdf_nonexistent_doc(self, app):
         with app.app_context():
-            db = DatabaseManager()
+            db = get_db()
 
             from pdf_annotator.services.pdf_generator import create_annotated_pdf
 

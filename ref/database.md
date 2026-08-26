@@ -2,6 +2,8 @@
 
 ## Schema
 
+Versioned via `PRAGMA user_version`: `models/migrations.py` holds a `MIGRATIONS` list (`_m001_baseline` = users/documents/annotations + indices + trigger, `_m002_jobs` = jobs table). `init_db()` calls `apply_migrations(conn)`, which runs the pending entries in order and stamps the version after each step. The baseline is idempotent (IF NOT EXISTS / try-ALTER) so pre-versioning databases converge. New schema changes are added as a new function appended to `MIGRATIONS` — never by editing an existing one.
+
 ### `users`
 ```sql
 CREATE TABLE users (
@@ -53,11 +55,30 @@ CREATE TABLE annotations (
 
 **Trigger:** `update_annotation_timestamp` — sets `updated_at = CURRENT_TIMESTAMP` on any annotation UPDATE.
 
+### `jobs`
+```sql
+CREATE TABLE jobs (
+    id TEXT PRIMARY KEY,           -- UUID
+    type TEXT NOT NULL,            -- 'ocr' | 'export_pdf'
+    doc_id TEXT NOT NULL,          -- FK → documents.id CASCADE DELETE
+    user_id TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',  -- pending|running|done|error
+    result_path TEXT,              -- artifact on disk (export PDF)
+    result_json TEXT,              -- remaining runner result as JSON
+    error TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    started_at TIMESTAMP,
+    finished_at TIMESTAMP
+)
+```
+
+**Indices:** `idx_jobs_doc_type_status` ON `jobs(doc_id, type, status)`, `idx_jobs_status` ON `jobs(status)`.
+
 ## DatabaseManager
 
-Singleton (`__new__` + threading.Lock). Import: `from pdf_annotator.models.database import DatabaseManager`.
+**No longer a singleton.** One instance per application: `create_app()` builds `DatabaseManager(app.config["DATABASE_PATH"])` and stores it in `app.extensions["db"]`. Fetch it with `get_db()` (requires an application context); background job runners receive the instance explicitly in their closure instead of calling `get_db()`. Instances are cheap and thread-safe — every operation opens its own connection, so a background thread may share an instance with request handlers.
 
-**Instantiation:** `DatabaseManager(db_path)` — only the first call sets `_db_path`. All subsequent calls ignore `db_path`.
+Import: `from pdf_annotator.models.database import DatabaseManager, get_db`.
 
 ### Connection
 
@@ -67,7 +88,7 @@ with db.get_connection() as conn:
 ```
 
 - Opens fresh SQLite connection per call
-- Sets `PRAGMA foreign_keys = ON` and `PRAGMA journal_mode=WAL`
+- Sets `PRAGMA foreign_keys = ON`, `PRAGMA journal_mode=WAL`, `PRAGMA busy_timeout = 10000` (wait instead of "database is locked" when another worker/thread holds the write lock), `PRAGMA synchronous = NORMAL` (safe with WAL, faster than FULL)
 - Commits on exit, rollbacks on `sqlite3.Error`, always closes
 - WAL mode is persistent in the DB file header after first set
 
@@ -112,10 +133,23 @@ with db.get_connection() as conn:
 | `delete_user(user_id)` | `bool` | Cascades to documents + annotations |
 | `count_users()` | `int` | |
 | `count_admins()` | `int` | Used to protect last-admin |
+| `update_password(user_id, password_hash)` | `bool` | |
 | `set_user_theme(user_id, theme)` | `bool` | |
+
+#### Background jobs
+
+| Method | Returns | Notes |
+|---|---|---|
+| `create_job(job_type, doc_id, user_id)` | `str` (job_id UUID) | Inserts a `pending` row |
+| `get_job(job_id)` | `dict \| None` | |
+| `get_active_job(doc_id, job_type)` | `dict \| None` | Latest `pending`/`running` job of that type for the document — used for the duplicate-OCR 409 guard |
+| `mark_job_running(job_id)` | `None` | Sets status + `started_at` |
+| `finish_job(job_id, status, result_path=None, result_json=None, error=None)` | `None` | Terminal status `'done'` or `'error'`, stamps `finished_at` |
+| `mark_stale_jobs_failed(older_than_seconds)` | `int` | Flips orphaned `pending`/`running` jobs to `error` (cleanup thread) |
+| `delete_finished_jobs(older_than_seconds)` | `list[str]` | Deletes old `done`/`error` rows, returns their `result_path`s so the caller can unlink artifacts |
 
 ## Testing Notes
 
 - Tests use `:memory:` DB via `TestingConfig`
-- Fixtures inject db via `app` fixture parameter — never instantiate `DatabaseManager()` directly in tests (singleton issue)
+- Fixtures inject db via the `app` fixture (`create_app` stores the instance in `app.extensions["db"]`); use `get_db()` inside an app context rather than instantiating `DatabaseManager()` ad hoc
 - No nested app contexts in tests

@@ -11,13 +11,13 @@ Eine Flask-basierte Web-Applikation zum Annotieren von PDF-Dokumenten mit Side-b
 - **PDF ersetzen:** PDF-Datei austauschen, alle Notizen bleiben erhalten
 - **Metadaten:** Vorname, Nachname, Titel, Jahr, Thema pro Dokument
 - **Export-Funktionen:**
-  - **Annotiertes PDF:** Original-PDF mit Notizen in gruener Courier-Schrift + Zeitstempel
+  - **Annotiertes PDF:** Original-PDF mit Notizen in gruener Courier-Schrift + Zeitstempel (laeuft als Hintergrund-Job mit Fortschritts-Polling)
   - **Markdown-Export:** Alle Notizen als strukturiertes Markdown-Dokument
 - **Zoom:** Stufenweises Zoomen (50%-200%) und Breitenanpassung
 - **Text markieren/kopieren:** PDF-Seiten haben eine unsichtbare Textebene, Text lässt sich wie in einem normalen Browser markieren und kopieren
 - **KI-Assistent (optional, deaktiviert per Default):** Notiztext mit freier Anweisung bearbeiten oder aus Stichpunkten generieren lassen ("✨ KI"), oder aus markiertem PDF-Text eine Notiz formulieren lassen ("✨ KI aus PDF"). Unterstützt Anthropic, OpenAI oder jeden OpenAI-kompatiblen Endpunkt (z.B. selbstgehostete Uni-Gateways)
 - **Bibliothekssuche ("🔎 SWB-Suche"):** Markierten PDF-Text direkt in deutschen Bibliothekskatalogen (SWB/K10plus/DNB/...) nachschlagen — öffnet die Treffer in einem neuen Tab, immer aktiv, kein Setup noetig
-- **OCR fuer gescannte Dokumente:** Erkennt Seiten ohne Textebene automatisch (Hinweis im Viewer) und fuegt per Klick eine durchsuchbare Textebene hinzu (tesseract erforderlich; im Docker-Image enthalten)
+- **OCR fuer gescannte Dokumente:** Erkennt Seiten ohne Textebene automatisch (Hinweis im Viewer) und fuegt per Klick eine durchsuchbare Textebene hinzu (tesseract erforderlich; im Docker-Image enthalten). Laeuft als Hintergrund-Job mit Fortschritts-Polling — der Viewer bleibt waehrenddessen bedienbar
 - **Ansicht-Umschalter:** PDF-Fokus / geteilte Ansicht / Notizen-Fokus fuer bessere Lesbarkeit, Einstellung bleibt erhalten
 - **Themes:** Light, Dark, Brutalist und Kompakt (platzsparend, maximale Flaeche fuer PDF und Notizen) — Einstellung wird pro Account serverseitig gespeichert
 - **Multi-User:** Registrierung und Login mit eigenem Dokumenten-Bereich
@@ -51,11 +51,14 @@ Die App ist unter `http://localhost:8000` erreichbar.
 
 > **Hinweis zum Produktionsbetrieb:** Im Container laeuft die App bereits
 > hinter **Gunicorn** (kein Flask-Dev-Server, siehe `Dockerfile`;
-> Worker-Anzahl via `GUNICORN_WORKERS`, Timeout via `GUNICORN_TIMEOUT`).
+> Worker-Anzahl via `GUNICORN_WORKERS`, Timeout via `GUNICORN_TIMEOUT`,
+> Standard 120 s — lange Vorgaenge wie OCR und PDF-Export laufen als
+> Hintergrund-Jobs und brauchen keinen hoeheren Timeout mehr).
 > Der Container terminiert aber **kein TLS** und sollte nicht direkt im
 > Internet exponiert werden — fuer den oeffentlichen Betrieb einen
 > **Reverse Proxy** (nginx, Caddy oder Traefik) davorschalten, der HTTPS
-> uebernimmt und `X-Forwarded-Proto` setzt (nginx-Beispiel siehe unten,
+> uebernimmt und `X-Forwarded-Proto` setzt, und in der App
+> `PDF_ANNOTATOR_BEHIND_PROXY=1` setzen (nginx-Beispiel siehe unten,
 > Abschnitt "Reverse Proxy").
 
 ### Persistenz
@@ -72,8 +75,13 @@ Umgebungsvariablen in einer `.env`-Datei oder direkt in der Shell:
 
 | Variable | Pflicht | Standard | Beschreibung |
 |---|---|---|---|
-| `SECRET_KEY` | **Ja** | — | Flask Session-Key (min. 32 zufaellige Bytes) |
+| `SECRET_KEY` | **Ja**¹ | — | Flask Session-Key (min. 32 zufaellige Bytes) |
+| `PDF_ANNOTATOR_BEHIND_PROXY` | Nein | — | `1` = App laeuft hinter einem TLS-terminierenden Reverse Proxy: aktiviert ProxyFix (`X-Forwarded-For/Proto/Host`, 1 Hop), Secure-Cookies, HSTS und https-URLs — und macht `SECRET_KEY` **zwingend** (harter Startfehler, falls nicht gesetzt) |
+| `PDF_ANNOTATOR_REGISTRATION` | Nein | `1` | `0` = Selbstregistrierung deaktivieren (der allererste Benutzer darf sich immer registrieren, damit der Admin-Account angelegt werden kann) |
+| `PDF_ANNOTATOR_INVITE_CODE` | Nein | — | Falls gesetzt: Registrierung nur mit diesem Einladungscode moeglich |
+| `RATELIMIT_STORAGE_URI` | Nein | `memory://` | Storage fuer Flask-Limiter. `memory://` ist pro Worker-Prozess (Limits multiplizieren sich mit der Worker-Anzahl und werden bei Neustart zurueckgesetzt); alternativ z.B. `redis://host:6379` |
 | `GUNICORN_WORKERS` | Nein | `2` | Anzahl Gunicorn Worker-Prozesse |
+| `GUNICORN_TIMEOUT` | Nein | `120` | Gunicorn Request-Timeout in Sekunden (OCR und PDF-Export laufen als Hintergrund-Jobs, ein hoher Timeout ist nicht mehr noetig) |
 | `AI_PROVIDER` | Nein | — (Funktion deaktiviert) | `anthropic` oder `openai` — aktiviert den KI-Assistenten im Notizfeld |
 | `AI_MODEL` | Nein | Provider-Default (`claude-haiku-4-5` / `gpt-4o-mini`) | Modell-Override |
 | `ANTHROPIC_API_KEY` | Falls `AI_PROVIDER=anthropic` | — | Anthropic API-Key |
@@ -81,6 +89,12 @@ Umgebungsvariablen in einer `.env`-Datei oder direkt in der Shell:
 | `OPENAI_BASE_URL` | Nein | `api.openai.com` | Alternativer OpenAI-kompatibler Endpunkt (z.B. ein Uni-Gateway) |
 
 Empfohlene Worker-Anzahl: `2 * CPU-Kerne + 1`.
+
+¹ **`SECRET_KEY`:** Mit `PDF_ANNOTATOR_BEHIND_PROXY=1` zwingend erforderlich
+(die App startet sonst nicht). Ohne das Flag (Desktop-App, Standalone-Server)
+wird bei fehlendem `SECRET_KEY` automatisch ein Key generiert und unter
+`<data_dir>/secret_key` (Rechte 0600) persistiert — Sessions ueberleben so
+Neustarts, und alle Gunicorn-Worker teilen sich den Key ueber das Daten-Volume.
 
 **Hinweis:** Ist `AI_PROVIDER` gesetzt, werden Notiztext und Anweisungen bei Nutzung des KI-Assistenten an den konfigurierten Drittanbieter gesendet — Datenschutz-relevant, daher standardmaessig deaktiviert.
 
@@ -98,7 +112,13 @@ docker compose up -d
 
 ### Reverse Proxy (nginx)
 
-Fuer HTTPS-Betrieb hinter nginx:
+Fuer HTTPS-Betrieb hinter nginx. In der App dazu `PDF_ANNOTATOR_BEHIND_PROXY=1`
+setzen — damit vertraut sie den `X-Forwarded-*`-Headern (ProxyFix, 1 Hop),
+setzt Session-Cookies mit `Secure`-Flag, sendet HSTS und erzeugt https-URLs.
+Achtung: Mit diesem Flag muss `SECRET_KEY` gesetzt sein, sonst bricht der
+Start mit einem Fehler ab. Empfehlung fuer oeffentlich erreichbare Instanzen:
+nach dem Anlegen der benoetigten Accounts `PDF_ANNOTATOR_REGISTRATION=0`
+setzen und/oder einen `PDF_ANNOTATOR_INVITE_CODE` vergeben.
 
 ```nginx
 server {
@@ -237,15 +257,20 @@ pdfAnnotater/
 ├── src/pdf_annotator/
 │   ├── app.py                  # Flask App Factory
 │   ├── config.py               # Konfiguration (Dev/Prod/Test), .env-Loading
+│   ├── forms.py                # Flask-WTF Formulare (Login/Registrierung/Passwort)
 │   ├── desktop.py              # Desktop-App Entry Point (flaskwebgui)
 │   │
 │   ├── models/
-│   │   ├── database.py         # SQLite Schema & CRUD
+│   │   ├── database.py         # SQLite CRUD (DatabaseManager, get_db)
+│   │   ├── migrations.py       # Versionierte Schema-Migrationen (PRAGMA user_version)
 │   │   └── user.py             # User-Modell (Flask-Login)
 │   │
 │   ├── services/
 │   │   ├── pdf_processor.py    # PDF → PNG Rendering + Text-Layer-Extraktion
 │   │   ├── pdf_generator.py    # Annotiertes PDF erstellen
+│   │   ├── render_cache.py     # Disk-Cache fuer Seiten-Renderings/Text-Layouts
+│   │   ├── jobs.py             # Hintergrund-Jobs (OCR, PDF-Export)
+│   │   ├── cleanup.py          # Periodische Wartung (Exports, Jobs, Cache)
 │   │   ├── ocr.py              # OCR via ocrmypdf/tesseract
 │   │   ├── ai_client.py        # KI-Assistent (Anthropic/OpenAI)
 │   │   ├── swb_client.py       # Bibliothekskatalog-Suche (swb)
@@ -254,11 +279,12 @@ pdfAnnotater/
 │   │   └── markdown_exporter.py
 │   │
 │   ├── routes/
+│   │   ├── _helpers.py         # Gemeinsame Route-Helper (Ownership, Fehler, JSON)
 │   │   ├── auth.py             # Login, Registrierung, Passwort-aendern, Theme
 │   │   ├── admin.py            # Admin Panel (Benutzerverwaltung)
 │   │   ├── upload.py           # PDF-Upload, Delete, Backup-Export/Import
-│   │   ├── viewer.py           # Viewer, Annotations-, Text-Layer- & OCR-API
-│   │   ├── export.py           # PDF-/Markdown-/Original-Export
+│   │   ├── viewer.py           # Viewer, Annotations-, Text-Layer-, OCR- & Job-Status-API
+│   │   ├── export.py           # PDF-/Markdown-/Original-Export + Job-Download
 │   │   ├── ai.py               # KI-Textbearbeitung
 │   │   └── swb.py              # Bibliothekssuche
 │   │
@@ -326,7 +352,26 @@ CREATE TABLE annotations (
     FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE,
     UNIQUE(doc_id, page_number)
 );
+
+CREATE TABLE jobs (                 -- Hintergrund-Jobs (OCR, PDF-Export)
+    id TEXT PRIMARY KEY,            -- UUID4
+    type TEXT NOT NULL,             -- 'ocr' | 'export_pdf'
+    doc_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',  -- pending|running|done|error
+    result_path TEXT,
+    result_json TEXT,
+    error TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    started_at TIMESTAMP,
+    finished_at TIMESTAMP,
+    FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE
+);
 ```
+
+Das Schema ist ueber `PRAGMA user_version` versioniert (siehe
+`src/pdf_annotator/models/migrations.py`); `init_db()` migriert bestehende
+Datenbanken automatisch.
 
 ---
 
@@ -357,15 +402,17 @@ CREATE TABLE annotations (
 - `POST /viewer/api/metadata/<doc_id>` - Metadaten aktualisieren
 - `POST /viewer/api/replace/<doc_id>` - PDF ersetzen
 - `POST /viewer/api/append/<doc_id>` - Seiten aus anderer PDF anhaengen
-- `POST /viewer/api/ocr/<doc_id>` - OCR ausfuehren (Textebene fuer gescannte Dokumente)
+- `POST /viewer/api/ocr/<doc_id>` - OCR als Hintergrund-Job starten (Textebene fuer gescannte Dokumente); antwortet `202` + `{job_id}`, `409` falls fuer das Dokument bereits ein OCR-Job laeuft
+- `GET /viewer/api/jobs/<job_id>` - Status eines Hintergrund-Jobs abfragen (`pending|running|done|error`)
 - `POST /viewer/api/ai/text` - KI-Textbearbeitung/-generierung (nur falls `AI_PROVIDER` konfiguriert)
 
 ### Bibliothekssuche
 - `GET /swb/search` - Bibliothekskatalog-Suche (rendert HTML-Ergebnisseite, `?q=<suchtext>`)
 
 ### Export
-- `POST /export/pdf/<doc_id>` - Annotiertes PDF
-- `POST /export/markdown/<doc_id>` - Markdown-Datei
+- `POST /export/pdf/<doc_id>` - Annotiertes PDF als Hintergrund-Job erzeugen; antwortet `202` + `{job_id}` (Status via `GET /viewer/api/jobs/<job_id>`)
+- `GET /export/download/<job_id>` - Fertiges Export-PDF herunterladen (`409`, solange der Job noch laeuft)
+- `POST /export/markdown/<doc_id>` - Markdown-Datei (synchron)
 - `GET /export/original/<doc_id>` - Original-PDF
 
 ### Admin

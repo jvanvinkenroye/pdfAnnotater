@@ -1,6 +1,6 @@
 # API Reference
 
-All endpoints require login (`@login_required`) unless noted. CSRF token required for all POST/DELETE via `X-CSRFToken` header or form field (except `save_annotation` which is CSRF-exempt).
+All endpoints require login (`@login_required`) unless noted. CSRF token required for all POST/DELETE via `X-CSRFToken` header or form field — including `save_annotation` (no longer CSRF-exempt: the unload-save uses `fetch` with `keepalive: true` + `X-CSRFToken` on `pagehide` instead of `sendBeacon`).
 
 ## Auth — `/auth`
 
@@ -9,8 +9,8 @@ All endpoints require login (`@login_required`) unless noted. CSRF token require
 | GET | `/auth/login` | — | Login page |
 | POST | `/auth/login` | — | Submit credentials; rate-limited 5/min |
 | GET | `/auth/logout` | ✓ | Logout |
-| GET | `/auth/register` | — | Registration page |
-| POST | `/auth/register` | — | Create account (first user becomes admin) |
+| GET | `/auth/register` | — | Registration page; 403 when `PDF_ANNOTATOR_REGISTRATION=0` (unless no user exists yet) |
+| POST | `/auth/register` | — | Create account (first user becomes admin; first user may always register even when self-registration is disabled). With `PDF_ANNOTATOR_INVITE_CODE` set, a matching invite code is required. Forms are Flask-WTF (`forms.py`); messages/status codes unchanged |
 | GET | `/auth/change-password` | ✓ | Change-password page |
 | POST | `/auth/change-password` | ✓ | Verify current password, set new one (min. 8 chars) |
 | POST | `/auth/theme` | ✓ | Save dark/light theme; rate-limited 30/min |
@@ -35,11 +35,12 @@ All endpoints require login (`@login_required`) unless noted. CSRF token require
 | GET | `/viewer/api/page/<doc_id>/<page>` | ✓ | Render page as PNG; rate-limited 60/min |
 | GET | `/viewer/api/page/<doc_id>/<page>/text` | ✓ | Word bounding boxes for the selectable text overlay |
 | GET | `/viewer/api/annotation/<doc_id>/<page>` | ✓ | Get annotation JSON |
-| POST | `/viewer/api/annotation/<doc_id>/<page>` | ✓ | Save annotation (CSRF-exempt, sendBeacon) |
+| POST | `/viewer/api/annotation/<doc_id>/<page>` | ✓ | Save annotation (CSRF-protected like everything else) |
 | POST | `/viewer/api/metadata/<doc_id>` | ✓ | Update document metadata |
 | POST | `/viewer/api/replace/<doc_id>` | ✓ | Replace PDF file (keeps annotations) |
 | POST | `/viewer/api/append/<doc_id>` | ✓ | Append pages from another PDF |
-| POST | `/viewer/api/ocr/<doc_id>` | ✓ | Run OCR (add text layer to scanned docs); rate-limited 3/min; 501 if tesseract missing |
+| POST | `/viewer/api/ocr/<doc_id>` | ✓ | Start OCR as a background job → **202** `{"success": true, "job_id": ...}`; **409** if an OCR job is already pending/running for this document; rate-limited 3/min; 501 if tesseract missing |
+| GET | `/viewer/api/jobs/<job_id>` | ✓ | Poll background job status (OCR, PDF export) → `{"status": "pending"\|"running"\|"done"\|"error", "error": str\|null, "result": {...}}`; 404 unknown job, 403 not owner |
 | DELETE | `/viewer/api/page/<doc_id>/<page>` | ✓ | Delete a page |
 
 ## Export — `/export`
@@ -47,8 +48,9 @@ All endpoints require login (`@login_required`) unless noted. CSRF token require
 | Method | Path | Auth | Description |
 |---|---|---|---|
 | GET | `/export/original/<doc_id>` | ✓ | Download original PDF |
-| POST | `/export/pdf/<doc_id>` | ✓ | Generate and download annotated PDF |
-| POST | `/export/markdown/<doc_id>` | ✓ | Generate and download Markdown notes |
+| POST | `/export/pdf/<doc_id>` | ✓ | Start annotated-PDF export as a background job → **202** `{"success": true, "job_id": ...}`; poll via `GET /viewer/api/jobs/<job_id>`, then fetch the file from `/export/download/<job_id>` |
+| GET | `/export/download/<job_id>` | ✓ | Download the finished export artifact (Desktop-Mode JSON supported); **409** while the job is still pending/running; 404 unknown job or vanished file; 403 not owner |
+| POST | `/export/markdown/<doc_id>` | ✓ | Generate and download Markdown notes (synchronous) |
 
 ## AI Assist — `/viewer/api/ai`
 
@@ -99,6 +101,6 @@ All admin routes require `@admin_required` (is_admin=1 in DB).
 **Ownership violation:** HTTP 403  
 **Not found:** HTTP 404  
 
-## Helper: `_get_doc_or_error(doc_id)`
+## Helper: `get_owned_document(doc_id)` (`routes/_helpers.py`)
 
-Used by all viewer API endpoints. Returns `(doc_info, None)` on success or `(None, error_tuple)` on failure. Validates UUID, checks document exists, checks ownership against `current_user.id`.
+Used by all document-bound endpoints. Validates the UUID, fetches the document, and verifies ownership against `current_user.id` — or aborts with 400 (invalid id), 404 (unknown document), or 403 (owned by someone else). The app-level 400/403/404 handlers render the abort as JSON for API paths (see `wants_json()`) or as the HTML error page for browser requests. `handle_errors(...)` (same module) replaces per-route try/except blocks: HTTPExceptions pass through to the app handlers, anything else is logged and answered as 500.

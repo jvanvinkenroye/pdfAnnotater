@@ -171,6 +171,7 @@ def create_annotated_pdf(
     font_name: str = "courier",
     font_size: float = 9,
     font_color: tuple[float, float, float] = (0, 0.5, 0),
+    upload_folder: Path | None = None,
 ) -> bool:
     """
     Create annotated PDF with all notes from database.
@@ -185,12 +186,16 @@ def create_annotated_pdf(
         font_name: Font for annotations (default: "courier")
         font_size: Font size in points (default: 9)
         font_color: RGB color tuple (0-1 range, default: green)
+        upload_folder: Base folder the source PDF must live in (path
+            traversal check). Defaults to the app config's UPLOAD_FOLDER;
+            background-job callers must pass it explicitly because they
+            run outside the application context.
 
     Returns:
         bool: True if successful, False otherwise
 
     Example:
-        db = DatabaseManager()
+        db = get_db()
         success = create_annotated_pdf(
             "abc-123",
             Path("output_annotated.pdf"),
@@ -214,7 +219,8 @@ def create_annotated_pdf(
         original_path = Path(doc_info["file_path"])
 
         # Validate path to prevent path traversal attacks
-        upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
+        if upload_folder is None:
+            upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
         is_valid, error_msg = validate_file_path(original_path, upload_folder)
         if not is_valid:
             logger.error(f"Path traversal attempt blocked: {original_path}")

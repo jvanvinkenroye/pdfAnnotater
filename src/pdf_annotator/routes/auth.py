@@ -4,14 +4,29 @@ Authentication routes for login, logout, and registration.
 Provides endpoints for user authentication and session management.
 """
 
+import secrets
 import sqlite3
 
-from flask import Blueprint, jsonify, redirect, render_template, request, url_for
+from flask import (
+    Blueprint,
+    current_app,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 from flask.typing import ResponseReturnValue
 from flask_login import current_user, login_required, login_user, logout_user
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from pdf_annotator.models.database import DatabaseManager
+from pdf_annotator.forms import (
+    ChangePasswordForm,
+    LoginForm,
+    RegisterForm,
+    _first_error,
+)
+from pdf_annotator.models.database import get_db
 from pdf_annotator.models.user import User
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
@@ -33,18 +48,14 @@ def login_post() -> ResponseReturnValue:
     Returns:
         Redirect to documents page on success, or re-render login with error
     """
-    username = request.form.get("username", "").strip()
-    password = request.form.get("password", "")
+    form = LoginForm()
+    if not form.validate_on_submit():
+        return render_template("auth/login.html", error=_first_error(form)), 400
 
-    if not username or not password:
-        return (
-            render_template(
-                "auth/login.html", error="Benutzername und Passwort erforderlich."
-            ),
-            400,
-        )
+    username = form.username.data or ""
+    password = form.password.data or ""
 
-    db = DatabaseManager()
+    db = get_db()
     user_data = db.get_user_by_username(username)
 
     if not user_data or not check_password_hash(user_data["password_hash"], password):
@@ -81,9 +92,36 @@ def logout() -> ResponseReturnValue:
     return redirect(url_for("auth.login"))
 
 
+def _registration_blocked() -> ResponseReturnValue | None:
+    """
+    Return a 403 response when self-registration is disabled.
+
+    The very first user may always register (a locked-down fresh install
+    still needs its initial admin account).
+    """
+    if current_app.config.get("REGISTRATION_ENABLED", True):
+        return None
+    db = get_db()
+    if db.count_users() == 0:
+        return None
+    return (
+        render_template(
+            "auth/register.html",
+            error=(
+                "Die Registrierung ist deaktiviert. "
+                "Bitte wenden Sie sich an den Administrator."
+            ),
+        ),
+        403,
+    )
+
+
 @auth_bp.route("/register", methods=["GET"])
 def register() -> ResponseReturnValue:
     """Display registration form."""
+    blocked = _registration_blocked()
+    if blocked:
+        return blocked
     return render_template("auth/register.html")
 
 
@@ -97,59 +135,28 @@ def register_post() -> ResponseReturnValue:
     Returns:
         Redirect to documents page on success, or re-render register with error
     """
-    username = request.form.get("username", "").strip()
-    email = request.form.get("email", "").strip()
-    password = request.form.get("password", "")
-    password_confirm = request.form.get("password_confirm", "")
+    blocked = _registration_blocked()
+    if blocked:
+        return blocked
 
-    # Validation
-    if not username or not email or not password:
+    form = RegisterForm()
+    if not form.validate_on_submit():
+        return render_template("auth/register.html", error=_first_error(form)), 400
+
+    invite_code = current_app.config.get("REGISTRATION_INVITE_CODE")
+    if invite_code and not secrets.compare_digest(
+        form.invite_code.data or "", invite_code
+    ):
         return (
-            render_template(
-                "auth/register.html",
-                error="Alle Felder erforderlich.",
-            ),
-            400,
+            render_template("auth/register.html", error="Ungültiger Einladungscode."),
+            403,
         )
 
-    if len(username) < 3 or len(username) > 50:
-        return (
-            render_template(
-                "auth/register.html",
-                error="Benutzername muss zwischen 3 und 50 Zeichen lang sein.",
-            ),
-            400,
-        )
+    username = form.username.data or ""
+    email = form.email.data or ""
+    password = form.password.data or ""
 
-    if len(password) < 8:
-        return (
-            render_template(
-                "auth/register.html",
-                error="Passwort muss mindestens 8 Zeichen lang sein.",
-            ),
-            400,
-        )
-
-    if password != password_confirm:
-        return (
-            render_template(
-                "auth/register.html",
-                error="Passwörter stimmen nicht überein.",
-            ),
-            400,
-        )
-
-    # Check if email format is valid (basic check)
-    if "@" not in email or "." not in email.split("@")[1]:
-        return (
-            render_template(
-                "auth/register.html",
-                error="Ungültige E-Mail-Adresse.",
-            ),
-            400,
-        )
-
-    db = DatabaseManager()
+    db = get_db()
 
     # Check if username already exists
     if db.get_user_by_username(username):
@@ -204,15 +211,15 @@ def change_password_post() -> ResponseReturnValue:
     Returns:
         Redirect to documents page on success, or re-render form with error
     """
-    current_password = request.form.get("current_password", "")
-    new_password = request.form.get("new_password", "")
-    new_password_confirm = request.form.get("new_password_confirm", "")
+    form = ChangePasswordForm()
 
-    db = DatabaseManager()
+    # Verify the current password before any format validation, matching
+    # the previous behavior (wrong current password wins with a 401).
+    db = get_db()
     user_data = db.get_user_by_id(current_user.id)
 
     if not user_data or not check_password_hash(
-        user_data["password_hash"], current_password
+        user_data["password_hash"], form.current_password.data or ""
     ):
         return (
             render_template(
@@ -222,25 +229,15 @@ def change_password_post() -> ResponseReturnValue:
             401,
         )
 
-    if len(new_password) < 8:
+    if not form.validate_on_submit():
         return (
-            render_template(
-                "auth/change_password.html",
-                error="Neues Passwort muss mindestens 8 Zeichen lang sein.",
-            ),
+            render_template("auth/change_password.html", error=_first_error(form)),
             400,
         )
 
-    if new_password != new_password_confirm:
-        return (
-            render_template(
-                "auth/change_password.html",
-                error="Neue Passwörter stimmen nicht überein.",
-            ),
-            400,
-        )
-
-    db.update_password(current_user.id, generate_password_hash(new_password))
+    db.update_password(
+        current_user.id, generate_password_hash(form.new_password.data or "")
+    )
 
     return render_template(
         "auth/change_password.html", success="Passwort erfolgreich geändert."
@@ -259,6 +256,6 @@ def set_theme() -> ResponseReturnValue:
     theme = data.get("theme")
     if theme not in ("light", "dark", "brutalist", "compact"):
         return jsonify({"error": "Ungültiges Theme"}), 400
-    db = DatabaseManager()
+    db = get_db()
     db.set_user_theme(current_user.id, theme)
     return jsonify({"success": True})

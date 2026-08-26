@@ -899,12 +899,22 @@
         saveNote(true); // Immediate save
     });
 
-    // Save before page unload using sendBeacon for reliability
-    window.addEventListener('beforeunload', function(e) {
+    // Save before page unload. fetch with keepalive survives the page
+    // teardown like sendBeacon, but can carry the CSRF header sendBeacon
+    // cannot. pagehide fires more reliably than beforeunload (bfcache).
+    window.addEventListener('pagehide', function() {
         if (noteField.value.trim() !== '') {
             const saveUrl = `/viewer/api/annotation/${docId}/${currentPage}`;
             const data = JSON.stringify({ note_text: noteField.value });
-            navigator.sendBeacon(saveUrl, new Blob([data], { type: 'application/json' }));
+            fetch(saveUrl, {
+                method: 'POST',
+                keepalive: true,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: data
+            });
         }
     });
 
@@ -1006,6 +1016,7 @@
                     }
                     return response.json();
                 })
+                .then(data => pollJob(data.job_id))
                 .then(() => {
                     showToast('Texterkennung abgeschlossen.', 'success');
                     noTextHint.style.display = 'none';
